@@ -33,26 +33,27 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const checkUserAuth = useCallback(async () => {
+  const checkUserAuth = useCallback(async (options = {}) => {
+    const silent = options.silent === true;
     try {
-      setIsLoadingAuth(true);
+      if (!silent) setIsLoadingAuth(true);
       setAuthError(null);
       const currentUser = await base44.auth.me();
       if (!currentUser) {
         setUser(null);
         setIsAuthenticated(false);
-        setIsLoadingAuth(false);
+        if (!silent) setIsLoadingAuth(false);
         setAuthChecked(true);
         return;
       }
       setUser(currentUser);
       setIsAuthenticated(true);
       await refreshAppSettings();
-      setIsLoadingAuth(false);
+      if (!silent) setIsLoadingAuth(false);
       setAuthChecked(true);
     } catch (error) {
       console.error('User auth check failed:', error);
-      setIsLoadingAuth(false);
+      if (!silent) setIsLoadingAuth(false);
       setIsAuthenticated(false);
       setAuthChecked(true);
       setAuthError({
@@ -87,7 +88,8 @@ export const AuthProvider = ({ children }) => {
     if (!isSupabaseConfigured) return undefined;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        void checkUserAuth();
+        // Không bật isLoadingAuth — khi quay lại tab Supabase hay TOKEN_REFRESHED, tránh full-screen "Đang tải".
+        void checkUserAuth({ silent: true });
       }
     });
     return () => subscription.unsubscribe();

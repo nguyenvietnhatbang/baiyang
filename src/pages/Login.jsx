@@ -72,7 +72,7 @@ export default function Login() {
       if (looksLikeEmail(idRaw)) {
         await base44.auth.signInWithPassword(idRaw, password);
         base44.auth.clearDevLoggedOutFlag();
-        await checkUserAuth();
+        await checkUserAuth({ silent: true });
         const me = await base44.auth.me();
         if (isFieldRole(me?.role)) {
           navigate('/field', { replace: true });
@@ -88,12 +88,12 @@ export default function Login() {
         }
         await base44.auth.signInWithFieldAccount(norm, password);
         base44.auth.clearDevLoggedOutFlag();
-        await checkUserAuth();
+        await checkUserAuth({ silent: true });
         const me = await base44.auth.me();
         if (!isFieldRole(me?.role)) {
           setError('Tài khoản này không có quyền hiện trường.');
           await base44.auth.signOut();
-          await checkUserAuth();
+          await checkUserAuth({ silent: true });
           setSubmitting(false);
           return;
         }
@@ -143,7 +143,7 @@ export default function Login() {
                 className="flex-1 border-teal-200/60 text-teal-50 bg-transparent hover:bg-white/10"
                 onClick={() => {
                   base44.auth.clearFieldSession();
-                  void checkUserAuth();
+                  void checkUserAuth({ silent: true });
                 }}
               >
                 Thoát phiên hiện trường
