@@ -28,7 +28,7 @@ export default function FieldScanPage() {
         toast.error('Không tìm thấy ao');
         return;
       }
-      navigate(`/field/log?pond=${encodeURIComponent(p.id)}`, { replace: true });
+      navigate(`/field/log?pond=${encodeURIComponent(p.id)}`);
     } catch {
       toast.error('Lỗi tra ao');
     }
