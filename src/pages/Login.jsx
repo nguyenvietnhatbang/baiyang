@@ -1,45 +1,33 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { base44, isSupabaseConfigured } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Fish, LogIn } from 'lucide-react';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { normalizeVnPhone, isFieldRole } from '@/lib/fieldAuthHelpers';
 
+function looksLikeEmail(s) {
+  const t = String(s).trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
+}
+
 export default function Login() {
   const { user, isAuthenticated, isLoadingAuth, isLoadingPublicSettings, checkUserAuth } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const from = location.state?.from || '/';
 
-  /** Mặc định: Hiện trường. Chỉ khi ?mode=office mới form email. */
-  const [mode, setMode] = useState(() => (searchParams.get('mode') === 'office' ? 'office' : 'field'));
-
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setMode(searchParams.get('mode') === 'office' ? 'office' : 'field');
-  }, [searchParams]);
-
-  const setLoginMode = (next) => {
-    setMode(next);
-    setError('');
-    setPassword('');
-    if (next === 'office') {
-      setSearchParams({ mode: 'office' }, { replace: true });
-    } else {
-      setSearchParams({}, { replace: true });
-    }
-  };
+    document.title = 'Đăng nhập';
+  }, []);
 
   if (!isSupabaseConfigured) {
     return (
@@ -71,56 +59,47 @@ export default function Login() {
     return <Navigate to={from} replace />;
   }
 
-  const handleOfficeSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!email.trim() || !password) {
-      setError('Nhập email và mật khẩu');
+    const idRaw = identifier.trim();
+    if (!idRaw || !password) {
+      setError('Nhập email hoặc số điện thoại và mật khẩu');
       return;
     }
     setSubmitting(true);
     try {
-      await base44.auth.signInWithPassword(email, password);
-      base44.auth.clearDevLoggedOutFlag();
-      await checkUserAuth();
-      const me = await base44.auth.me();
-      if (isFieldRole(me?.role)) {
-        navigate('/field', { replace: true });
-      } else {
-        navigate(from, { replace: true });
-      }
-    } catch (err) {
-      setError(formatSupabaseError(err));
-    }
-    setSubmitting(false);
-  };
-
-  const handleFieldSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    const norm = normalizeVnPhone(phone);
-    if (!norm || norm.length < 10) {
-      setError('Số điện thoại không hợp lệ');
-      return;
-    }
-    if (!password) {
-      setError('Nhập mật khẩu');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await base44.auth.signInWithFieldAccount(norm, password);
-      base44.auth.clearDevLoggedOutFlag();
-      await checkUserAuth();
-      const me = await base44.auth.me();
-      if (!isFieldRole(me?.role)) {
-        setError('Không có quyền truy cập');
-        await base44.auth.signOut();
+      if (looksLikeEmail(idRaw)) {
+        await base44.auth.signInWithPassword(idRaw, password);
+        base44.auth.clearDevLoggedOutFlag();
         await checkUserAuth();
-        return;
+        const me = await base44.auth.me();
+        if (isFieldRole(me?.role)) {
+          navigate('/field', { replace: true });
+        } else {
+          navigate(from, { replace: true });
+        }
+      } else {
+        const norm = normalizeVnPhone(idRaw);
+        if (!norm || norm.length < 10) {
+          setError('Số điện thoại không hợp lệ. Tài khoản văn phòng dùng địa chỉ email.');
+          setSubmitting(false);
+          return;
+        }
+        await base44.auth.signInWithFieldAccount(norm, password);
+        base44.auth.clearDevLoggedOutFlag();
+        await checkUserAuth();
+        const me = await base44.auth.me();
+        if (!isFieldRole(me?.role)) {
+          setError('Tài khoản này không có quyền hiện trường.');
+          await base44.auth.signOut();
+          await checkUserAuth();
+          setSubmitting(false);
+          return;
+        }
+        const dest = typeof from === 'string' && from.startsWith('/field') ? from : '/field';
+        navigate(dest, { replace: true });
       }
-      const dest = from.startsWith('/field') ? from : '/field';
-      navigate(dest, { replace: true });
     } catch (err) {
       setError(formatSupabaseError(err));
     }
@@ -135,114 +114,53 @@ export default function Login() {
             <Fish className="w-6 h-6 text-blue-300" />
           </div>
           <h1 className="text-xl font-bold text-white tracking-tight">Đăng nhập</h1>
+          <p className="text-sm text-slate-300 leading-snug max-w-xs">
+            Một ô duy nhất: <strong className="text-white font-semibold">email</strong> (văn phòng) hoặc{' '}
+            <strong className="text-white font-semibold">số điện thoại</strong> (hiện trường), cùng mật khẩu.
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-[hsl(213,48%,11%)] border border-blue-800/50">
-          <button
-            type="button"
-            onClick={() => setLoginMode('field')}
-            className={cn(
-              'rounded-lg py-2.5 text-sm font-semibold transition-colors',
-              mode === 'field' ? 'bg-teal-500 text-white shadow' : 'text-slate-200 hover:text-white hover:bg-white/10'
-            )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error ? (
+            <p className="text-sm text-red-200 bg-red-950/40 border border-red-800/50 rounded-lg px-3 py-2">{error}</p>
+          ) : null}
+          <div>
+            <Label htmlFor="login-identifier" className="text-slate-100 text-xs font-semibold">
+              Email hoặc số điện thoại
+            </Label>
+            <Input
+              id="login-identifier"
+              type="text"
+              name="username"
+              autoComplete="username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              className="mt-1.5 h-12 text-base bg-[hsl(213,45%,18%)] border-slate-500/50 text-white placeholder:text-slate-400"
+              placeholder="email@congty.com hoặc 0987 654 321"
+            />
+          </div>
+          <div>
+            <Label htmlFor="login-password" className="text-slate-100 text-xs font-semibold">
+              Mật khẩu
+            </Label>
+            <Input
+              id="login-password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1.5 h-12 text-base bg-[hsl(213,45%,18%)] border-slate-500/50 text-white"
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={submitting}
+            className="w-full h-12 bg-teal-600 hover:bg-teal-700 text-white font-medium"
           >
-            Hiện trường
-          </button>
-          <button
-            type="button"
-            onClick={() => setLoginMode('office')}
-            className={cn(
-              'rounded-lg py-2.5 text-sm font-semibold transition-colors',
-              mode === 'office' ? 'bg-blue-500 text-white shadow' : 'text-slate-200 hover:text-white hover:bg-white/10'
-            )}
-          >
-            Văn phòng
-          </button>
-        </div>
-
-        {mode === 'office' ? (
-          <form onSubmit={handleOfficeSubmit} className="space-y-4">
-            {error ? (
-              <p className="text-sm text-red-200 bg-red-950/40 border border-red-800/50 rounded-lg px-3 py-2">{error}</p>
-            ) : null}
-            <div>
-              <Label htmlFor="login-email" className="text-slate-100 text-xs font-semibold">
-                Email
-              </Label>
-              <Input
-                id="login-email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1.5 bg-[hsl(213,45%,18%)] border-slate-500/50 text-white placeholder:text-slate-400"
-                placeholder="email@congty.com"
-              />
-            </div>
-            <div>
-              <Label htmlFor="login-password-office" className="text-slate-100 text-xs font-semibold">
-                Mật khẩu
-              </Label>
-              <Input
-                id="login-password-office"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1.5 bg-[hsl(213,45%,18%)] border-slate-500/50 text-white"
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium"
-            >
-              <LogIn className="w-4 h-4 mr-2" />
-              {submitting ? 'Đang đăng nhập…' : 'Đăng nhập'}
-            </Button>
-          </form>
-        ) : (
-          <form onSubmit={handleFieldSubmit} className="space-y-4">
-            {error ? (
-              <p className="text-sm text-red-200 bg-red-950/40 border border-red-800/50 rounded-lg px-3 py-2">{error}</p>
-            ) : null}
-            <div>
-              <Label htmlFor="login-phone" className="text-slate-100 text-xs font-semibold">
-                Số điện thoại
-              </Label>
-              <Input
-                id="login-phone"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="mt-1.5 h-12 text-base bg-[hsl(213,45%,18%)] border-slate-500/50 text-white placeholder:text-slate-400"
-                placeholder="0987 654 321"
-              />
-            </div>
-            <div>
-              <Label htmlFor="login-password-field" className="text-slate-100 text-xs font-semibold">
-                Mật khẩu
-              </Label>
-              <Input
-                id="login-password-field"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1.5 h-12 text-base bg-[hsl(213,45%,18%)] border-slate-500/50 text-white"
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="w-full h-12 bg-teal-600 hover:bg-teal-700 text-white font-medium"
-            >
-              {submitting ? 'Đang đăng nhập…' : 'Đăng nhập'}
-            </Button>
-          </form>
-        )}
+            <LogIn className="w-4 h-4 mr-2" />
+            {submitting ? 'Đang đăng nhập…' : 'Đăng nhập'}
+          </Button>
+        </form>
       </div>
     </div>
   );

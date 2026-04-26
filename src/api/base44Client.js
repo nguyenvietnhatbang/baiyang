@@ -67,10 +67,15 @@ const configError = new Error('Supabase is not configured. Create .env from .env
 /** Khi chạy không có Supabase, `me()` luôn trả dev user; cờ này để đăng xuất “ảo” vẫn thấy trang login. */
 const DEV_LOGGED_OUT_KEY = 'mypond_dev_logged_out';
 
-/** Phiên đăng nhập hiện trường (không Supabase JWT): lưu payload từ RPC field_account_verify. */
+/** Phiên hiện trường (không JWT): payload RPC `field_account_verify`. Ưu tiên localStorage để giữ sau khi đóng tab. */
 const FIELD_SESSION_STORAGE_KEY = 'mypond_field_session_v1';
 
 function clearFieldSessionStorage() {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(FIELD_SESSION_STORAGE_KEY);
+  } catch (_) {
+    /* ignore */
+  }
   try {
     if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(FIELD_SESSION_STORAGE_KEY);
   } catch (_) {
@@ -80,14 +85,41 @@ function clearFieldSessionStorage() {
 
 function readFieldSessionPayload() {
   try {
-    if (typeof sessionStorage === 'undefined') return null;
-    const raw = sessionStorage.getItem(FIELD_SESSION_STORAGE_KEY);
+    if (typeof window === 'undefined') return null;
+    let raw = null;
+    try {
+      raw = localStorage.getItem(FIELD_SESSION_STORAGE_KEY);
+    } catch (_) {
+      /* private mode / disabled */
+    }
+    if (!raw && typeof sessionStorage !== 'undefined') {
+      raw = sessionStorage.getItem(FIELD_SESSION_STORAGE_KEY);
+      if (raw) {
+        try {
+          localStorage.setItem(FIELD_SESSION_STORAGE_KEY, raw);
+          sessionStorage.removeItem(FIELD_SESSION_STORAGE_KEY);
+        } catch (_) {
+          /* giữ trên sessionStorage */
+        }
+      }
+    }
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!s?.id || !s?.phone || (s.role !== 'agency' && s.role !== 'household_owner')) return null;
     return s;
   } catch {
     return null;
+  }
+}
+
+function persistFieldSessionRow(row) {
+  const raw = JSON.stringify(row);
+  try {
+    localStorage.setItem(FIELD_SESSION_STORAGE_KEY, raw);
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(FIELD_SESSION_STORAGE_KEY);
+  } catch (_) {
+    if (typeof sessionStorage === 'undefined') throw new Error('Không lưu được phiên đăng nhập (trình duyệt chặn lưu trữ).');
+    sessionStorage.setItem(FIELD_SESSION_STORAGE_KEY, raw);
   }
 }
 
@@ -291,13 +323,7 @@ export const base44 = {
       if (!row?.id || !row?.phone) {
         throw new Error('Sai số điện thoại hoặc mật khẩu');
       }
-      try {
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.setItem(FIELD_SESSION_STORAGE_KEY, JSON.stringify(row));
-        }
-      } catch (e) {
-        throw e;
-      }
+      persistFieldSessionRow(row);
     },
     async signOut() {
       clearFieldSessionStorage();
