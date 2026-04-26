@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import QRScanner from '@/components/scanner/QRScanner';
-import { parsePondCodeFromQr } from '@/lib/fieldAuthHelpers';
+import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
@@ -18,8 +18,12 @@ export default function FieldScanPage() {
       return;
     }
     try {
-      const rows = await base44.entities.Pond.filter({ code }, '-updated_at', 1);
-      const p = rows[0];
+      let rows = await base44.entities.Pond.filter({ code }, '-updated_at', 1);
+      let p = rows[0];
+      if (!p) {
+        const all = await base44.entities.Pond.listWithHouseholds('-updated_at', 500);
+        p = (all || []).find((x) => pondCodesEqual(x.code, code));
+      }
       if (!p) {
         toast.error('Không tìm thấy ao');
         return;
@@ -59,9 +63,13 @@ export default function FieldScanPage() {
           }}
         />
       ) : (
-        <Button className="mt-4 h-14 text-lg font-bold bg-teal-600 hover:bg-teal-700 text-white" onClick={() => setOpen(true)}>
+        <button
+          type="button"
+          className="mt-4 h-14 w-full max-w-md mx-auto rounded-xl text-lg font-bold bg-teal-600 text-white hover:bg-teal-700 shadow-md px-4 border-0"
+          onClick={() => setOpen(true)}
+        >
           Mở lại camera
-        </Button>
+        </button>
       )}
     </div>
   );

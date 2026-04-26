@@ -56,13 +56,13 @@ export default function FieldLayout() {
         <Link
           to="/field/scan"
           className={cn(
-            'flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-bold transition-colors mt-2',
+            'flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-bold transition-colors mt-2 border-2 shadow-sm',
             scanActive
-              ? 'bg-teal-700 text-white shadow-md'
-              : 'bg-teal-600 text-white hover:bg-teal-700 shadow-sm'
+              ? 'bg-teal-700 text-white border-teal-800 shadow-md'
+              : 'bg-white text-teal-900 border-teal-600 hover:bg-teal-50'
           )}
         >
-          <Camera className="w-5 h-5" strokeWidth={2.25} />
+          <Camera className={cn('w-5 h-5', scanActive ? 'text-white' : 'text-teal-700')} strokeWidth={2.25} />
           Quét QR
         </Link>
       </nav>
@@ -126,12 +126,14 @@ export default function FieldLayout() {
         <Link
           to="/field/scan"
           className={cn(
-            'flex flex-col items-center justify-center gap-1 py-2.5 px-4 min-w-[4.5rem] -mt-4 mx-0.5 rounded-2xl text-[11px] font-bold shadow-lg active:scale-[0.98] transition-transform border-2 border-white',
-            scanActive ? 'bg-teal-700 text-white' : 'bg-teal-600 text-white shadow-teal-600/30'
+            'flex flex-col items-center justify-center gap-1 py-2.5 px-4 min-w-[4.5rem] -mt-4 mx-0.5 rounded-2xl text-[11px] font-bold shadow-lg active:scale-[0.98] transition-transform border-2',
+            scanActive
+              ? 'bg-teal-700 text-white border-teal-800'
+              : 'bg-white text-teal-900 border-teal-600 shadow-stone-300/60'
           )}
         >
-          <Camera className="w-7 h-7" strokeWidth={2.25} />
-          Quét QR
+          <Camera className={cn('w-7 h-7', scanActive ? 'text-white' : 'text-teal-700')} strokeWidth={2.25} />
+          <span className="leading-tight text-center">Quét QR</span>
         </Link>
       </nav>
     </div>

@@ -1,33 +1,39 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useId } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { X, CameraOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function QRScanner({ onScan, onClose }) {
   const scannerRef = useRef(null);
+  const onScanRef = useRef(onScan);
+  onScanRef.current = onScan;
   const [error, setError] = useState('');
-  const scannerDivId = 'html5-qrcode-scanner';
+  const reactId = useId();
+  const scannerDivId = `html5-qrcode-${reactId.replace(/:/g, '')}`;
 
   useEffect(() => {
-    const html5Qrcode = new Html5Qrcode(scannerDivId);
+    const html5Qrcode = new Html5Qrcode(scannerDivId, false);
     scannerRef.current = html5Qrcode;
 
-    html5Qrcode.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 220, height: 220 } },
-      (decodedText) => {
-        onScan(decodedText);
-        html5Qrcode.stop().catch(() => {});
-      },
-      () => {}
-    ).catch(() => setError('Không thể truy cập camera. Vui lòng cho phép quyền camera.'));
+    html5Qrcode
+      .start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+          void html5Qrcode.stop().catch(() => {});
+          onScanRef.current(decodedText);
+        },
+        () => {}
+      )
+      .catch(() => setError('Không thể truy cập camera. Vui lòng cho phép quyền camera.'));
 
     return () => {
       if (scannerRef.current) {
         scannerRef.current.stop().catch(() => {});
+        scannerRef.current = null;
       }
     };
-  }, []);
+  }, [scannerDivId]);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">

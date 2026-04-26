@@ -16,13 +16,42 @@ export function isFieldRole(role) {
   return role === 'agency' || role === 'household_owner';
 }
 
-/** Giá trị QR ao: `POND:<mã ao>` (hoặc chỉ mã ao). */
+/**
+ * Giá trị QR ao: `POND:<mã ao>` (không phân biệt hoa thường), hoặc chỉ mã,
+ * hoặc URL có chứa POND:… / tham số pond|code.
+ */
 export function parsePondCodeFromQr(text) {
-  const t = String(text || '').trim();
+  let t = String(text || '').trim();
   if (!t) return null;
-  if (t.startsWith('POND:')) {
-    const code = t.slice(5).trim();
+  t = t.split(/\r?\n/)[0].trim();
+  if (!t) return null;
+
+  if (/^https?:\/\//i.test(t)) {
+    try {
+      const u = new URL(t);
+      const q = u.searchParams.get('pond') || u.searchParams.get('code') || u.searchParams.get('pond_code');
+      if (q) return parsePondCodeFromQr(q);
+    } catch {
+      /* ignore */
+    }
+    const m = t.match(/POND:([^&#\s]+)/i);
+    if (m) {
+      try {
+        return decodeURIComponent(m[1].trim()) || null;
+      } catch {
+        return m[1].trim() || null;
+      }
+    }
+  }
+
+  if (/^POND:/i.test(t)) {
+    const code = t.replace(/^POND:/i, '').trim();
     return code || null;
   }
   return t;
+}
+
+/** So khớp mã ao (trim + không phân biệt hoa thường). */
+export function pondCodesEqual(a, b) {
+  return String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
 }

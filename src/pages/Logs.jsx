@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import PondDrawer from '@/components/ponds/PondDrawer';
 import QRScanner from '@/components/scanner/QRScanner';
 import LogDetailModal from '@/components/ponds/LogDetailModal';
-import { parsePondCodeFromQr } from '@/lib/fieldAuthHelpers';
+import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
 
 function inDateScope(logDate, logDateFrom, logDateTo, monthFilter) {
   if (!logDate) return false;
@@ -67,7 +67,9 @@ export default function Logs() {
     const input = raw || qrInput;
     const code = parsePondCodeFromQr(input);
     if (!code) return;
-    const pond = ponds.find((p) => p.code === code || p.qr_code?.includes(code));
+    const pond = ponds.find(
+      (p) => pondCodesEqual(p.code, code) || (p.qr_code && String(p.qr_code).toLowerCase().includes(String(code).toLowerCase()))
+    );
     setShowCamera(false);
     if (pond) {
       setActivePond(pond);

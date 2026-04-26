@@ -4,7 +4,7 @@ import { differenceInDays, parseISO } from 'date-fns';
 import { base44 } from '@/api/base44Client';
 import { Camera, ChevronRight, Search } from 'lucide-react';
 import QRScanner from '@/components/scanner/QRScanner';
-import { parsePondCodeFromQr } from '@/lib/fieldAuthHelpers';
+import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
@@ -60,14 +60,18 @@ export default function FieldHome() {
       toast.error('Mã QR không hợp lệ');
       return;
     }
-    const found = ponds.find((p) => p.code === code);
+    const found = ponds.find((p) => pondCodesEqual(p.code, code));
     if (found) {
       navigate(`/field/log?pond=${encodeURIComponent(found.id)}`);
       return;
     }
     try {
-      const rows = await base44.entities.Pond.filter({ code }, '-updated_at', 1);
-      const p = rows[0];
+      let rows = await base44.entities.Pond.filter({ code }, '-updated_at', 1);
+      let p = rows[0];
+      if (!p) {
+        const all = await base44.entities.Pond.listWithHouseholds('-updated_at', 500);
+        p = (all || []).find((x) => pondCodesEqual(x.code, code));
+      }
       if (p) navigate(`/field/log?pond=${encodeURIComponent(p.id)}`);
       else toast.error('Không tìm thấy ao trong phạm vi của bạn');
     } catch {
