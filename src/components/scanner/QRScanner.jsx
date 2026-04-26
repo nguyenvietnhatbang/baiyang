@@ -3,6 +3,21 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { X, CameraOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+/** Chọn camera: điện thoại ưu tiên camera sau; PC thường chỉ có webcam → lấy thiết bị đầu danh sách. */
+function pickCameraDeviceId(devices) {
+  if (!devices?.length) return null;
+  const back = devices.find((d) =>
+    /back|rear|mặt sau|environment|wide|đằng sau|world facing/i.test(d.label || '')
+  );
+  if (back) return back.id;
+  return devices[0].id;
+}
+
+/** BarcodeDetector trên một số trình duyệt desktop (Chrome/Win) hay “câm” — chỉ bật trên mobile. */
+function useBarCodeDetectorIfSupported() {
+  return /Android|iPhone|iPad|iPod/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '');
+}
+
 /**
  * Đóng camera hoàn toàn trước khi gọi onScan — tránh race unmount + điều hướng trên mobile (màn trắng, Back hỏng).
  */
@@ -18,7 +33,12 @@ export default function QRScanner({ onScan, onClose }) {
   useEffect(() => {
     let cancelled = false;
     handledRef.current = false;
-    const html5Qrcode = new Html5Qrcode(scannerDivId, false);
+    const html5Qrcode = new Html5Qrcode(scannerDivId, {
+      verbose: false,
+      experimentalFeatures: {
+        useBarCodeDetectorIfSupported: useBarCodeDetectorIfSupported(),
+      },
+    });
     scannerRef.current = html5Qrcode;
 
     const releaseDomAfterCamera = async () => {
@@ -54,14 +74,44 @@ export default function QRScanner({ onScan, onClose }) {
       })();
     };
 
-    html5Qrcode
-      .start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
-        onSuccess,
-        () => {}
-      )
-      .catch(() => setError('Không thể truy cập camera. Vui lòng cho phép quyền camera.'));
+    const scanConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    void (async () => {
+      try {
+        const devices = await Html5Qrcode.getCameras();
+        if (cancelled) return;
+
+        if (devices?.length) {
+          const cameraId = pickCameraDeviceId(devices);
+          if (cameraId) {
+            try {
+              await html5Qrcode.start(cameraId, scanConfig, onSuccess, () => {});
+              return;
+            } catch {
+              /* deviceId đôi khi lỗi sau cập nhật driver — thử constraint bên dưới */
+            }
+          }
+        }
+
+        try {
+          await html5Qrcode.start({ facingMode: 'user' }, scanConfig, onSuccess, () => {});
+          return;
+        } catch {
+          /* thử camera sau (tablet/laptop hiếm) */
+        }
+        try {
+          await html5Qrcode.start({ facingMode: 'environment' }, scanConfig, onSuccess, () => {});
+        } catch {
+          if (!cancelled) {
+            setError('Không thể mở camera. Cho phép quyền camera trong trình duyệt và thử lại.');
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Không thể mở camera. Cho phép quyền camera trong trình duyệt và thử lại.');
+        }
+      }
+    })();
 
     return () => {
       cancelled = true;
@@ -102,8 +152,10 @@ export default function QRScanner({ onScan, onClose }) {
             </div>
           ) : (
             <>
-              <div id={scannerDivId} className="rounded-lg overflow-hidden" />
-              <p className="text-xs text-muted-foreground text-center mt-3">Hướng camera vào mã QR dán trên ao</p>
+              <div id={scannerDivId} className="rounded-lg overflow-hidden min-h-[200px]" />
+              <p className="text-xs text-muted-foreground text-center mt-3">
+                Giữ mã trong khung. Trên máy tính, đưa mã gần webcam và đủ sáng.
+              </p>
             </>
           )}
         </div>

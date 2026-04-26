@@ -130,7 +130,7 @@ export default function PondDrawer({ pond, onClose, onUpdate, siblingPonds = [],
       {showEdit && (
         <PondEditDialog
           pond={pond}
-          canEditCode={canEditPlan}
+          canEditCode={isAdmin}
           open={showEdit}
           onClose={() => setShowEdit(false)}
           onSaved={() => { onUpdate(); setShowEdit(false); }}
