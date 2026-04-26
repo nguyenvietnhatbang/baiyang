@@ -307,6 +307,11 @@ export const base44 = {
       if (!isSupabaseConfigured) throw configError;
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
+      clearFieldSessionStorage();
+    },
+    /** Xóa phiên hiện trường (localStorage) — dùng khi muốn đăng nhập văn phòng trên cùng trình duyệt. */
+    clearFieldSession() {
+      clearFieldSessionStorage();
     },
     /** Đăng nhập hiện trường: chỉ DB (RPC), không email / không signUp Auth. */
     async signInWithFieldAccount(phoneNormalized, password) {

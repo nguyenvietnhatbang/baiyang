@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { base44, isSupabaseConfigured } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -52,7 +52,7 @@ export default function Login() {
     );
   }
 
-  if (isAuthenticated) {
+  if (isAuthenticated && !user?.fieldSession) {
     if (isFieldRole(user?.role)) {
       return <Navigate to="/field" replace />;
     }
@@ -106,6 +106,8 @@ export default function Login() {
     setSubmitting(false);
   };
 
+  const fieldSessionActive = isAuthenticated && user?.fieldSession;
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-[hsl(213,65%,18%)]">
       <div className="w-full max-w-md rounded-2xl border border-blue-900/50 bg-[hsl(213,55%,22%)] shadow-xl p-8 space-y-6">
@@ -119,6 +121,40 @@ export default function Login() {
             <strong className="text-white font-semibold">số điện thoại</strong> (hiện trường), cùng mật khẩu.
           </p>
         </div>
+
+        {fieldSessionActive ? (
+          <div className="rounded-xl border border-teal-400/40 bg-teal-950/40 px-4 py-3 text-sm text-teal-50 space-y-3">
+            <p>
+              Trình duyệt đang giữ <strong>phiên hiện trường</strong>
+              {user?.name ? ` (${user.name})` : ''} — nên mở app sẽ vào phần hiện trường, không phải quản lý.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1 bg-white/15 text-white hover:bg-white/25 border-0"
+                onClick={() => navigate('/field', { replace: true })}
+              >
+                Tiếp tục hiện trường
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 border-teal-200/60 text-teal-50 bg-transparent hover:bg-white/10"
+                onClick={() => {
+                  base44.auth.clearFieldSession();
+                  void checkUserAuth();
+                }}
+              >
+                Thoát phiên hiện trường
+              </Button>
+            </div>
+            <p className="text-xs text-teal-200/80">
+              Muốn vào quản lý: bấm <strong>Thoát phiên hiện trường</strong>, rồi đăng nhập bằng <strong>email</strong>. Hoặc mở{' '}
+              <code className="rounded bg-black/30 px-1">/login?office=1</code>.
+            </p>
+          </div>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error ? (
