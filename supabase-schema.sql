@@ -107,12 +107,14 @@ create table if not exists public.profiles (
   agency_id uuid references public.agencies(id) on delete set null,
   household_id uuid references public.households(id) on delete set null,
   display_name text,
+  phone text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
 
 create index if not exists idx_profiles_agency_id on public.profiles(agency_id);
 create index if not exists idx_profiles_household_id on public.profiles(household_id);
+create unique index if not exists idx_profiles_phone_unique on public.profiles (phone) where phone is not null;
 
 -- ---------------------------------------------------------------------------
 -- Ponds

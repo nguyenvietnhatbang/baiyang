@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Fish, ClipboardList, BarChart3, Building2, Settings } from 'lucide-react';
+import { LayoutDashboard, Fish, ClipboardList, BarChart3, Building2, Settings, UserPlus } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
 const baseNavItems = [
@@ -14,7 +14,7 @@ export default function MobileNav({ alertCount = 0 }) {
   const { user } = useAuth();
   const location = useLocation();
   const navItems = user?.role === 'admin'
-    ? [...baseNavItems, { path: '/settings', icon: Settings, label: 'Cài đặt' }]
+    ? [...baseNavItems, { path: '/admin', icon: UserPlus, label: 'Hiện trường' }, { path: '/settings', icon: Settings, label: 'Cài đặt' }]
     : baseNavItems;
   return (
     <nav

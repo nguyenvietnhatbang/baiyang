@@ -146,6 +146,20 @@ export default function PondPlanTab({
     [batches, seasons]
   );
 
+  const batchPlanSelectItems = useMemo(
+    () => [
+      { value: '__none__', label: '— Chưa chọn —' },
+      ...batchesSortedForPlan.map((b) => {
+        const sn = seasons.find((s) => s.id === b.season_id);
+        return {
+          value: b.id,
+          label: `${sn ? `${sn.code} · ` : ''}${b.code} — ${b.name}`,
+        };
+      }),
+    ],
+    [batchesSortedForPlan, seasons]
+  );
+
   const applyPondTemplate = (tpl) => {
     if (!tpl) return;
     setInitialForm((f) => ({
@@ -348,29 +362,17 @@ export default function PondPlanTab({
               setInitialForm({ ...initialForm, stocking_batch_id: v === '__none__' ? '' : v })
             }
             disabled={roInitial || batchesSortedForPlan.length === 0}
+            items={batchPlanSelectItems}
           >
             <SelectTrigger className="mt-1">
-              <SelectValue>
-                {initialForm.stocking_batch_id
-                  ? (() => {
-                      const b = batches.find((x) => x.id === initialForm.stocking_batch_id);
-                      if (!b) return '— Chưa chọn —';
-                      const sn = seasons.find((s) => s.id === b.season_id);
-                      return `${sn?.code ?? '—'} · ${b.code} — ${b.name}`;
-                    })()
-                  : '— Chưa chọn —'}
-              </SelectValue>
+              <SelectValue />
             </SelectTrigger>
             <SelectContent className="max-h-64">
-              <SelectItem value="__none__">— Chưa chọn —</SelectItem>
-              {batchesSortedForPlan.map((b) => {
-                const sn = seasons.find((s) => s.id === b.season_id);
-                return (
-                  <SelectItem key={b.id} value={b.id}>
-                    {sn ? `${sn.code} · ` : ''}{b.code} — {b.name}
-                  </SelectItem>
-                );
-              })}
+              {batchPlanSelectItems.map((it) => (
+                <SelectItem key={it.value} value={it.value}>
+                  {it.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

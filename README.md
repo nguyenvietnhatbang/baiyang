@@ -1,6 +1,24 @@
+# My Pond App (React + Vite + Supabase)
+
+## Tài khoản hiện trường & admin
+
+- **Đại lý / chủ hộ:** `/login` mặc định là **Hiện trường** (SĐT + mật khẩu). Văn phòng: `/login?mode=office`. `/field/login` chuyển về `/login`.
+- **Admin văn phòng:** `/login` (email + mật khẩu) — vẫn dùng Supabase Auth. Trang `/admin` **insert** trực tiếp vào `field_accounts` (mật khẩu **plaintext**, tiện ích nội bộ).
+
+### SQL (Supabase SQL Editor)
+
+1. [`scripts/migrations/20260429_field_accounts.sql`](scripts/migrations/20260429_field_accounts.sql) — bảng `field_accounts`, RLS chỉ admin.
+2. [`scripts/migrations/20260430_field_account_verify_rpc.sql`](scripts/migrations/20260430_field_account_verify_rpc.sql) — RPC đăng nhập hiện trường; gỡ cột `auth_user_id` nếu DB còn bản migration cũ.
+
+### RLS / hiện trường
+
+Tài khoản hiện trường không có JWT `authenticated` — request dùng **anon key**. Nhiều policy trong schema cho phép thao tác khi `app_settings_bypass_rls()` là true. Nếu `bypass_rls = false`, có thể cần nới policy hoặc chỉ dùng chế độ bypass cho môi trường tiện ích.
+
+---
+
 # React + Vite
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This template provides a minimal setup for React with Vite and ESLint.
 
 Currently, two official plugins are available:
 

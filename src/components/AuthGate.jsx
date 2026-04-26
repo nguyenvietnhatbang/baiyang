@@ -38,7 +38,9 @@ export default function AuthGate() {
   }
 
   if (isSupabaseConfigured && !isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    const fieldPaths = location.pathname.startsWith('/field');
+    const loginPath = fieldPaths ? '/login' : '/login?mode=office';
+    return <Navigate to={loginPath} replace state={{ from: location.pathname }} />;
   }
 
   return <Outlet />;

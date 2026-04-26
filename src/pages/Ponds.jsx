@@ -64,6 +64,15 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
   const selectedHousehold = households.find((h) => h.id === form.household_id);
   const agencyForHousehold = agencies.find((a) => a.id === selectedHousehold?.agency_id);
 
+  const householdSelectItems = useMemo(
+    () =>
+      households.map((h) => ({
+        value: h.id,
+        label: `${h.name} — ${h.household_segment} (${h.region_code})`,
+      })),
+    [households]
+  );
+
   const handleCreate = async () => {
     if (!form.household_id) {
       setError('Chọn hộ nuôi');
@@ -112,13 +121,19 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
           )}
           <div>
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Hộ nuôi *</Label>
-            <Select value={form.household_id} onValueChange={(v) => { setForm({ ...form, household_id: v }); setTemplatePick('__none__'); }}>
+            <Select
+              value={form.household_id}
+              onValueChange={(v) => setForm({ ...form, household_id: v })}
+              items={householdSelectItems}
+            >
               <SelectTrigger className="mt-1">
                 <SelectValue placeholder="Chọn hộ..." />
               </SelectTrigger>
               <SelectContent>
-                {households.map((h) => (
-                  <SelectItem key={h.id} value={h.id}>{h.name} — {h.household_segment} ({h.region_code})</SelectItem>
+                {householdSelectItems.map((it) => (
+                  <SelectItem key={it.value} value={it.value}>
+                    {it.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

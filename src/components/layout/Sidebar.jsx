@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Fish, ClipboardList, BarChart3, 
-  Building2, ChevronRight, ChevronLeft, Menu, Settings, LogOut,
+  Building2, ChevronRight, ChevronLeft, Menu, Settings, LogOut, UserPlus,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/AuthContext';
@@ -25,7 +25,7 @@ export default function Sidebar({ alertCount = 0, collapsed, onToggle }) {
     .slice(0, 2) || '?';
   const location = useLocation();
   const navItems = user?.role === 'admin'
-    ? [...baseNavItems, { path: '/settings', icon: Settings, label: 'Cài đặt' }]
+    ? [...baseNavItems, { path: '/admin', icon: UserPlus, label: 'Tài khoản hiện trường' }, { path: '/settings', icon: Settings, label: 'Cài đặt' }]
     : baseNavItems;
 
   return (

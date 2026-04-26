@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -92,6 +92,14 @@ export default function PondEditDialog({ pond, open, onClose, onSaved, onDeleted
 
   const f = (key) => ({ value: form[key], onChange: (e) => setForm({ ...form, [key]: e.target.value }) });
 
+  const householdSelectItems = useMemo(
+    () => [
+      { value: '__none__', label: '— Chọn —' },
+      ...households.map((h) => ({ value: h.id, label: `${h.name} — ${h.household_segment}` })),
+    ],
+    [households]
+  );
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
@@ -115,7 +123,11 @@ export default function PondEditDialog({ pond, open, onClose, onSaved, onDeleted
             </div>
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase">Hộ nuôi *</Label>
-              <Select value={form.household_id || '__none__'} onValueChange={(v) => setForm({ ...form, household_id: v === '__none__' ? '' : v })}>
+              <Select
+                value={form.household_id || '__none__'}
+                onValueChange={(v) => setForm({ ...form, household_id: v === '__none__' ? '' : v })}
+                items={householdSelectItems}
+              >
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Chọn hộ..." />
                 </SelectTrigger>

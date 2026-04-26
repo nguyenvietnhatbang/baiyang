@@ -21,15 +21,14 @@ function SelectGroup({
 function SelectValue({
   className,
   children,
-  /** Không dùng trực tiếp bởi Base UI — loại bỏ để tránh lỗi prop trên `<span>`. */
   placeholder,
   ...props
 }) {
-  void placeholder;
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
       className={cn('flex flex-1 min-w-0 text-left', className)}
+      placeholder={placeholder}
       {...props}>
       {children}
     </SelectPrimitive.Value>

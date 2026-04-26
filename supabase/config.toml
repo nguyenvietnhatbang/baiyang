@@ -1,0 +1,2 @@
+# supabase link --project-ref <ref>
+# Edge Functions không còn bắt buộc cho tài khoản hiện trường (xem scripts/migrations/20260429_field_accounts.sql).

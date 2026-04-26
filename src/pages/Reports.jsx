@@ -62,7 +62,6 @@ export default function Reports() {
     });
   }, []);
 
-  const allAgencies = [...new Set(ponds.map(p => p.agency_code).filter(Boolean))].sort();
   const batchesSortedForSelect = useMemo(
     () =>
       [...batches].sort((a, b) => {
@@ -72,6 +71,43 @@ export default function Reports() {
         return (a.sort_order ?? 0) - (b.sort_order ?? 0) || String(a.code).localeCompare(String(b.code));
       }),
     [batches, seasons]
+  );
+
+  const exportGranularityItems = useMemo(
+    () => [
+      { value: 'agency', label: 'Excel: theo đại lý' },
+      { value: 'pond', label: 'Excel: từng ao' },
+    ],
+    []
+  );
+
+  const allAgencies = useMemo(
+    () => [...new Set(ponds.map((p) => p.agency_code).filter(Boolean))].sort(),
+    [ponds]
+  );
+
+  const agencyFilterItems = useMemo(
+    () => [{ value: 'all', label: 'Tất cả đại lý' }, ...allAgencies.map((a) => ({ value: a, label: a }))],
+    [allAgencies]
+  );
+
+  const yearFilterItems = useMemo(
+    () => ['2024', '2025', '2026'].map((y) => ({ value: y, label: y })),
+    []
+  );
+
+  const batchFilterItems = useMemo(
+    () => [
+      { value: 'all', label: 'Tất cả đợt thả' },
+      ...batchesSortedForSelect.map((b) => {
+        const sn = seasons.find((s) => s.id === b.season_id);
+        return {
+          value: b.id,
+          label: `${sn ? `${sn.code} · ` : ''}${b.code} — ${b.name}`,
+        };
+      }),
+    ],
+    [batchesSortedForSelect, seasons]
   );
 
   const filteredPonds = ponds.filter(p => agencyFilter === 'all' || p.agency_code === agencyFilter);
@@ -175,13 +211,16 @@ export default function Reports() {
           <p className="text-muted-foreground text-sm mt-0.5">Phân tích sản lượng • So sánh kế hoạch vs thực tế</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={exportGranularity} onValueChange={setExportGranularity}>
+          <Select value={exportGranularity} onValueChange={setExportGranularity} items={exportGranularityItems}>
             <SelectTrigger className="w-[11.5rem] h-9 text-sm">
               <SelectValue placeholder="Mức chi tiết" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="agency">Excel: theo đại lý</SelectItem>
-              <SelectItem value="pond">Excel: từng ao</SelectItem>
+              {exportGranularityItems.map((it) => (
+                <SelectItem key={it.value} value={it.value}>
+                  {it.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button
@@ -198,59 +237,52 @@ export default function Reports() {
 
       {/* Filters */}
       <div className="flex gap-3 flex-wrap items-center">
-        <Select value={reportType} onValueChange={setReportType}>
+        <Select value={reportType} onValueChange={setReportType} items={REPORT_TYPE_ITEMS}>
           <SelectTrigger className="w-64">
-            <SelectValue>
-              {REPORT_TYPE_ITEMS.find((x) => x.value === reportType)?.label ?? reportType}
-            </SelectValue>
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="summary">📊 Tổng quan + Biểu đồ</SelectItem>
-            <SelectItem value="original">📋 Kế hoạch ban đầu (gốc)</SelectItem>
-            <SelectItem value="adjusted">🔄 Kế hoạch điều chỉnh</SelectItem>
-            <SelectItem value="harvest">🚜 Kế hoạch thu & Thực thu</SelectItem>
+            {REPORT_TYPE_ITEMS.map((it) => (
+              <SelectItem key={it.value} value={it.value}>
+                {it.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
-        <Select value={agencyFilter} onValueChange={setAgencyFilter}>
+        <Select value={agencyFilter} onValueChange={setAgencyFilter} items={agencyFilterItems}>
           <SelectTrigger className="w-40">
-            <SelectValue>{agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}</SelectValue>
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tất cả đại lý</SelectItem>
-            {allAgencies.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+            {agencyFilterItems.map((it) => (
+              <SelectItem key={it.value} value={it.value}>
+                {it.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
-        <Select value={yearFilter} onValueChange={setYearFilter}>
+        <Select value={yearFilter} onValueChange={setYearFilter} items={yearFilterItems}>
           <SelectTrigger className="w-28">
-            <SelectValue>{yearFilter}</SelectValue>
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {['2024','2025','2026'].map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            {yearFilterItems.map((y) => (
+              <SelectItem key={y.value} value={y.value}>
+                {y.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
-        <Select value={batchFilter} onValueChange={setBatchFilter}>
+        <Select value={batchFilter} onValueChange={setBatchFilter} items={batchFilterItems}>
           <SelectTrigger className="w-[min(100%,20rem)]">
-            <SelectValue>
-              {batchFilter === 'all'
-                ? 'Tất cả đợt thả'
-                : (() => {
-                    const b = batches.find((x) => x.id === batchFilter);
-                    if (!b) return 'Tất cả đợt thả';
-                    const sn = seasons.find((s) => s.id === b.season_id);
-                    return `${sn?.code ?? '—'} · ${b.code} — ${b.name}`;
-                  })()}
-            </SelectValue>
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tất cả đợt thả</SelectItem>
-            {batchesSortedForSelect.map((b) => {
-              const sn = seasons.find((s) => s.id === b.season_id);
-              return (
-                <SelectItem key={b.id} value={b.id}>
-                  {sn ? `${sn.code} · ` : ''}{b.code} — {b.name}
-                </SelectItem>
-              );
-            })}
+            {batchFilterItems.map((it) => (
+              <SelectItem key={it.value} value={it.value}>
+                {it.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

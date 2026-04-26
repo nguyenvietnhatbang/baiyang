@@ -68,6 +68,11 @@ export default function Settings() {
     return m;
   }, [stockBatches]);
 
+  const batchSeasonSelectItems = useMemo(
+    () => stockSeasons.map((s) => ({ value: s.id, label: `${s.code} — ${s.name}` })),
+    [stockSeasons]
+  );
+
   const handleAddBatch = async () => {
     if (!batchSeasonId) {
       setBatchErr('Chọn vụ');
@@ -225,7 +230,7 @@ export default function Settings() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2">
             <Label className="text-xs font-semibold text-muted-foreground uppercase">Vụ *</Label>
-            <Select value={batchSeasonId} onValueChange={setBatchSeasonId}>
+            <Select value={batchSeasonId} onValueChange={setBatchSeasonId} items={batchSeasonSelectItems}>
               <SelectTrigger className="mt-1">
                 <SelectValue placeholder="Chọn vụ" />
               </SelectTrigger>

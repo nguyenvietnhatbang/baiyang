@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Plus, Pencil, Trash2, AlertTriangle, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -111,6 +111,22 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
 
   const f = (key) => ({ value: form[key], onChange: (e) => setForm({ ...form, [key]: e.target.value }) });
 
+  const agencySelectItems = useMemo(
+    () => agencies.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` })),
+    [agencies]
+  );
+  const regionSelectItems = useMemo(
+    () => regions.map((r) => ({ value: r.code, label: `${r.code} — ${r.name}` })),
+    [regions]
+  );
+  const activeSelectItems = useMemo(
+    () => [
+      { value: '1', label: 'Hoạt động' },
+      { value: '0', label: 'Tạm dừng' },
+    ],
+    []
+  );
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
@@ -132,6 +148,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
                     region_code: ag?.region_code || form.region_code,
                   });
                 }}
+                items={agencySelectItems}
               >
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Chọn đại lý" />
@@ -145,7 +162,11 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
             </div>
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase">Khu vực (mã) *</Label>
-              <Select value={form.region_code} onValueChange={(v) => setForm({ ...form, region_code: v })}>
+              <Select
+                value={form.region_code}
+                onValueChange={(v) => setForm({ ...form, region_code: v })}
+                items={regionSelectItems}
+              >
                 <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
@@ -171,6 +192,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
                 <Select
                   value={form.active ? '1' : '0'}
                   onValueChange={(v) => setForm({ ...form, active: v === '1' })}
+                  items={activeSelectItems}
                 >
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>

@@ -67,6 +67,30 @@ const configError = new Error('Supabase is not configured. Create .env from .env
 /** Khi chạy không có Supabase, `me()` luôn trả dev user; cờ này để đăng xuất “ảo” vẫn thấy trang login. */
 const DEV_LOGGED_OUT_KEY = 'mypond_dev_logged_out';
 
+/** Phiên đăng nhập hiện trường (không Supabase JWT): lưu payload từ RPC field_account_verify. */
+const FIELD_SESSION_STORAGE_KEY = 'mypond_field_session_v1';
+
+function clearFieldSessionStorage() {
+  try {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(FIELD_SESSION_STORAGE_KEY);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function readFieldSessionPayload() {
+  try {
+    if (typeof sessionStorage === 'undefined') return null;
+    const raw = sessionStorage.getItem(FIELD_SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s?.id || !s?.phone || (s.role !== 'agency' && s.role !== 'household_owner')) return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
+
 const entityApi = (entityName) => {
   const table = tableMap[entityName];
   return {
@@ -193,34 +217,90 @@ export const base44 = {
         return devUser;
       }
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return null;
-      const uid = session.user.id;
-      const { data: profile, error: profileErr } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
-      if (profileErr) console.warn('profiles:', profileErr.message);
-      let agency_code = null;
-      if (profile?.agency_id) {
-        const { data: ag } = await supabase.from('agencies').select('code').eq('id', profile.agency_id).maybeSingle();
-        agency_code = ag?.code ?? null;
+      if (session?.user) {
+        clearFieldSessionStorage();
+        const uid = session.user.id;
+        const { data: profile, error: profileErr } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
+        if (profileErr) console.warn('profiles:', profileErr.message);
+        let agency_code = null;
+        if (profile?.agency_id) {
+          const { data: ag } = await supabase.from('agencies').select('code').eq('id', profile.agency_id).maybeSingle();
+          agency_code = ag?.code ?? null;
+        }
+        const rawRole = (profile?.role != null ? String(profile.role) : 'household_owner').trim().toLowerCase();
+        const role = ['admin', 'agency', 'household_owner'].includes(rawRole) ? rawRole : 'household_owner';
+        return {
+          id: uid,
+          email: session.user.email,
+          role,
+          name: profile?.display_name || session.user.email || '',
+          profile,
+          agency_id: profile?.agency_id ?? null,
+          agency_code,
+          household_id: profile?.household_id ?? null,
+        };
       }
-      const rawRole = (profile?.role != null ? String(profile.role) : 'household_owner').trim().toLowerCase();
-      const role = ['admin', 'agency', 'household_owner'].includes(rawRole) ? rawRole : 'household_owner';
-      return {
-        id: uid,
-        email: session.user.email,
-        role,
-        name: profile?.display_name || session.user.email || '',
-        profile,
-        agency_id: profile?.agency_id ?? null,
-        agency_code,
-        household_id: profile?.household_id ?? null,
-      };
+
+      const field = readFieldSessionPayload();
+      if (field) {
+        let agency_code = null;
+        if (field.agency_id) {
+          const { data: ag } = await supabase.from('agencies').select('code').eq('id', field.agency_id).maybeSingle();
+          agency_code = ag?.code ?? null;
+        }
+        const profile = {
+          id: field.id,
+          role: field.role,
+          agency_id: field.agency_id,
+          household_id: field.household_id,
+          display_name: field.display_name,
+          phone: field.phone,
+        };
+        return {
+          id: field.id,
+          email: `${field.phone}@field.local`,
+          role: field.role,
+          name: field.display_name || field.phone,
+          profile,
+          agency_id: field.agency_id ?? null,
+          agency_code,
+          household_id: field.household_id ?? null,
+          fieldSession: true,
+        };
+      }
+
+      return null;
     },
     async signInWithPassword(email, password) {
       if (!isSupabaseConfigured) throw configError;
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
     },
+    /** Đăng nhập hiện trường: chỉ DB (RPC), không email / không signUp Auth. */
+    async signInWithFieldAccount(phoneNormalized, password) {
+      if (!isSupabaseConfigured) throw configError;
+      const { data, error } = await supabase.rpc('field_account_verify', {
+        p_phone: phoneNormalized,
+        p_password: password,
+      });
+      if (error) throw error;
+      if (data == null) {
+        throw new Error('Sai số điện thoại hoặc mật khẩu');
+      }
+      const row = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!row?.id || !row?.phone) {
+        throw new Error('Sai số điện thoại hoặc mật khẩu');
+      }
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem(FIELD_SESSION_STORAGE_KEY, JSON.stringify(row));
+        }
+      } catch (e) {
+        throw e;
+      }
+    },
     async signOut() {
+      clearFieldSessionStorage();
       await supabase.auth.signOut();
     },
     clearDevLoggedOutFlag() {
@@ -238,6 +318,7 @@ export const base44 = {
           /* ignore */
         }
       } else {
+        clearFieldSessionStorage();
         try {
           await supabase.auth.signOut();
         } catch (e) {

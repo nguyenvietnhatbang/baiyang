@@ -19,6 +19,13 @@ function CheckItem({ label, checked, onChange }) {
   );
 }
 
+const HARVEST_ACTION_ITEMS = [
+  { value: 'approved', label: '✅ Chấp nhận toàn bộ' },
+  { value: 'reject_load', label: '❌ Từ chối cả xe' },
+  { value: 'deduct_weight', label: '⚖️ Trừ khối lượng' },
+  { value: 'deduct_price', label: '💸 Trừ % giá trị' },
+];
+
 export default function PondHarvestTab({ pond, onUpdate, isWithdrawal }) {
   const [records, setRecords] = useState([]);
   const [form, setForm] = useState({
@@ -205,15 +212,16 @@ export default function PondHarvestTab({ pond, onUpdate, isWithdrawal }) {
       {/* Action */}
       <div>
         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Phương án xử lý</Label>
-        <Select value={form.action_taken} onValueChange={v => setForm({...form, action_taken: v})}>
+        <Select value={form.action_taken} onValueChange={v => setForm({...form, action_taken: v})} items={HARVEST_ACTION_ITEMS}>
           <SelectTrigger className="mt-1">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="approved">✅ Chấp nhận toàn bộ</SelectItem>
-            <SelectItem value="reject_load">❌ Từ chối cả xe</SelectItem>
-            <SelectItem value="deduct_weight">⚖️ Trừ khối lượng</SelectItem>
-            <SelectItem value="deduct_price">💸 Trừ % giá trị</SelectItem>
+            {HARVEST_ACTION_ITEMS.map((it) => (
+              <SelectItem key={it.value} value={it.value}>
+                {it.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
