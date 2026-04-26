@@ -1,0 +1,13 @@
+{
+  "name": "Household",
+  "type": "object",
+  "properties": {
+    "agency_id": { "type": "string", "format": "uuid" },
+    "region_code": { "type": "string", "description": "Mã khu vực (FK region_codes)" },
+    "household_segment": { "type": "string", "description": "Phần mã hộ trong mã ao (VD: 001)" },
+    "name": { "type": "string", "description": "Tên hộ nuôi" },
+    "address": { "type": "string" },
+    "active": { "type": "boolean", "default": true }
+  },
+  "required": ["agency_id", "region_code", "household_segment", "name"]
+}

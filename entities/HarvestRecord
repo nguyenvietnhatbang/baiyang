@@ -1,0 +1,108 @@
+{
+  "name": "HarvestRecord",
+  "type": "object",
+  "properties": {
+    "pond_id": {
+      "type": "string",
+      "description": "ID ao nu\u00f4i"
+    },
+    "pond_code": {
+      "type": "string",
+      "description": "M\u00e3 ao"
+    },
+    "owner_name": {
+      "type": "string",
+      "description": "T\u00ean ch\u1ee7 h\u1ed9"
+    },
+    "agency_code": {
+      "type": "string",
+      "description": "M\u00e3 \u0111\u1ea1i l\u00fd"
+    },
+    "harvest_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Ng\u00e0y thu ho\u1ea1ch th\u1ef1c t\u1ebf"
+    },
+    "planned_yield": {
+      "type": "number",
+      "description": "S\u1ea3n l\u01b0\u1ee3ng k\u1ebf ho\u1ea1ch (kg)"
+    },
+    "actual_yield": {
+      "type": "number",
+      "description": "S\u1ea3n l\u01b0\u1ee3ng th\u1ef1c thu (kg)"
+    },
+    "fish_count_harvested": {
+      "type": "number",
+      "description": "S\u1ed1 c\u00e1 \u0111\u00e3 thu"
+    },
+    "avg_weight_harvest": {
+      "type": "number",
+      "description": "Tr\u1ecdng l\u01b0\u1ee3ng TB l\u00fac thu (g)"
+    },
+    "dead_fish_count": {
+      "type": "number",
+      "description": "S\u1ed1 c\u00e1 ch\u1ebft (kg)"
+    },
+    "reject_fish_count": {
+      "type": "number",
+      "description": "C\u00e1 ph\u1ebf ph\u1ea9m (kg)"
+    },
+    "sick_yellow_fish": {
+      "type": "number",
+      "description": "C\u00e1 b\u1ec7nh/v\u00e0ng th\u1ecbt (kg)"
+    },
+    "thin_fish": {
+      "type": "number",
+      "description": "C\u00e1 g\u1ea7y <42% phi-l\u00ea (kg)"
+    },
+    "stomach_ratio": {
+      "type": "number",
+      "description": "T\u1ef7 l\u1ec7 d\u1ea1 d\u00e0y (%)"
+    },
+    "water_quality_ok": {
+      "type": "boolean",
+      "description": "Ch\u1ea5t l\u01b0\u1ee3ng n\u01b0\u1edbc \u0111\u1ea1t"
+    },
+    "antibiotic_residue_ok": {
+      "type": "boolean",
+      "description": "D\u01b0 l\u01b0\u1ee3ng kh\u00e1ng sinh \u0111\u1ea1t"
+    },
+    "heavy_metal_ok": {
+      "type": "boolean",
+      "description": "Kim lo\u1ea1i n\u1eb7ng \u0111\u1ea1t"
+    },
+    "pesticide_ok": {
+      "type": "boolean",
+      "description": "Thu\u1ed1c tr\u1eeb s\u00e2u \u0111\u1ea1t"
+    },
+    "action_taken": {
+      "type": "string",
+      "enum": [
+        "approved",
+        "reject_load",
+        "deduct_weight",
+        "deduct_price"
+      ],
+      "description": "Ph\u01b0\u01a1ng \u00e1n x\u1eed l\u00fd"
+    },
+    "price_per_kg": {
+      "type": "number",
+      "description": "Gi\u00e1 thu mua (VN\u0110/kg)"
+    },
+    "total_value": {
+      "type": "number",
+      "description": "T\u1ed5ng gi\u00e1 tr\u1ecb (VN\u0110)"
+    },
+    "lot_code": {
+      "type": "string",
+      "description": "M\u00e3 l\u00f4 (truy xu\u1ea5t ngu\u1ed3n g\u1ed1c)"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "pond_id",
+    "harvest_date"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "AoCa — Quản lý ao nuôi",
+  "short_name": "AoCa",
+  "description": "Ứng dụng quản lý ao nuôi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1e3a5f",
+  "icons": []
+}

@@ -1,0 +1,12 @@
+{
+  "name": "Season",
+  "type": "object",
+  "properties": {
+    "code": { "type": "string", "description": "Mã vụ (VD: VU-2026-1)" },
+    "name": { "type": "string" },
+    "start_date": { "type": "string", "format": "date" },
+    "end_date": { "type": "string", "format": "date" },
+    "active": { "type": "boolean", "default": true }
+  },
+  "required": ["code", "name"]
+}

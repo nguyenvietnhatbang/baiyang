@@ -1,0 +1,88 @@
+{
+  "name": "PondLog",
+  "type": "object",
+  "properties": {
+    "pond_id": {
+      "type": "string",
+      "description": "ID ao nu\u00f4i"
+    },
+    "pond_code": {
+      "type": "string",
+      "description": "M\u00e3 ao"
+    },
+    "log_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Ng\u00e0y ghi nh\u1eadt k\u00fd"
+    },
+    "ph": {
+      "type": "number",
+      "description": "pH \u0111o th\u1ef1c t\u1ebf"
+    },
+    "temperature": {
+      "type": "number",
+      "description": "Nhi\u1ec7t \u0111\u1ed9 n\u01b0\u1edbc (\u00b0C)"
+    },
+    "do": {
+      "type": "number",
+      "description": "DO - Oxy h\u00f2a tan (mg/L)"
+    },
+    "nh3": {
+      "type": "number",
+      "description": "NH3 (mg/L)"
+    },
+    "no2": {
+      "type": "number",
+      "description": "NO2 (mg/L)"
+    },
+    "h2s": {
+      "type": "number",
+      "description": "H2S (mg/L)"
+    },
+    "water_color": {
+      "type": "string",
+      "description": "M\u00e0u n\u01b0\u1edbc"
+    },
+    "feed_code": {
+      "type": "string",
+      "description": "M\u00e3 th\u1ee9c \u0103n"
+    },
+    "feed_amount": {
+      "type": "number",
+      "description": "L\u01b0\u1ee3ng th\u1ee9c \u0103n (kg)"
+    },
+    "dead_fish": {
+      "type": "number",
+      "default": 0,
+      "description": "S\u1ed1 c\u00e1 ch\u1ebft h\u00f4m nay"
+    },
+    "medicine_used": {
+      "type": "string",
+      "description": "T\u00ean thu\u1ed1c/s\u1ea3n ph\u1ea9m d\u00f9ng"
+    },
+    "medicine_dosage": {
+      "type": "string",
+      "description": "Li\u1ec1u l\u01b0\u1ee3ng"
+    },
+    "withdrawal_days": {
+      "type": "number",
+      "description": "Ng\u00e0y ng\u01b0ng thu\u1ed1c y\u00eau c\u1ea7u"
+    },
+    "disease_notes": {
+      "type": "string",
+      "description": "Nh\u1eadt k\u00fd x\u1eed l\u00fd b\u1ec7nh"
+    },
+    "avg_weight": {
+      "type": "number",
+      "description": "Tr\u1ecdng l\u01b0\u1ee3ng trung b\u00ecnh \u01b0\u1edbc t\u00ednh (g)"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Ghi ch\u00fa kh\u00e1c"
+    }
+  },
+  "required": [
+    "pond_id",
+    "log_date"
+  ]
+}

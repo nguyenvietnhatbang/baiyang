@@ -1,0 +1,41 @@
+{
+  "name": "Agency",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "M\u00e3 \u0111\u1ea1i l\u00fd (VD: DL-01)"
+    },
+    "name": {
+      "type": "string",
+      "description": "T\u00ean \u0111\u1ea1i l\u00fd / T\u00ean ng\u01b0\u1eddi ph\u1ee5 tr\u00e1ch"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "address": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string",
+      "description": "V\u00f9ng/Khu v\u1ef1c"
+    },
+    "pond_code_segment": {
+      "type": "string",
+      "description": "Ph\u1ea7n m\u00e3 \u0111\u1ea1i l\u00fd trong m\u00e3 ao (VD: 01)",
+      "default": "01"
+    },
+    "total_ponds": {
+      "type": "number",
+      "description": "T\u1ed5ng s\u1ed1 ao qu\u1ea3n l\u00fd"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "code",
+    "name"
+  ]
+}

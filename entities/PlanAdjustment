@@ -1,0 +1,17 @@
+{
+  "name": "PlanAdjustment",
+  "type": "object",
+  "properties": {
+    "pond_id": { "type": "string", "format": "uuid" },
+    "adjustment_type": {
+      "type": "string",
+      "enum": ["auto_loss", "manual_admin", "manual_company"]
+    },
+    "field_name": { "type": "string" },
+    "old_value": { "type": "object" },
+    "new_value": { "type": "object" },
+    "reason": { "type": "string" },
+    "actor_id": { "type": "string", "format": "uuid" }
+  },
+  "required": ["pond_id", "adjustment_type"]
+}
