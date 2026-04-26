@@ -28,12 +28,9 @@ export default function PondDrawer({ pond, onClose, onUpdate, siblingPonds = [],
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-        <div
-          className="relative w-full max-w-2xl h-full bg-card shadow-2xl flex flex-col overflow-hidden"
-          onClick={e => e.stopPropagation()}
-        >
+      <div className="fixed inset-0 z-50 flex justify-end" role="presentation">
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
+        <div className="relative w-full max-w-2xl h-full bg-card shadow-2xl flex flex-col overflow-hidden z-10">
           {/* Header */}
           <div className="px-6 py-4 border-b border-border flex items-start justify-between bg-primary text-primary-foreground">
             <div>
@@ -62,7 +59,12 @@ export default function PondDrawer({ pond, onClose, onUpdate, siblingPonds = [],
               >
                 <Pencil className="w-4 h-4" />
               </button>
-              <button type="button" onClick={onClose} className="text-primary-foreground/75 hover:text-primary-foreground transition-colors p-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-primary-foreground/75 hover:text-primary-foreground transition-colors p-1"
+                title="Đóng bảng ao (chỉ đóng bằng nút này — tránh mất dữ liệu đang nhập)"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
