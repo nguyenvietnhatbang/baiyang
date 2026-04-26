@@ -41,12 +41,14 @@ export default function FieldLayout() {
   const sidebarInner = (
     <>
       <div className="px-1 pb-4 border-b border-stone-200">
-        <p className="text-xs font-bold text-teal-800 uppercase tracking-wide">Hiện trường</p>
-        <p className="text-base font-bold text-stone-900 mt-1 leading-snug break-words">
+        <p className="inline-flex text-[10px] font-extrabold text-teal-950 uppercase tracking-[0.12em] bg-teal-100 border border-teal-200/80 px-2 py-1 rounded-md">
+          Hiện trường
+        </p>
+        <p className="text-base font-bold text-stone-900 mt-2 leading-snug break-words">
           {user?.name || user?.profile?.phone || 'Xin chào'}
         </p>
       </div>
-      <nav className="flex flex-col gap-1 py-4 flex-1">
+      <nav className="flex flex-col gap-1 py-4">
         {nav.map(({ to, label, icon, end }) => {
           const active = end ? location.pathname === to : location.pathname.startsWith(to) && to !== '/field/scan';
           return <NavLink key={to} to={to} label={label} icon={icon} active={active} />;
@@ -67,7 +69,7 @@ export default function FieldLayout() {
       <button
         type="button"
         onClick={handleLogout}
-        className="mt-auto w-full text-left text-sm font-semibold text-stone-800 border border-stone-300 bg-white hover:bg-stone-50 px-3 py-2.5 rounded-xl shadow-sm"
+        className="mt-auto w-full text-left text-sm font-semibold text-stone-600 border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:text-stone-900 px-3 py-2.5 rounded-xl"
       >
         Thoát
       </button>
@@ -77,15 +79,15 @@ export default function FieldLayout() {
   return (
     <div className="min-h-[100dvh] bg-stone-100 text-stone-900">
       <div className="md:flex md:min-h-[100dvh]">
-        <aside className="hidden md:flex md:w-64 md:shrink-0 md:flex-col md:sticky md:top-0 md:h-screen md:border-r md:border-stone-200 md:bg-white md:shadow-sm md:px-4 md:py-6">
+        <aside className="hidden md:flex md:w-56 md:shrink-0 md:flex-col md:sticky md:top-0 md:h-screen md:border-r md:border-stone-200/80 md:bg-stone-50/80 md:backdrop-blur-sm md:px-3 md:py-5">
           {sidebarInner}
         </aside>
 
         <div className="flex-1 flex flex-col min-w-0 pb-[5.5rem] md:pb-0">
           <header className="sticky top-0 z-30 md:hidden border-b border-stone-200 bg-white shadow-sm px-4 py-3.5 flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold text-teal-800 uppercase tracking-wide">Hiện trường</p>
-              <p className="text-base font-bold text-stone-900 truncate leading-tight">
+              <p className="text-[10px] font-extrabold text-teal-950 uppercase tracking-[0.12em]">Hiện trường</p>
+              <p className="text-base font-bold text-stone-900 truncate leading-tight mt-0.5">
                 {user?.name || user?.profile?.phone || 'Xin chào'}
               </p>
             </div>
@@ -98,7 +100,7 @@ export default function FieldLayout() {
             </button>
           </header>
 
-          <main className="px-4 py-5 md:px-8 md:py-8 w-full max-w-4xl mx-auto flex-1">
+          <main className="px-4 py-5 md:px-8 md:py-8 w-full max-w-6xl mx-auto flex-1">
             <Outlet />
           </main>
         </div>

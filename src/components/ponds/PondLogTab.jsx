@@ -7,23 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Save, ChevronDown, ChevronUp, AlertTriangle, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { submitPondLogEntry } from '@/lib/pondLogSubmit';
+import { POND_LOG_ENV_RANGES, pondLogEnvOutOfRange } from '@/lib/pondLogEnvRanges';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-
-const ENV_RANGES = {
-  ph: { min: 6.5, max: 8.5, label: 'pH' },
-  temperature: { min: 25, max: 32, label: 'Nhiệt độ (°C)' },
-  do: { min: 5, max: 12, label: 'DO (mg/L)' },
-  nh3: { min: 0, max: 0.3, label: 'NH3 (mg/L)' },
-  no2: { min: 0, max: 0.05, label: 'NO2 (mg/L)' },
-  h2s: { min: 0, max: 0.02, label: 'H2S (mg/L)' },
-};
-
 function isAlert(key, value) {
-  if (!value) return false;
-  const r = ENV_RANGES[key];
-  if (!r) return false;
-  return Number(value) < r.min || Number(value) > r.max;
+  return pondLogEnvOutOfRange(key, value);
 }
 
 export default function PondLogTab({ pond, onUpdate }) {
@@ -116,7 +104,7 @@ export default function PondLogTab({ pond, onUpdate }) {
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        {Object.entries(ENV_RANGES).map(([key, cfg]) => (
+        {Object.entries(POND_LOG_ENV_RANGES).map(([key, cfg]) => (
           <div key={key}>
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               {cfg.label}

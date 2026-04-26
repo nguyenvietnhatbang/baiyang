@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
+import PondStatusBadge from '@/components/ponds/PondStatusBadge';
+import { ChevronRight, MapPin } from 'lucide-react';
 
 export default function FieldHouseholdPage() {
   const { user } = useAuth();
@@ -69,36 +72,81 @@ export default function FieldHouseholdPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-bold text-stone-900">Thông tin hộ nuôi</h1>
-      <p className="text-sm text-stone-700 -mt-2">Chỉ xem nhanh — chi tiết đầy đủ do đại lý / quản trị quản lý.</p>
+      <div>
+        <h1 className="text-xl font-bold text-stone-900">Hộ nuôi &amp; ao</h1>
+        <p className="text-sm text-stone-600 mt-1">
+          Xem nhanh thông tin hộ; bấm vào từng ao để mở màn hình nhật ký (giống quản lý về dữ liệu cơ bản).
+        </p>
+      </div>
+
       {households.map((h) => {
         const ponds = pondsByHousehold[h.id] || [];
         return (
-          <div key={h.id} className="rounded-2xl border border-stone-200 bg-white p-4 md:p-5 shadow-sm space-y-3">
-            <p className="font-bold text-stone-950 text-lg leading-tight">{h.name}</p>
-            <p className="text-sm text-stone-700">
-              Mã phân đoạn: <span className="font-semibold text-stone-900">{h.household_segment}</span>
-            </p>
-            <p className="text-sm text-stone-700">
-              Vùng: <span className="font-semibold text-stone-900">{h.region_code}</span>
-            </p>
-            {h.address ? <p className="text-sm text-stone-800 leading-snug">{h.address}</p> : null}
-            <div className="pt-3 border-t border-stone-200">
-              <p className="text-xs font-bold text-stone-600 uppercase tracking-wide mb-2">Các ao ({ponds.length})</p>
-              <ul className="flex flex-wrap gap-2">
-                {ponds.length === 0 ? (
-                  <li className="text-sm text-stone-700">—</li>
-                ) : (
-                  ponds.map((p) => (
-                    <li
-                      key={p.id}
-                      className="text-sm px-3 py-1.5 rounded-xl bg-teal-100 text-teal-950 font-mono font-semibold border border-teal-200"
-                    >
-                      {p.code}
+          <div
+            key={h.id}
+            className="rounded-2xl border border-stone-200 bg-white p-4 md:p-5 shadow-sm space-y-4"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-bold text-stone-950 text-lg leading-tight">{h.name}</p>
+                <p className="text-sm text-stone-600 mt-1">
+                  Mã phân đoạn: <span className="font-semibold text-stone-900">{h.household_segment}</span>
+                  {' · '}
+                  Vùng: <span className="font-semibold text-stone-900">{h.region_code}</span>
+                </p>
+              </div>
+              {typeof h.active === 'boolean' && (
+                <span
+                  className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                    h.active ? 'bg-green-100 text-green-800' : 'bg-stone-200 text-stone-600'
+                  }`}
+                >
+                  {h.active ? 'Đang hoạt động' : 'Ngưng'}
+                </span>
+              )}
+            </div>
+
+            {h.address ? (
+              <p className="flex gap-2 text-sm text-stone-800 leading-snug">
+                <MapPin className="w-4 h-4 shrink-0 text-stone-500 mt-0.5" />
+                {h.address}
+              </p>
+            ) : null}
+
+            <div className="pt-3 border-t border-stone-100">
+              <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-3">
+                Các ao ({ponds.length}) — chọn để nhập nhật ký
+              </p>
+              {ponds.length === 0 ? (
+                <p className="text-sm text-stone-600">Chưa có ao gắn với hộ này.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {ponds.map((p) => (
+                    <li key={p.id}>
+                      <Link
+                        to={`/field/log?pond=${encodeURIComponent(p.id)}`}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50/80 px-3 py-3 hover:bg-teal-50 hover:border-teal-200 transition-colors"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-mono font-bold text-stone-900">{p.code}</p>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <PondStatusBadge status={p.status} />
+                            {p.area != null && (
+                              <span className="text-xs text-stone-600">{p.area} m²</span>
+                            )}
+                            {p.current_fish != null && (
+                              <span className="text-xs text-stone-600">
+                                {p.current_fish.toLocaleString()} con
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-stone-400 shrink-0" />
+                      </Link>
                     </li>
-                  ))
-                )}
-              </ul>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         );
