@@ -80,19 +80,19 @@ export default function FieldHome() {
   return (
     <div className="space-y-5 md:space-y-6">
       <div
-        className="rounded-2xl p-4 sm:p-5 shadow-md border border-teal-950/20 overflow-hidden"
+        className="rounded-2xl p-4 sm:p-5 shadow-md border border-teal-950/30 overflow-hidden bg-teal-900 text-white"
         style={FIELD_HOME_HERO_STYLE}
       >
         <div className="flex flex-col lg:flex-row lg:items-center lg:gap-6">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-[0.12em] text-teal-100/95">
+            <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-[0.12em] text-white/80">
               Làm việc nhanh
             </p>
             <h1 className="text-lg sm:text-xl font-bold mt-1.5 leading-snug text-white">
               Chọn ao hoặc quét QR để ghi nhật ký
             </h1>
             <p className="text-xs sm:text-sm text-white/90 mt-1.5 leading-relaxed max-w-xl">
-              Mã trên ao thường có dạng <span className="font-mono font-semibold text-teal-100">POND:…</span>
+              Mã trên ao thường có dạng <span className="font-mono font-semibold text-emerald-200">POND:…</span>
             </p>
           </div>
           <button

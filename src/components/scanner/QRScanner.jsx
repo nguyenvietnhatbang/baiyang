@@ -32,9 +32,9 @@ export default function QRScanner({ onScan, onClose }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">
       <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border" style={{ background: 'hsl(var(--primary))' }}>
-          <p className="text-white font-semibold text-sm">📷 Quét mã QR ao nuôi</p>
-          <button onClick={onClose} className="text-white/70 hover:text-white">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-primary text-primary-foreground">
+          <p className="font-semibold text-sm">📷 Quét mã QR ao nuôi</p>
+          <button type="button" onClick={onClose} className="text-primary-foreground/80 hover:text-primary-foreground rounded-md p-0.5">
             <X className="w-5 h-5" />
           </button>
         </div>

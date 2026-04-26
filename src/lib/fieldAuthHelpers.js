@@ -16,9 +16,13 @@ export function isFieldRole(role) {
   return role === 'agency' || role === 'household_owner';
 }
 
-/** Giá trị QR ao: `POND:<mã ao>` */
+/** Giá trị QR ao: `POND:<mã ao>` (hoặc chỉ mã ao). */
 export function parsePondCodeFromQr(text) {
   const t = String(text || '').trim();
-  if (t.startsWith('POND:')) return t.slice(5).trim();
-  return t || null;
+  if (!t) return null;
+  if (t.startsWith('POND:')) {
+    const code = t.slice(5).trim();
+    return code || null;
+  }
+  return t;
 }

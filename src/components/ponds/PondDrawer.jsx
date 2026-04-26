@@ -9,7 +9,7 @@ import PondEditDialog from './PondEditDialog';
 import { differenceInDays, parseISO } from 'date-fns';
 import { useAuth } from '@/lib/AuthContext';
 
-export default function PondDrawer({ pond, onClose, onUpdate, siblingPonds = [] }) {
+export default function PondDrawer({ pond, onClose, onUpdate, siblingPonds = [], defaultTab = 'plan' }) {
   const { harvestAlertDays, user } = useAuth();
   const isAdmin = user?.role === 'admin';
   // Đã đăng nhập → form kế hoạch luôn mở trên UI; quyền ghi thật do RLS + trigger DB.
@@ -35,34 +35,34 @@ export default function PondDrawer({ pond, onClose, onUpdate, siblingPonds = [] 
           onClick={e => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="px-6 py-4 border-b border-border flex items-start justify-between"
-            style={{ background: 'hsl(var(--primary))' }}>
+          <div className="px-6 py-4 border-b border-border flex items-start justify-between bg-primary text-primary-foreground">
             <div>
               <div className="flex items-center gap-2">
-                <Fish className="w-5 h-5 text-white/80" />
-                <h2 className="text-lg font-bold text-white">{pond.code}</h2>
+                <Fish className="w-5 h-5 text-primary-foreground/85 shrink-0" />
+                <h2 className="text-lg font-bold">{pond.code}</h2>
                 {isUrgent && (
                   <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold pulse-urgent">
                     ƯU TIÊN THU
                   </span>
                 )}
                 {isWithdrawal && (
-                  <span className="bg-orange-400 text-white text-xs px-2 py-0.5 rounded-full font-bold">
+                  <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">
                     NGƯNG THUỐC
                   </span>
                 )}
               </div>
-              <p className="text-blue-200 text-sm mt-0.5">{pond.owner_name} • {pond.area} m²</p>
+              <p className="text-primary-foreground/85 text-sm mt-0.5">{pond.owner_name} • {pond.area} m²</p>
             </div>
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => setShowEdit(true)}
-                className="text-white/70 hover:text-white transition-colors p-1 rounded"
+                className="text-primary-foreground/75 hover:text-primary-foreground transition-colors p-1 rounded"
                 title="Chỉnh sửa / Xóa ao"
               >
                 <Pencil className="w-4 h-4" />
               </button>
-              <button onClick={onClose} className="text-white/70 hover:text-white transition-colors p-1">
+              <button type="button" onClick={onClose} className="text-primary-foreground/75 hover:text-primary-foreground transition-colors p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -80,7 +80,7 @@ export default function PondDrawer({ pond, onClose, onUpdate, siblingPonds = [] 
           )}
 
           {/* Tabs */}
-          <Tabs defaultValue="plan" className="flex-1 flex flex-col overflow-hidden">
+          <Tabs defaultValue={defaultTab} className="flex-1 flex flex-col overflow-hidden">
             <div className="px-6 pt-3 border-b border-border bg-card">
               <TabsList className="bg-muted">
                 <TabsTrigger value="plan" className="flex items-center gap-1.5 text-xs">
