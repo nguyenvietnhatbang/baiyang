@@ -2,6 +2,7 @@ import { useState } from 'react';
 import QRCode from 'qrcode';
 import { Loader2, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { pondQrPayload } from '@/lib/fieldAuthHelpers';
 
 export default function QRBatchDownload({ ponds }) {
   const [loading, setLoading] = useState(false);
@@ -38,6 +39,8 @@ export default function QRBatchDownload({ ponds }) {
     // Vẽ từng QR
     for (let i = 0; i < ponds.length; i++) {
       const pond = ponds[i];
+      const payload = pondQrPayload(pond?.code);
+      if (!payload) continue;
       const col = i % COLS;
       const row = Math.floor(i / COLS);
       const x = col * CELL_W + 10;
@@ -54,10 +57,11 @@ export default function QRBatchDownload({ ponds }) {
 
       // QR
       const qrCanvas = document.createElement('canvas');
-      await QRCode.toCanvas(qrCanvas, `POND:${pond.code}`, {
+      await QRCode.toCanvas(qrCanvas, payload, {
         width: 140,
         margin: 1,
         color: { dark: '#1e3a5f', light: '#ffffff' },
+        errorCorrectionLevel: 'M',
       });
       const qrX = x + (CELL_W - 20 - 140) / 2;
       ctx.drawImage(qrCanvas, qrX, y + 10, 140, 140);
@@ -75,7 +79,7 @@ export default function QRBatchDownload({ ponds }) {
 
       ctx.fillStyle = '#94a3b8';
       ctx.font = '10px monospace';
-      ctx.fillText(`POND:${pond.code}`, x + (CELL_W - 20) / 2, y + 194);
+      ctx.fillText(payload, x + (CELL_W - 20) / 2, y + 194);
     }
 
     const dataUrl = canvas.toDataURL('image/png');

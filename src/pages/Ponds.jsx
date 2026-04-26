@@ -15,6 +15,7 @@ import { differenceInDays, parseISO } from 'date-fns';
 import { useAuth } from '@/lib/AuthContext';
 import { getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
+import { pondQrPayload } from '@/lib/fieldAuthHelpers';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HouseholdsPanel } from '@/components/households/HouseholdsPanel';
 
@@ -96,7 +97,7 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
         ph_max: w.ph_max,
         temp_min: w.temp_min,
         temp_max: w.temp_max,
-        qr_code: `POND:${code}:${Date.now()}`,
+        qr_code: pondQrPayload(code),
       });
       onCreated();
       onClose();

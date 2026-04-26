@@ -10,6 +10,7 @@ import { addDays, format, parseISO } from 'date-fns';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { useAuth } from '@/lib/AuthContext';
 import { getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
+import { pondQrPayload } from '@/lib/fieldAuthHelpers';
 
 function calcInitialRegisterYield(totalFish, survivalRate, targetWeight) {
   if (!totalFish || !survivalRate || !targetWeight) return 0;
@@ -279,7 +280,7 @@ export default function PondPlanTab({
           ph_max: pond.ph_max ?? wDef.ph_max,
           temp_min: pond.temp_min ?? wDef.temp_min,
           temp_max: pond.temp_max ?? wDef.temp_max,
-          qr_code: `POND:${nextCode}:${Date.now()}`,
+          qr_code: pondQrPayload(nextCode),
         });
       }
 

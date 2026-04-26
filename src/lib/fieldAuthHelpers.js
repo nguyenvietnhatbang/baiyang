@@ -16,6 +16,21 @@ export function isFieldRole(role) {
   return role === 'agency' || role === 'household_owner';
 }
 
+/** Chuỗi đưa vào QR / cột qr_code: luôn `POND:<mã>` (không hậu tố). */
+export function pondQrPayload(code) {
+  const c = String(code ?? '').trim();
+  if (!c) return '';
+  return `POND:${c}`;
+}
+
+/** Lấy mã ao sau tiền tố POND: (bỏ hậu tố kiểu `:timestamp` trong DB cũ). */
+function pondCodeAfterPondPrefix(rest) {
+  const r = String(rest ?? '').trim();
+  if (!r) return null;
+  const first = r.split(':')[0].trim();
+  return first || null;
+}
+
 /**
  * Giá trị QR ao: `POND:<mã ao>` (không phân biệt hoa thường), hoặc chỉ mã,
  * hoặc URL có chứa POND:… / tham số pond|code.
@@ -36,17 +51,19 @@ export function parsePondCodeFromQr(text) {
     }
     const m = t.match(/POND:([^&#\s]+)/i);
     if (m) {
+      let chunk = m[1].trim();
       try {
-        return decodeURIComponent(m[1].trim()) || null;
+        chunk = decodeURIComponent(chunk);
       } catch {
-        return m[1].trim() || null;
+        /* giữ nguyên */
       }
+      return pondCodeAfterPondPrefix(chunk);
     }
   }
 
   if (/^POND:/i.test(t)) {
-    const code = t.replace(/^POND:/i, '').trim();
-    return code || null;
+    const rest = t.replace(/^POND:/i, '').trim();
+    return pondCodeAfterPondPrefix(rest);
   }
   return t;
 }
