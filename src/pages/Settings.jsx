@@ -31,6 +31,11 @@ export default function Settings() {
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchErr, setBatchErr] = useState('');
   const [batchOk, setBatchOk] = useState(false);
+  const [seasonCode, setSeasonCode] = useState('');
+  const [seasonName, setSeasonName] = useState('');
+  const [seasonSaving, setSeasonSaving] = useState(false);
+  const [seasonErr, setSeasonErr] = useState('');
+  const [seasonOk, setSeasonOk] = useState(false);
 
   const loadStockingData = () => {
     Promise.all([
@@ -111,6 +116,33 @@ export default function Settings() {
       }
     }
     setBatchSaving(false);
+  };
+
+  const handleAddSeason = async () => {
+    const code = seasonCode.trim();
+    const name = seasonName.trim();
+    if (!code || !name) {
+      setSeasonErr('Mã vụ và tên vụ là bắt buộc');
+      return;
+    }
+    setSeasonErr('');
+    setSeasonOk(false);
+    setSeasonSaving(true);
+    try {
+      await base44.entities.Season.create({
+        code,
+        name,
+        active: true,
+        sort_order: stockSeasons.length,
+      });
+      setSeasonCode('');
+      setSeasonName('');
+      setSeasonOk(true);
+      loadStockingData();
+    } catch (e) {
+      setSeasonErr(formatSupabaseError(e));
+    }
+    setSeasonSaving(false);
   };
 
   if (user?.role !== 'admin') {
@@ -212,6 +244,60 @@ export default function Settings() {
           <Save className="w-4 h-4 mr-2" />
           {saving ? 'Đang lưu...' : 'Lưu cài đặt'}
         </Button>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Vụ nuôi</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Tạo vụ mới để dùng khi lập kế hoạch ao và gắn đợt thả.
+          </p>
+        </div>
+        {seasonErr && (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{seasonErr}</p>
+        )}
+        {seasonOk && (
+          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">Đã thêm vụ.</p>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs font-semibold text-muted-foreground uppercase">Mã vụ *</Label>
+            <Input
+              value={seasonCode}
+              onChange={(e) => setSeasonCode(e.target.value)}
+              placeholder="VD: 2026-A"
+              className="mt-1 font-mono"
+            />
+          </div>
+          <div>
+            <Label className="text-xs font-semibold text-muted-foreground uppercase">Tên vụ *</Label>
+            <Input
+              value={seasonName}
+              onChange={(e) => setSeasonName(e.target.value)}
+              placeholder="VD: Vụ xuân 2026"
+              className="mt-1"
+            />
+          </div>
+        </div>
+        <Button onClick={handleAddSeason} disabled={seasonSaving} className="bg-primary text-white">
+          <Plus className="w-4 h-4 mr-2" />
+          {seasonSaving ? 'Đang thêm...' : 'Thêm vụ'}
+        </Button>
+        <div className="border-t border-border pt-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Vụ đang hoạt động</p>
+          <div className="rounded-lg border border-border divide-y divide-border max-h-52 overflow-y-auto text-sm">
+            {stockSeasons.length === 0 ? (
+              <p className="p-3 text-muted-foreground text-xs">Chưa có vụ.</p>
+            ) : (
+              stockSeasons.map((s) => (
+                <div key={s.id} className="p-3 flex items-center justify-between gap-3">
+                  <span className="font-medium">{s.code}</span>
+                  <span className="text-muted-foreground text-xs">{s.name}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-sm">
