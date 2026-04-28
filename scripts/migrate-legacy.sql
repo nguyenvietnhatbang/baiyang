@@ -14,7 +14,7 @@ create table if not exists public.region_codes (
   sort_order int not null default 0,
   created_at timestamptz not null default timezone('utc', now())
 );
-insert into public.region_codes (code, name, sort_order) values ('17', 'Thái Bình', 1)
+insert into public.region_codes (code, name, sort_order) values ('17', 'Thái Bình', 17)
 on conflict (code) do nothing;
 
 create table if not exists public.app_settings (

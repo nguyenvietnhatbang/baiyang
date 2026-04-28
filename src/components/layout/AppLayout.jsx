@@ -15,10 +15,11 @@ export default function AppLayout() {
 
   useEffect(() => {
     const loadAlerts = async () => {
-      const ponds = await base44.entities.Pond.filter({ status: 'CC' });
+      const ponds = await base44.entities.Pond.listWithHouseholds('-updated_at', 500);
       const today = new Date();
       let count = 0;
-      ponds.forEach(p => {
+      ponds.forEach((p) => {
+        if (p.status !== 'CC') return;
         if (p.expected_harvest_date) {
           const diff = differenceInDays(parseISO(p.expected_harvest_date), today);
           if (diff <= harvestAlertDays) count++;

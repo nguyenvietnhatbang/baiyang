@@ -1,5 +1,10 @@
 -- =============================================================================
 -- Seed demo chuẩn: 4 đại lý, 8 hộ nuôi, 16 ao
+--
+-- LƯU Ý (pond_cycles): INSERT hiện ghi cột nghiệp vụ vào public.ponds (kiểu cũ).
+-- DB mới (supabase-schema.sql đã tách pond_cycles): chỉnh seed hoặc nạp trên DB cũ
+-- rồi chạy scripts/migrations/20260503_pond_cycles.sql + drop_legacy_pond_columns.
+--
 --   • 6 ao CC — đã thả, đang nuôi (kế hoạch khóa, nhật ký mẫu)
 --   • 5 ao CT — chưa thả (chỉ hồ sơ ao)
 --   • 5 ao CT — đã thu hoạch xong (lịch sử: bản ghi thu hoạch + ao nghỉ)

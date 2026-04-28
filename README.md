@@ -10,6 +10,10 @@
 1. [`scripts/migrations/20260429_field_accounts.sql`](scripts/migrations/20260429_field_accounts.sql) — bảng `field_accounts`, RLS chỉ admin.
 2. [`scripts/migrations/20260430_field_account_verify_rpc.sql`](scripts/migrations/20260430_field_account_verify_rpc.sql) — RPC đăng nhập hiện trường; gỡ cột `auth_user_id` nếu DB còn bản migration cũ.
 
+### Mã vùng / biển số
+
+`region_codes.code` là **đầu biển số xe** theo tỉnh (đồng bộ `src/lib/vietnamProvinces.js`). DB cũ đang dùng mã hành chính (01, 02…) thì chạy [`scripts/migrations/20260502_region_codes_license_plate.sql`](scripts/migrations/20260502_region_codes_license_plate.sql).
+
 ### RLS / hiện trường
 
 Tài khoản hiện trường không có JWT `authenticated` — request dùng **anon key**. Nhiều policy trong schema cho phép thao tác khi `app_settings_bypass_rls()` là true. Nếu `bypass_rls = false`, có thể cần nới policy hoặc chỉ dùng chế độ bypass cho môi trường tiện ích.

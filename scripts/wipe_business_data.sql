@@ -20,6 +20,7 @@ truncate table
   public.plan_adjustments,
   public.pond_logs,
   public.harvest_records,
+  public.pond_cycles,
   public.ponds,
   public.households,
   public.agencies,

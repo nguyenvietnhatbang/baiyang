@@ -18,7 +18,6 @@ export default function PondEditDialog({ pond, open, onClose, onSaved, onDeleted
     depth: '',
     location: '',
     agency_code: '',
-    notes: '',
   });
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -36,7 +35,6 @@ export default function PondEditDialog({ pond, open, onClose, onSaved, onDeleted
         depth: pond.depth || '',
         location: pond.location || '',
         agency_code: pond.agency_code || '',
-        notes: pond.notes || '',
       });
       setConfirmDelete(false);
       setError('');
@@ -68,7 +66,6 @@ export default function PondEditDialog({ pond, open, onClose, onSaved, onDeleted
         area: Number(form.area) || null,
         depth: Number(form.depth) || null,
         location: form.location?.trim() || null,
-        notes: form.notes?.trim() || null,
       });
       onSaved();
       onClose();
@@ -155,10 +152,6 @@ export default function PondEditDialog({ pond, open, onClose, onSaved, onDeleted
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase">Địa điểm</Label>
               <Input {...f('location')} className="mt-1" placeholder="Ấp, xã, huyện..." />
-            </div>
-            <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase">Ghi chú</Label>
-              <Input {...f('notes')} className="mt-1" />
             </div>
             <div className="flex gap-2 pt-2">
               <Button onClick={handleSave} disabled={saving} className="flex-1 bg-primary text-white">

@@ -26,7 +26,7 @@ const HARVEST_ACTION_ITEMS = [
   { value: 'deduct_price', label: '💸 Trừ % giá trị' },
 ];
 
-export default function PondHarvestTab({ pond, onUpdate, isWithdrawal }) {
+export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) {
   const [records, setRecords] = useState([]);
   const [form, setForm] = useState({
     harvest_date: format(new Date(), 'yyyy-MM-dd'),
@@ -49,8 +49,12 @@ export default function PondHarvestTab({ pond, onUpdate, isWithdrawal }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    base44.entities.HarvestRecord.filter({ pond_id: pond.id }, '-harvest_date', 10).then(setRecords);
-  }, [pond.id]);
+    if (!cycle?.id) {
+      setRecords([]);
+      return;
+    }
+    base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id }, '-harvest_date', 10).then(setRecords);
+  }, [pond.id, cycle?.id]);
 
   const lotCode = `LOT-${pond.code}-${form.harvest_date?.replace(/-/g, '')}`;
   const totalValue = form.actual_yield && form.price_per_kg 
@@ -71,15 +75,16 @@ export default function PondHarvestTab({ pond, onUpdate, isWithdrawal }) {
     : 'approved';
 
   const handleSave = async () => {
-    if (isWithdrawal) return;
+    if (isWithdrawal || !cycle?.id) return;
     setSaving(true);
     await base44.entities.HarvestRecord.create({
       ...form,
       pond_id: pond.id,
+      pond_cycle_id: cycle.id,
       pond_code: pond.code,
       owner_name: pond.owner_name,
       agency_code: pond.agency_code,
-      planned_yield: pond.expected_yield,
+      planned_yield: cycle.expected_yield,
       actual_yield: Number(form.actual_yield),
       fish_count_harvested: Number(form.fish_count_harvested),
       avg_weight_harvest: Number(form.avg_weight_harvest),
@@ -93,8 +98,8 @@ export default function PondHarvestTab({ pond, onUpdate, isWithdrawal }) {
       lot_code: lotCode,
     });
 
-    await base44.entities.Pond.update(pond.id, {
-      actual_yield: (pond.actual_yield || 0) + Number(form.actual_yield),
+    await base44.entities.PondCycle.update(cycle.id, {
+      actual_yield: (cycle.actual_yield || 0) + Number(form.actual_yield),
       harvest_done: true,
       status: 'CT',
     });

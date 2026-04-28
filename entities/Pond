@@ -8,17 +8,12 @@
     },
     "owner_name": {
       "type": "string",
-      "description": "T\u00ean ch\u1ee7 h\u1ed9 (\u0111\u1ed3ng b\u1ed9 t\u1eeb h\u1ed9 nu\u00f4i, c\u00f3 th\u1ec3 \u0111\u1ec3 tr\u1ed1ng n\u1ebfu ch\u1ec9 d\u00f9ng household_id)"
+      "description": "T\u00ean ch\u1ee7 h\u1ed9 (\u0111\u1ed3ng b\u1ed9 t\u1eeb h\u1ed9 nu\u00f4i)"
     },
     "household_id": {
       "type": "string",
       "format": "uuid",
       "description": "FK h\u1ed9 nu\u00f4i"
-    },
-    "season_id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "V\u1ee5 / m\u00f9a v\u1ee5"
     },
     "area": {
       "type": "number",
@@ -35,74 +30,6 @@
     "agency_code": {
       "type": "string",
       "description": "M\u00e3 \u0111\u1ea1i l\u00fd ph\u1ee5 tr\u00e1ch"
-    },
-    "status": {
-      "type": "string",
-      "enum": [
-        "CC",
-        "CT"
-      ],
-      "default": "CT",
-      "description": "CC = C\u00f3 c\u00e1, CT = Ch\u01b0a th\u1ea3"
-    },
-    "stock_date": {
-      "type": "string",
-      "format": "date",
-      "description": "Ng\u00e0y th\u1ea3 c\u00e1"
-    },
-    "total_fish": {
-      "type": "number",
-      "description": "T\u1ed5ng s\u1ed1 c\u00e1 th\u1ea3"
-    },
-    "current_fish": {
-      "type": "number",
-      "description": "S\u1ed1 c\u00e1 hi\u1ec7n t\u1ea1i (sau hao h\u1ee5t)"
-    },
-    "seed_size": {
-      "type": "number",
-      "description": "Size gi\u1ed1ng (cm)"
-    },
-    "seed_weight": {
-      "type": "number",
-      "description": "Tr\u1ecdng l\u01b0\u1ee3ng gi\u1ed1ng (g)"
-    },
-    "density": {
-      "type": "number",
-      "description": "M\u1eadt \u0111\u1ed9 (con/m\u00b2)"
-    },
-    "survival_rate": {
-      "type": "number",
-      "description": "T\u1ec9 l\u1ec7 s\u1ed1ng k\u1ef3 v\u1ecdng (%)"
-    },
-    "target_weight": {
-      "type": "number",
-      "description": "Tr\u1ecdng l\u01b0\u1ee3ng k\u1ef3 v\u1ecdng l\u00fac thu (g)"
-    },
-    "expected_harvest_date": {
-      "type": "string",
-      "format": "date",
-      "description": "Ng\u00e0y thu ho\u1ea1ch d\u1ef1 ki\u1ebfn"
-    },
-    "expected_yield": {
-      "type": "number",
-      "description": "S\u1ea3n l\u01b0\u1ee3ng d\u1ef1 ki\u1ebfn (kg) - t\u1ef1 t\u00ednh"
-    },
-    "actual_yield": {
-      "type": "number",
-      "description": "S\u1ea3n l\u01b0\u1ee3ng \u0111\u00e3 thu th\u1ef1c t\u1ebf (kg)"
-    },
-    "harvest_done": {
-      "type": "boolean",
-      "default": false,
-      "description": "\u0110\u00e3 thu ho\u1ea1ch xong"
-    },
-    "total_feed_used": {
-      "type": "number",
-      "description": "T\u1ed5ng th\u1ee9c \u0103n \u0111\u00e3 d\u00f9ng (kg)"
-    },
-    "fcr": {
-      "type": "number",
-      "description": "H\u1ec7 s\u1ed1 chuy\u1ec3n \u0111\u1ed5i th\u1ee9c \u0103n FCR"
     },
     "ph_min": {
       "type": "number",
@@ -124,27 +51,9 @@
       "default": 32,
       "description": "Nhi\u1ec7t \u0111\u1ed9 t\u1ed1i \u0111a (\u00b0C)"
     },
-    "notes": {
-      "type": "string",
-      "description": "Ghi ch\u00fa"
-    },
     "qr_code": {
       "type": "string",
-      "description": "QR code data URL"
-    },
-    "last_medicine_date": {
-      "type": "string",
-      "format": "date",
-      "description": "Ng\u00e0y d\u00f9ng thu\u1ed1c cu\u1ed1i"
-    },
-    "withdrawal_days": {
-      "type": "number",
-      "description": "S\u1ed1 ng\u00e0y ng\u01b0ng thu\u1ed1c y\u00eau c\u1ea7u"
-    },
-    "withdrawal_end_date": {
-      "type": "string",
-      "format": "date",
-      "description": "Ng\u00e0y h\u1ebft ng\u01b0ng thu\u1ed1c"
+      "description": "QR payload (POND:m\u00e3)"
     }
   },
   "required": [

@@ -1,0 +1,39 @@
+{
+  "name": "PondCycle",
+  "type": "object",
+  "properties": {
+    "pond_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "FK ao v\u1eadt l\u00fd"
+    },
+    "season_id": { "type": "string", "format": "uuid" },
+    "stocking_batch_id": { "type": "string", "format": "uuid" },
+    "status": {
+      "type": "string",
+      "enum": ["CC", "CT"],
+      "default": "CT"
+    },
+    "stock_date": { "type": "string", "format": "date" },
+    "total_fish": { "type": "number" },
+    "current_fish": { "type": "number" },
+    "seed_size": { "type": "number" },
+    "seed_weight": { "type": "number" },
+    "density": { "type": "number" },
+    "survival_rate": { "type": "number" },
+    "target_weight": { "type": "number" },
+    "expected_harvest_date": { "type": "string", "format": "date" },
+    "initial_plan_locked": { "type": "boolean", "default": false },
+    "initial_expected_harvest_date": { "type": "string", "format": "date" },
+    "expected_yield": { "type": "number" },
+    "actual_yield": { "type": "number" },
+    "harvest_done": { "type": "boolean", "default": false },
+    "total_feed_used": { "type": "number" },
+    "fcr": { "type": "number" },
+    "last_medicine_date": { "type": "string", "format": "date" },
+    "withdrawal_days": { "type": "number" },
+    "withdrawal_end_date": { "type": "string", "format": "date" },
+    "notes": { "type": "string" }
+  },
+  "required": ["pond_id"]
+}

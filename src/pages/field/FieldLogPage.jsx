@@ -5,6 +5,7 @@ import { base44 } from '@/api/base44Client';
 import { submitPondLogEntry } from '@/lib/pondLogSubmit';
 import { POND_LOG_ENV_RANGES, pondLogEnvOutOfRange } from '@/lib/pondLogEnvRanges';
 import { useAuth } from '@/lib/AuthContext';
+import { pickActiveCycle } from '@/lib/pondCycleHelpers';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -88,6 +89,7 @@ export default function FieldLogPage() {
   const pondId = params.get('pond');
 
   const [pond, setPond] = useState(null);
+  const [fieldCycleId, setFieldCycleId] = useState('');
   const [form, setForm] = useState(emptyForm);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -96,8 +98,12 @@ export default function FieldLogPage() {
   const [showMedicine, setShowMedicine] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
-  const loadLogs = async (pid) => {
-    const data = await base44.entities.PondLog.filter({ pond_id: pid }, '-log_date', 80);
+  const loadLogs = async (cycleId) => {
+    if (!cycleId) {
+      setLogs([]);
+      return;
+    }
+    const data = await base44.entities.PondLog.filter({ pond_cycle_id: cycleId }, '-log_date', 80);
     setLogs(data || []);
   };
 
@@ -106,13 +112,22 @@ export default function FieldLogPage() {
       setLoading(false);
       setPond(null);
       setLogs([]);
+      setFieldCycleId('');
       return;
     }
     let cancelled = false;
     setLoading(true);
-    base44.entities.Pond.filter({ id: pondId }, '-updated_at', 1)
-      .then((rows) => {
-        if (!cancelled) setPond(rows[0] || null);
+    base44.entities.Pond
+      .getWithCycles(pondId)
+      .then((p) => {
+        if (cancelled) return;
+        setPond(p || null);
+        const cycles = p?.pond_cycles || [];
+        const def = pickActiveCycle(cycles)?.id || cycles[0]?.id || '';
+        setFieldCycleId((prev) => {
+          if (prev && cycles.some((c) => c.id === prev)) return prev;
+          return def;
+        });
       })
       .catch(() => {
         if (!cancelled) toast.error('Không tải được ao');
@@ -120,26 +135,38 @@ export default function FieldLogPage() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    void loadLogs(pondId).catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [pondId]);
 
+  useEffect(() => {
+    if (!fieldCycleId) {
+      setLogs([]);
+      return;
+    }
+    void loadLogs(fieldCycleId).catch(() => {});
+  }, [fieldCycleId]);
+
   const handleSave = async (e) => {
     e.preventDefault();
     if (!pond) return;
+    const cycle = pond.pond_cycles?.find((c) => c.id === fieldCycleId) || pickActiveCycle(pond.pond_cycles);
+    if (!cycle?.id) {
+      toast.error('Chưa có chu kỳ nuôi — tạo chu kỳ trên trang quản lý ao');
+      return;
+    }
     if (!form.log_date) {
       toast.error('Chọn ngày');
       return;
     }
     setSaving(true);
     try {
-      await submitPondLogEntry({ pond, form });
+      await submitPondLogEntry({ pond, cycle, form });
       toast.success('Đã lưu nhật ký');
-      const rows = await base44.entities.Pond.filter({ id: pond.id }, '-updated_at', 1);
-      if (rows[0]) setPond(rows[0]);
-      await loadLogs(pond.id);
+      const refreshed = await base44.entities.Pond.getWithCycles(pond.id);
+      if (refreshed) setPond(refreshed);
+      await loadLogs(cycle.id);
       setForm((f) => ({
         ...emptyForm(),
         log_date: f.log_date,
@@ -176,12 +203,28 @@ export default function FieldLogPage() {
     );
   }
 
+  const cycle =
+    pond.pond_cycles?.find((c) => c.id === fieldCycleId) || pickActiveCycle(pond.pond_cycles) || null;
+
+  if (!cycle) {
+    return (
+      <div className="text-center py-14 space-y-4 px-2">
+        <p className="text-stone-800 text-base">Ao chưa có chu kỳ thả. Vào trang quản lý ao để tạo chu kỳ trước khi nhập nhật ký.</p>
+        <Button asChild variant="outline" className="h-12 text-base border-stone-300">
+          <Link to="/field">Về trang chủ</Link>
+        </Button>
+      </div>
+    );
+  }
+
   const today = new Date();
-  const harvestDiff = pond.expected_harvest_date ? differenceInDays(parseISO(pond.expected_harvest_date), today) : null;
+  const harvestDiff = cycle.expected_harvest_date
+    ? differenceInDays(parseISO(cycle.expected_harvest_date), today)
+    : null;
   const harvestUrgent = harvestDiff !== null && harvestDiff <= (harvestAlertDays ?? 7);
   const harvestOverdue = harvestDiff !== null && harvestDiff < 0;
   const inWithdrawal =
-    pond.withdrawal_end_date && differenceInDays(parseISO(pond.withdrawal_end_date), today) >= 0;
+    cycle.withdrawal_end_date && differenceInDays(parseISO(cycle.withdrawal_end_date), today) >= 0;
 
   return (
     <div className="space-y-5 pb-8">
@@ -200,8 +243,26 @@ export default function FieldLogPage() {
             <p className="text-xl font-bold text-stone-950 mt-0.5">{pond.code}</p>
             <p className="text-sm text-stone-700 mt-0.5">{pond.owner_name || '—'}</p>
           </div>
-          <PondStatusBadge status={pond.status} />
+          <PondStatusBadge status={cycle.status} />
         </div>
+
+        {(pond.pond_cycles?.length || 0) > 1 && (
+          <div>
+            <Label className="text-xs font-semibold text-stone-600">Chu kỳ ghi nhật ký</Label>
+            <select
+              value={fieldCycleId}
+              onChange={(e) => setFieldCycleId(e.target.value)}
+              className="mt-1 w-full h-11 rounded-lg border border-stone-300 bg-white px-3 text-sm font-medium text-stone-900"
+            >
+              {pond.pond_cycles.map((c, i) => (
+                <option key={c.id} value={c.id}>
+                  {c.stock_date ? `Thả ${c.stock_date}` : `Chu kỳ ${i + 1}`} · {c.status}
+                  {c.expected_yield != null ? ` · ~${c.expected_yield} kg` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {inWithdrawal && (
           <p className="text-xs font-semibold text-orange-800 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
@@ -217,13 +278,13 @@ export default function FieldLogPage() {
           <div className="rounded-xl bg-stone-50 border border-stone-100 px-2 py-2.5">
             <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Số cá</p>
             <p className="text-sm font-bold text-stone-900 mt-0.5">
-              {pond.current_fish != null ? pond.current_fish.toLocaleString() : '—'}
+              {cycle.current_fish != null ? cycle.current_fish.toLocaleString() : '—'}
             </p>
           </div>
           <div className="rounded-xl bg-stone-50 border border-stone-100 px-2 py-2.5 col-span-2 sm:col-span-1">
             <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">SL dự kiến</p>
             <p className="text-sm font-bold text-stone-900 mt-0.5">
-              {pond.expected_yield != null ? `${pond.expected_yield.toLocaleString()} kg` : '—'}
+              {cycle.expected_yield != null ? `${cycle.expected_yield.toLocaleString()} kg` : '—'}
             </p>
           </div>
         </div>
@@ -239,10 +300,10 @@ export default function FieldLogPage() {
               <dd className="font-medium text-stone-900 text-right leading-snug">{pond.location}</dd>
             </div>
           ) : null}
-          {pond.stock_date ? (
+          {cycle.stock_date ? (
             <div className="flex justify-between gap-2">
               <dt className="text-stone-600">Ngày thả</dt>
-              <dd className="font-semibold text-stone-900">{pond.stock_date}</dd>
+              <dd className="font-semibold text-stone-900">{cycle.stock_date}</dd>
             </div>
           ) : null}
           <div className="flex justify-between gap-2 items-center">
@@ -252,7 +313,7 @@ export default function FieldLogPage() {
                 harvestOverdue ? 'text-red-600' : harvestUrgent ? 'text-amber-700' : 'text-stone-900'
               }`}
             >
-              {pond.expected_harvest_date || '—'}
+              {cycle.expected_harvest_date || '—'}
               {harvestOverdue && ' (quá hạn)'}
               {harvestUrgent && !harvestOverdue && ' (sắp tới)'}
             </dd>
@@ -260,18 +321,18 @@ export default function FieldLogPage() {
           <div className="flex justify-between gap-2">
             <dt className="text-stone-600">Lũy kế thức ăn</dt>
             <dd className="font-semibold text-stone-900">
-              {pond.total_feed_used != null ? `${pond.total_feed_used.toLocaleString()} kg` : '—'}
+              {cycle.total_feed_used != null ? `${cycle.total_feed_used.toLocaleString()} kg` : '—'}
             </dd>
           </div>
-          {pond.fcr != null ? (
+          {cycle.fcr != null ? (
             <div className="flex justify-between gap-2">
               <dt className="text-stone-600">FCR</dt>
               <dd
                 className={`font-bold ${
-                  pond.fcr <= 1.3 ? 'text-green-700' : pond.fcr <= 1.6 ? 'text-amber-700' : 'text-red-700'
+                  cycle.fcr <= 1.3 ? 'text-green-700' : cycle.fcr <= 1.6 ? 'text-amber-700' : 'text-red-700'
                 }`}
               >
-                {pond.fcr}
+                {cycle.fcr}
               </dd>
             </div>
           ) : null}

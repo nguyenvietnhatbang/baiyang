@@ -25,6 +25,7 @@ truncate table
   public.plan_adjustments,
   public.pond_logs,
   public.harvest_records,
+  public.pond_cycles,
   public.ponds,
   public.field_accounts,
   public.households,
@@ -43,8 +44,11 @@ on conflict (id) do update set
   bypass_rls = excluded.bypass_rls,
   updated_at = timezone('utc', now());
 
-insert into public.region_codes (code, name, sort_order)
-values ('17', 'Thái Bình', 1)
-on conflict (code) do nothing;
+insert into public.region_codes (code, name, sort_order) values
+  ('17', 'Thái Bình', 17),
+  ('30', 'Hà Nội', 30)
+on conflict (code) do update
+  set name = excluded.name,
+      sort_order = excluded.sort_order;
 
 commit;

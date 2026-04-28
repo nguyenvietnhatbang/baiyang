@@ -22,7 +22,8 @@ export default function FieldHouseholdPage() {
           if (!cancelled) {
             setHouseholds(hh);
             if (hh[0]) {
-              const ponds = await base44.entities.Pond.filter({ household_id: hh[0].id }, 'code', 200);
+              const allPonds = await base44.entities.Pond.listWithHouseholds('code', 500);
+              const ponds = (allPonds || []).filter((p) => p.household_id === hh[0].id);
               if (!cancelled) setPondsByHousehold({ [hh[0].id]: ponds });
             }
           }
@@ -33,13 +34,11 @@ export default function FieldHouseholdPage() {
           const hh = await base44.entities.Household.filter({ agency_id: user.agency_id }, 'name', 500);
           if (cancelled) return;
           setHouseholds(hh);
+          const allPonds = await base44.entities.Pond.listWithHouseholds('code', 500);
           const map = {};
-          await Promise.all(
-            hh.map(async (h) => {
-              const ponds = await base44.entities.Pond.filter({ household_id: h.id }, 'code', 200);
-              map[h.id] = ponds;
-            })
-          );
+          for (const h of hh) {
+            map[h.id] = (allPonds || []).filter((p) => p.household_id === h.id);
+          }
           if (!cancelled) setPondsByHousehold(map);
           return;
         }

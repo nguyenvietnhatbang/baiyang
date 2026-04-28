@@ -84,20 +84,19 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
     try {
       const code = await base44.rpc('next_pond_code', { p_household_id: form.household_id });
       const w = getWaterThresholdDefaults(appSettings);
-      await base44.entities.Pond.create({
-        code,
-        household_id: form.household_id,
-        owner_name: selectedHousehold?.name || '',
-        agency_code: agencyForHousehold?.code || null,
-        area: Number(form.area) || null,
-        depth: Number(form.depth) || null,
-        location: form.location?.trim() || null,
-        status: 'CT',
-        ph_min: w.ph_min,
-        ph_max: w.ph_max,
-        temp_min: w.temp_min,
-        temp_max: w.temp_max,
-        qr_code: pondQrPayload(code),
+      await base44.rpc('create_pond_with_initial_cycle', {
+        p_code: code,
+        p_household_id: form.household_id,
+        p_owner_name: selectedHousehold?.name || '',
+        p_agency_code: agencyForHousehold?.code || null,
+        p_area: Number(form.area) || null,
+        p_depth: Number(form.depth) || null,
+        p_location: form.location?.trim() || null,
+        p_ph_min: w.ph_min,
+        p_ph_max: w.ph_max,
+        p_temp_min: w.temp_min,
+        p_temp_max: w.temp_max,
+        p_qr_code: pondQrPayload(code),
       });
       onCreated();
       onClose();
@@ -238,9 +237,15 @@ export default function Ponds() {
   const handleConfirmHarvest = async () => {
     if (checkedHarvest.size === 0) return;
     setConfirming(true);
-    await Promise.all([...checkedHarvest].map(id =>
-      base44.entities.Pond.update(id, { harvest_done: true, status: 'CT', current_fish: 0 })
-    ));
+    await Promise.all(
+      [...checkedHarvest].map(async (pondId) => {
+        const rows = await base44.entities.PondCycle.filter({ pond_id: pondId, status: 'CC' }, '-updated_at', 1);
+        const c = rows[0];
+        if (c) {
+          await base44.entities.PondCycle.update(c.id, { harvest_done: true, status: 'CT', current_fish: 0 });
+        }
+      })
+    );
     setCheckedHarvest(new Set());
     loadPonds();
     setConfirming(false);

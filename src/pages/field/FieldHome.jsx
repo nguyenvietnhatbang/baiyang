@@ -66,12 +66,7 @@ export default function FieldHome() {
       return;
     }
     try {
-      let rows = await base44.entities.Pond.filter({ code }, '-updated_at', 1);
-      let p = rows[0];
-      if (!p) {
-        const all = await base44.entities.Pond.listWithHouseholds('-updated_at', 500);
-        p = (all || []).find((x) => pondCodesEqual(x.code, code));
-      }
+      const p = await base44.entities.Pond.findByCodeFlattened(code);
       if (p) navigate(`/field/log?pond=${encodeURIComponent(p.id)}`);
       else toast.error('Không tìm thấy ao trong phạm vi của bạn');
     } catch {

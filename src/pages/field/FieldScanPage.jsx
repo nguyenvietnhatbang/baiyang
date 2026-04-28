@@ -18,12 +18,7 @@ export default function FieldScanPage() {
       return;
     }
     try {
-      let rows = await base44.entities.Pond.filter({ code }, '-updated_at', 1);
-      let p = rows[0];
-      if (!p) {
-        const all = await base44.entities.Pond.listWithHouseholds('-updated_at', 500);
-        p = (all || []).find((x) => pondCodesEqual(x.code, code));
-      }
+      let p = await base44.entities.Pond.findByCodeFlattened(code);
       if (!p) {
         toast.error('Không tìm thấy ao');
         return;

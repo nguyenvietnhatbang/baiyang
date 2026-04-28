@@ -14,7 +14,7 @@ function isAlert(key, value) {
   return pondLogEnvOutOfRange(key, value);
 }
 
-export default function PondLogTab({ pond, onUpdate }) {
+export default function PondLogTab({ pond, cycle, onUpdate }) {
   const [showHistory, setShowHistory] = useState(false);
   const [logs, setLogs] = useState([]);
   const [feedDateFrom, setFeedDateFrom] = useState('');
@@ -30,23 +30,36 @@ export default function PondLogTab({ pond, onUpdate }) {
   const [saving, setSaving] = useState(false);
 
   const loadLogs = async () => {
-    const data = await base44.entities.PondLog.filter({ pond_id: pond.id }, '-log_date', 500);
+    if (!cycle?.id) {
+      setLogs([]);
+      return;
+    }
+    const data = await base44.entities.PondLog.filter({ pond_cycle_id: cycle.id }, '-log_date', 500);
     setLogs(data);
   };
 
-  useEffect(() => { loadLogs(); }, [pond.id]);
+  useEffect(() => {
+    void loadLogs();
+  }, [pond.id, cycle?.id]);
 
   useEffect(() => {
-    if (!feedDateFrom || !feedDateTo) {
+    if (!feedDateFrom || !feedDateTo || !cycle?.id) {
       setSumRpcRange(null);
       return;
     }
     let cancelled = false;
-    base44.rpc('sum_pond_feed', { p_pond_id: pond.id, p_from: feedDateFrom, p_to: feedDateTo })
-      .then((v) => { if (!cancelled) setSumRpcRange(Number(v)); })
-      .catch(() => { if (!cancelled) setSumRpcRange(null); });
-    return () => { cancelled = true; };
-  }, [pond.id, feedDateFrom, feedDateTo]);
+    base44
+      .rpc('sum_pond_cycle_feed', { p_pond_cycle_id: cycle.id, p_from: feedDateFrom, p_to: feedDateTo })
+      .then((v) => {
+        if (!cancelled) setSumRpcRange(Number(v));
+      })
+      .catch(() => {
+        if (!cancelled) setSumRpcRange(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cycle?.id, feedDateFrom, feedDateTo]);
 
   const filteredLogs = logs.filter((l) => {
     if (feedDateFrom && l.log_date < feedDateFrom) return false;
@@ -57,7 +70,7 @@ export default function PondLogTab({ pond, onUpdate }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await submitPondLogEntry({ pond, form });
+      await submitPondLogEntry({ pond, cycle, form });
       onUpdate();
       loadLogs();
       setForm((f) => ({

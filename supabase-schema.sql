@@ -13,8 +13,9 @@ create table if not exists public.region_codes (
   created_at timestamptz not null default timezone('utc', now())
 );
 
-insert into public.region_codes (code, name, sort_order) values ('17', 'Thái Bình', 1)
+insert into public.region_codes (code, name, sort_order) values ('17', 'Thái Bình', 17)
 on conflict (code) do nothing;
+-- Danh mục đầy đủ (mã biển số): scripts/restore_region_codes_vietnam.sql hoặc migrations 20260426 / 20260502.
 
 -- ---------------------------------------------------------------------------
 -- App settings (singleton id = 1): harvest alert window, RLS bypass for dev
@@ -120,19 +121,40 @@ create index if not exists idx_profiles_household_id on public.profiles(househol
 create unique index if not exists idx_profiles_phone_unique on public.profiles (phone) where phone is not null;
 
 -- ---------------------------------------------------------------------------
--- Ponds
+-- Ponds (ao vật lý)
 -- ---------------------------------------------------------------------------
 create table if not exists public.ponds (
   id uuid primary key default gen_random_uuid(),
   code text not null unique,
   owner_name text,
   household_id uuid references public.households(id) on update cascade on delete set null,
-  season_id uuid references public.seasons(id) on update cascade on delete set null,
-  stocking_batch_id uuid references public.stocking_batches(id) on update cascade on delete set null,
   area numeric,
   depth numeric,
   location text,
   agency_code text,
+  ph_min numeric not null default 6.5,
+  ph_max numeric not null default 8.5,
+  temp_min numeric not null default 25,
+  temp_max numeric not null default 32,
+  qr_code text,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint ponds_agency_code_fkey foreign key (agency_code) references public.agencies(code) on update cascade on delete set null,
+  constraint ponds_ph_bounds check (ph_min <= ph_max),
+  constraint ponds_temp_bounds check (temp_min <= temp_max)
+);
+
+create index if not exists idx_ponds_agency_code on public.ponds(agency_code);
+create index if not exists idx_ponds_household_id on public.ponds(household_id);
+
+-- ---------------------------------------------------------------------------
+-- Pond cycles (chu kỳ thả / kế hoạch trên ao)
+-- ---------------------------------------------------------------------------
+create table if not exists public.pond_cycles (
+  id uuid primary key default gen_random_uuid(),
+  pond_id uuid not null references public.ponds(id) on update cascade on delete cascade,
+  season_id uuid references public.seasons(id) on update cascade on delete set null,
+  stocking_batch_id uuid references public.stocking_batches(id) on update cascade on delete set null,
   status text not null default 'CT' check (status in ('CC', 'CT')),
   stock_date date,
   total_fish numeric,
@@ -150,35 +172,29 @@ create table if not exists public.ponds (
   harvest_done boolean not null default false,
   total_feed_used numeric,
   fcr numeric,
-  ph_min numeric not null default 6.5,
-  ph_max numeric not null default 8.5,
-  temp_min numeric not null default 25,
-  temp_max numeric not null default 32,
-  notes text,
-  qr_code text,
   last_medicine_date date,
   withdrawal_days numeric,
   withdrawal_end_date date,
+  notes text,
   created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now()),
-  constraint ponds_agency_code_fkey foreign key (agency_code) references public.agencies(code) on update cascade on delete set null,
-  constraint ponds_ph_bounds check (ph_min <= ph_max),
-  constraint ponds_temp_bounds check (temp_min <= temp_max)
+  updated_at timestamptz not null default timezone('utc', now())
 );
 
-create index if not exists idx_ponds_agency_code on public.ponds(agency_code);
-create index if not exists idx_ponds_household_id on public.ponds(household_id);
-create index if not exists idx_ponds_season_id on public.ponds(season_id);
-create index if not exists idx_ponds_stocking_batch_id on public.ponds(stocking_batch_id);
-create index if not exists idx_ponds_status on public.ponds(status);
-create index if not exists idx_ponds_expected_harvest_date on public.ponds(expected_harvest_date);
+create index if not exists idx_pond_cycles_pond_id on public.pond_cycles(pond_id);
+create index if not exists idx_pond_cycles_season_id on public.pond_cycles(season_id);
+create index if not exists idx_pond_cycles_stocking_batch_id on public.pond_cycles(stocking_batch_id);
+create index if not exists idx_pond_cycles_status on public.pond_cycles(status);
+
+create unique index if not exists idx_pond_cycles_one_cc_per_pond
+  on public.pond_cycles(pond_id)
+  where status = 'CC';
 
 -- ---------------------------------------------------------------------------
--- Plan adjustments + audit trail for plan fields
+-- Plan adjustments (theo chu kỳ)
 -- ---------------------------------------------------------------------------
 create table if not exists public.plan_adjustments (
   id uuid primary key default gen_random_uuid(),
-  pond_id uuid not null references public.ponds(id) on delete cascade,
+  pond_cycle_id uuid not null references public.pond_cycles(id) on delete cascade,
   adjustment_type text not null check (adjustment_type in ('auto_loss', 'manual_admin', 'manual_company')),
   field_name text,
   old_value jsonb,
@@ -188,7 +204,7 @@ create table if not exists public.plan_adjustments (
   created_at timestamptz not null default timezone('utc', now())
 );
 
-create index if not exists idx_plan_adjustments_pond_id on public.plan_adjustments(pond_id, created_at desc);
+create index if not exists idx_plan_adjustments_pond_cycle_id on public.plan_adjustments(pond_cycle_id, created_at desc);
 
 insert into public.seasons (code, name, active)
 values ('VU-2026-1', 'Vụ 2026 — lứa 1', true)
@@ -203,6 +219,7 @@ on conflict (season_id, code) do nothing;
 create table if not exists public.pond_logs (
   id uuid primary key default gen_random_uuid(),
   pond_id uuid not null references public.ponds(id) on delete cascade,
+  pond_cycle_id uuid not null references public.pond_cycles(id) on update cascade on delete cascade,
   pond_code text,
   log_date date not null,
   ph numeric,
@@ -228,6 +245,7 @@ create table if not exists public.pond_logs (
 create table if not exists public.harvest_records (
   id uuid primary key default gen_random_uuid(),
   pond_id uuid not null references public.ponds(id) on delete cascade,
+  pond_cycle_id uuid not null references public.pond_cycles(id) on update cascade on delete cascade,
   pond_code text,
   owner_name text,
   agency_code text,
@@ -255,7 +273,9 @@ create table if not exists public.harvest_records (
 );
 
 create index if not exists idx_pond_logs_pond_id_log_date on public.pond_logs(pond_id, log_date desc);
+create index if not exists idx_pond_logs_pond_cycle_id on public.pond_logs(pond_cycle_id);
 create index if not exists idx_harvest_records_pond_id_harvest_date on public.harvest_records(pond_id, harvest_date desc);
+create index if not exists idx_harvest_records_pond_cycle_id on public.harvest_records(pond_cycle_id);
 create index if not exists idx_harvest_records_agency_code on public.harvest_records(agency_code);
 
 -- ---------------------------------------------------------------------------
@@ -301,6 +321,11 @@ create trigger trg_ponds_updated_at
 before update on public.ponds
 for each row execute procedure public.set_updated_at();
 
+drop trigger if exists trg_pond_cycles_updated_at on public.pond_cycles;
+create trigger trg_pond_cycles_updated_at
+before update on public.pond_cycles
+for each row execute procedure public.set_updated_at();
+
 drop trigger if exists trg_pond_logs_updated_at on public.pond_logs;
 create trigger trg_pond_logs_updated_at
 before update on public.pond_logs
@@ -317,9 +342,9 @@ before update on public.app_settings
 for each row execute procedure public.set_updated_at();
 
 -- ---------------------------------------------------------------------------
--- FCR = total_feed_used / sum(harvest actual_yield)
+-- FCR theo chu kỳ: total_feed_used / sum(harvest actual_yield)
 -- ---------------------------------------------------------------------------
-create or replace function public.recalc_pond_fcr(p_pond_id uuid)
+create or replace function public.recalc_pond_cycle_fcr(p_pond_cycle_id uuid)
 returns numeric
 language plpgsql
 security definer
@@ -330,15 +355,45 @@ declare
   harvest_total numeric;
   f numeric;
 begin
-  select coalesce(p.total_feed_used, 0) into feed_total from public.ponds p where p.id = p_pond_id;
-  select coalesce(sum(h.actual_yield), 0) into harvest_total from public.harvest_records h where h.pond_id = p_pond_id;
+  select coalesce(c.total_feed_used, 0) into feed_total
+  from public.pond_cycles c where c.id = p_pond_cycle_id;
+  select coalesce(sum(h.actual_yield), 0) into harvest_total
+  from public.harvest_records h
+  where h.pond_cycle_id = p_pond_cycle_id;
   if harvest_total > 0 then
     f := round((feed_total / harvest_total)::numeric, 4);
   else
     f := null;
   end if;
-  update public.ponds set fcr = f where id = p_pond_id;
+  update public.pond_cycles set fcr = f where id = p_pond_cycle_id;
   return f;
+end;
+$$;
+
+create or replace function public.recalc_pond_fcr(p_pond_id uuid)
+returns numeric
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cid uuid;
+begin
+  select c.id into cid
+  from public.pond_cycles c
+  where c.pond_id = p_pond_id and c.status = 'CC'
+  limit 1;
+  if cid is null then
+    select c2.id into cid
+    from public.pond_cycles c2
+    where c2.pond_id = p_pond_id
+    order by c2.updated_at desc nulls last
+    limit 1;
+  end if;
+  if cid is null then
+    return null;
+  end if;
+  return public.recalc_pond_cycle_fcr(cid);
 end;
 $$;
 
@@ -350,10 +405,14 @@ set search_path = public
 as $$
 begin
   if tg_op = 'DELETE' then
-    perform public.recalc_pond_fcr(old.pond_id);
+    if old.pond_cycle_id is not null then
+      perform public.recalc_pond_cycle_fcr(old.pond_cycle_id);
+    end if;
     return old;
   end if;
-  perform public.recalc_pond_fcr(new.pond_id);
+  if new.pond_cycle_id is not null then
+    perform public.recalc_pond_cycle_fcr(new.pond_cycle_id);
+  end if;
   return new;
 end;
 $$;
@@ -363,8 +422,7 @@ create trigger trg_harvest_recalc_fcr
 after insert or update of actual_yield or delete on public.harvest_records
 for each row execute function public.trg_recalc_fcr_after_harvest();
 
--- Also recalc when total_feed_used changes on pond (via logs)
-create or replace function public.trg_recalc_fcr_after_pond_feed()
+create or replace function public.trg_recalc_fcr_after_cycle_feed()
 returns trigger
 language plpgsql
 security definer
@@ -372,20 +430,35 @@ set search_path = public
 as $$
 begin
   if tg_op = 'UPDATE' and (new.total_feed_used is distinct from old.total_feed_used) then
-    perform public.recalc_pond_fcr(new.id);
+    perform public.recalc_pond_cycle_fcr(new.id);
   end if;
   return new;
 end;
 $$;
 
 drop trigger if exists trg_pond_feed_recalc_fcr on public.ponds;
-create trigger trg_pond_feed_recalc_fcr
-after update of total_feed_used on public.ponds
-for each row execute function public.trg_recalc_fcr_after_pond_feed();
+drop trigger if exists trg_pond_cycle_feed_recalc_fcr on public.pond_cycles;
+create trigger trg_pond_cycle_feed_recalc_fcr
+after update of total_feed_used on public.pond_cycles
+for each row execute function public.trg_recalc_fcr_after_cycle_feed();
 
 -- ---------------------------------------------------------------------------
--- Sum feed for pond in date range (for UI aggregates)
+-- Sum feed: theo ao (mọi chu kỳ) hoặc theo một chu kỳ
 -- ---------------------------------------------------------------------------
+create or replace function public.sum_pond_cycle_feed(p_pond_cycle_id uuid, p_from date, p_to date)
+returns numeric
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(sum(l.feed_amount), 0)::numeric
+  from public.pond_logs l
+  where l.pond_cycle_id = p_pond_cycle_id
+    and l.log_date >= p_from
+    and l.log_date <= p_to;
+$$;
+
 create or replace function public.sum_pond_feed(p_pond_id uuid, p_from date, p_to date)
 returns numeric
 language sql
@@ -399,6 +472,103 @@ as $$
     and l.log_date >= p_from
     and l.log_date <= p_to;
 $$;
+
+-- Đồng bộ pond_id từ pond_cycle_id
+create or replace function public.tr_pond_logs_set_pond_from_cycle()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  pid uuid;
+begin
+  if new.pond_cycle_id is null then
+    raise exception 'pond_cycle_id is required';
+  end if;
+  select c.pond_id into pid from public.pond_cycles c where c.id = new.pond_cycle_id;
+  if pid is null then
+    raise exception 'Invalid pond_cycle_id';
+  end if;
+  new.pond_id := pid;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_pond_logs_pond_from_cycle on public.pond_logs;
+create trigger trg_pond_logs_pond_from_cycle
+before insert or update of pond_cycle_id on public.pond_logs
+for each row execute function public.tr_pond_logs_set_pond_from_cycle();
+
+create or replace function public.tr_harvest_records_set_pond_from_cycle()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  pid uuid;
+begin
+  if new.pond_cycle_id is null then
+    raise exception 'pond_cycle_id is required';
+  end if;
+  select c.pond_id into pid from public.pond_cycles c where c.id = new.pond_cycle_id;
+  if pid is null then
+    raise exception 'Invalid pond_cycle_id';
+  end if;
+  new.pond_id := pid;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_harvest_records_pond_from_cycle on public.harvest_records;
+create trigger trg_harvest_records_pond_from_cycle
+before insert or update of pond_cycle_id on public.harvest_records
+for each row execute function public.tr_harvest_records_set_pond_from_cycle();
+
+create or replace function public.tr_pond_cycles_demote_other_cc()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.status = 'CC' then
+    update public.pond_cycles c
+    set status = 'CT'
+    where c.pond_id = new.pond_id
+      and c.id is distinct from new.id
+      and c.status = 'CC';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_pond_cycles_single_cc on public.pond_cycles;
+create trigger trg_pond_cycles_single_cc
+before insert or update of status on public.pond_cycles
+for each row
+when (new.status = 'CC')
+execute function public.tr_pond_cycles_demote_other_cc();
+
+create or replace function public.tr_pond_cycles_touch_pond()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.ponds p
+  set updated_at = timezone('utc', now())
+  where p.id = new.pond_id;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_pond_cycles_touch_pond on public.pond_cycles;
+create trigger trg_pond_cycles_touch_pond
+after insert or update on public.pond_cycles
+for each row execute function public.tr_pond_cycles_touch_pond();
 
 -- ---------------------------------------------------------------------------
 -- Next pond code: region-agency_segment-household_segment-NN (seq per household)
@@ -433,6 +603,44 @@ begin
   next_n := max_s + 1;
 
   return prefix || '-' || lpad(next_n::text, 2, '0');
+end;
+$$;
+
+create or replace function public.create_pond_with_initial_cycle(
+  p_code text,
+  p_household_id uuid,
+  p_owner_name text,
+  p_agency_code text,
+  p_area numeric,
+  p_depth numeric,
+  p_location text,
+  p_ph_min numeric,
+  p_ph_max numeric,
+  p_temp_min numeric,
+  p_temp_max numeric,
+  p_qr_code text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  pond_uuid uuid;
+begin
+  insert into public.ponds (
+    code, household_id, owner_name, agency_code, area, depth, location,
+    ph_min, ph_max, temp_min, temp_max, qr_code
+  ) values (
+    p_code, p_household_id, p_owner_name, p_agency_code, p_area, p_depth, p_location,
+    p_ph_min, p_ph_max, p_temp_min, p_temp_max, p_qr_code
+  )
+  returning id into pond_uuid;
+
+  insert into public.pond_cycles (pond_id, status)
+  values (pond_uuid, 'CT');
+
+  return pond_uuid;
 end;
 $$;
 
@@ -472,24 +680,51 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------------
--- Enforce: only admin can update "plan" columns on ponds (when RLS strict)
+-- Enforce: chỉ admin sửa đăng ký gốc trên pond_cycles (khi không bypass)
 -- ---------------------------------------------------------------------------
-create or replace function public.tr_enforce_pond_plan_update()
+create or replace function public.tr_enforce_pond_cycle_plan_update()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  bypass boolean;
+  adm boolean;
 begin
-  -- Quyền sửa kế hoạch (cả đăng ký gốc) do RLS ponds_update + ứng dụng; không chặn thêm ở đây.
+  select public.app_settings_bypass_rls() into bypass;
+  if bypass then
+    return new;
+  end if;
+  select public.is_admin() into adm;
+  if adm then
+    return new;
+  end if;
+
+  if (new.stock_date is distinct from old.stock_date)
+     or (new.total_fish is distinct from old.total_fish)
+     or (new.survival_rate is distinct from old.survival_rate)
+     or (new.target_weight is distinct from old.target_weight)
+     or (new.seed_size is distinct from old.seed_size)
+     or (new.seed_weight is distinct from old.seed_weight)
+     or (new.density is distinct from old.density)
+     or (new.initial_plan_locked is distinct from old.initial_plan_locked)
+     or (new.initial_expected_harvest_date is distinct from old.initial_expected_harvest_date)
+     or (new.season_id is distinct from old.season_id)
+     or (new.stocking_batch_id is distinct from old.stocking_batch_id)
+  then
+    raise exception 'Chỉ admin được sửa đăng ký / chỉ tiêu thả gốc. Đại lý và chủ hộ chỉ cập nhật kế hoạch điều chỉnh (số cá hiện tại, SL mục tiêu, ngày thu điều chỉnh).';
+  end if;
+
   return new;
 end;
 $$;
 
 drop trigger if exists trg_ponds_plan_guard on public.ponds;
-create trigger trg_ponds_plan_guard
-before update on public.ponds
-for each row execute function public.tr_enforce_pond_plan_update();
+drop trigger if exists trg_pond_cycles_plan_guard on public.pond_cycles;
+create trigger trg_pond_cycles_plan_guard
+before update on public.pond_cycles
+for each row execute function public.tr_enforce_pond_cycle_plan_update();
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security
@@ -502,6 +737,7 @@ alter table public.agencies enable row level security;
 alter table public.households enable row level security;
 alter table public.profiles enable row level security;
 alter table public.ponds enable row level security;
+alter table public.pond_cycles enable row level security;
 alter table public.pond_logs enable row level security;
 alter table public.harvest_records enable row level security;
 alter table public.plan_adjustments enable row level security;
@@ -525,6 +761,10 @@ drop policy if exists ponds_select on public.ponds;
 drop policy if exists ponds_insert on public.ponds;
 drop policy if exists ponds_update on public.ponds;
 drop policy if exists ponds_delete on public.ponds;
+drop policy if exists pond_cycles_select on public.pond_cycles;
+drop policy if exists pond_cycles_insert on public.pond_cycles;
+drop policy if exists pond_cycles_update on public.pond_cycles;
+drop policy if exists pond_cycles_delete on public.pond_cycles;
 drop policy if exists pond_logs_all on public.pond_logs;
 drop policy if exists harvest_records_all on public.harvest_records;
 drop policy if exists plan_adjustments_select on public.plan_adjustments;
@@ -666,6 +906,91 @@ create policy ponds_update on public.ponds
 create policy ponds_delete on public.ponds
   for delete using (public.app_settings_bypass_rls() or public.is_admin());
 
+create policy pond_cycles_select on public.pond_cycles
+  for select using (
+    public.app_settings_bypass_rls()
+    or public.is_admin()
+    or exists (
+      select 1 from public.ponds po
+      where po.id = pond_cycles.pond_id
+        and (
+          exists (
+            select 1 from public.profiles p
+            where p.id = auth.uid() and p.role = 'agency'
+              and p.agency_id = (select agency_id from public.agencies a where a.code = po.agency_code limit 1)
+          )
+          or exists (
+            select 1 from public.profiles p2
+            where p2.id = auth.uid() and p2.household_id is not null and p2.household_id = po.household_id
+          )
+        )
+    )
+  );
+
+create policy pond_cycles_insert on public.pond_cycles
+  for insert with check (
+    public.app_settings_bypass_rls()
+    or public.is_admin()
+    or exists (
+      select 1 from public.ponds po
+      where po.id = pond_cycles.pond_id
+        and (
+          exists (
+            select 1 from public.profiles p
+            where p.id = auth.uid() and p.role = 'agency'
+              and p.agency_id = (select agency_id from public.agencies a where a.code = po.agency_code limit 1)
+          )
+          or exists (
+            select 1 from public.profiles p2
+            where p2.id = auth.uid() and p2.household_id = po.household_id
+          )
+        )
+    )
+  );
+
+create policy pond_cycles_update on public.pond_cycles
+  for update using (
+    public.app_settings_bypass_rls()
+    or public.is_admin()
+    or exists (
+      select 1 from public.ponds po
+      where po.id = pond_cycles.pond_id
+        and (
+          exists (
+            select 1 from public.profiles p
+            where p.id = auth.uid() and p.role = 'agency'
+              and p.agency_id = (select agency_id from public.agencies a where a.code = po.agency_code limit 1)
+          )
+          or exists (
+            select 1 from public.profiles p2
+            where p2.id = auth.uid() and p2.household_id = po.household_id
+          )
+        )
+    )
+  )
+  with check (
+    public.app_settings_bypass_rls()
+    or public.is_admin()
+    or exists (
+      select 1 from public.ponds po
+      where po.id = pond_cycles.pond_id
+        and (
+          exists (
+            select 1 from public.profiles p
+            where p.id = auth.uid() and p.role = 'agency'
+              and p.agency_id = (select agency_id from public.agencies a where a.code = po.agency_code limit 1)
+          )
+          or exists (
+            select 1 from public.profiles p2
+            where p2.id = auth.uid() and p2.household_id = po.household_id
+          )
+        )
+    )
+  );
+
+create policy pond_cycles_delete on public.pond_cycles
+  for delete using (public.app_settings_bypass_rls() or public.is_admin());
+
 create policy pond_logs_all on public.pond_logs
   for all using (
     public.app_settings_bypass_rls()
@@ -723,8 +1048,9 @@ create policy plan_adjustments_select on public.plan_adjustments
     public.app_settings_bypass_rls()
     or public.is_admin()
     or exists (
-      select 1 from public.ponds po
-      where po.id = plan_adjustments.pond_id
+      select 1 from public.pond_cycles pc
+      join public.ponds po on po.id = pc.pond_id
+      where pc.id = plan_adjustments.pond_cycle_id
         and exists (
           select 1 from public.profiles pr
           where pr.id = auth.uid()
@@ -743,8 +1069,10 @@ create policy plan_adjustments_insert on public.plan_adjustments
     or (
       adjustment_type = 'auto_loss'
       and exists (
-        select 1 from public.ponds po join public.profiles pr on pr.id = auth.uid()
-        where po.id = pond_id
+        select 1 from public.pond_cycles pc
+        join public.ponds po on po.id = pc.pond_id
+        join public.profiles pr on pr.id = auth.uid()
+        where pc.id = pond_cycle_id
           and (
             pr.role = 'agency' and pr.agency_id = (select agency_id from public.agencies a where a.code = po.agency_code limit 1)
             or pr.household_id = po.household_id
@@ -778,4 +1106,9 @@ for each row execute function public.handle_new_user();
 -- RPC exposed to anon (Supabase Data API)
 grant execute on function public.next_pond_code(uuid) to anon, authenticated;
 grant execute on function public.sum_pond_feed(uuid, date, date) to anon, authenticated;
+grant execute on function public.sum_pond_cycle_feed(uuid, date, date) to anon, authenticated;
 grant execute on function public.recalc_pond_fcr(uuid) to anon, authenticated;
+grant execute on function public.recalc_pond_cycle_fcr(uuid) to anon, authenticated;
+grant execute on function public.create_pond_with_initial_cycle(
+  text, uuid, text, text, numeric, numeric, text, numeric, numeric, numeric, numeric, text
+) to anon, authenticated;

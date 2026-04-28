@@ -3,6 +3,8 @@
  * Không dùng `@base44/sdk` — tên export `base44` là legacy template, mọi `base44.entities.*` đều map sang bảng Postgres qua Supabase client bên dưới.
  */
 import { createClient } from '@supabase/supabase-js';
+import { flattenPondRow } from '@/lib/pondCycleHelpers';
+import { pondCodesEqual } from '@/lib/fieldAuthHelpers';
 
 // Phải đọc trực tiếp import.meta.env.VITE_* — Vite chỉ inject khi tên thuộc tính xuất hiện literal trong mã.
 // Gán import.meta.env vào biến rồi dùng env.VITE_* sẽ khiến bundle không có giá trị (luôn như chưa cấu hình).
@@ -32,6 +34,7 @@ const supabase = createClient(
 const tableMap = {
   Agency: 'agencies',
   Pond: 'ponds',
+  PondCycle: 'pond_cycles',
   PondLog: 'pond_logs',
   HarvestRecord: 'harvest_records',
   Household: 'households',
@@ -201,16 +204,46 @@ export const base44 = {
       ...entityApi('Pond'),
       async listWithHouseholds(sort = '-updated_at', limit = 500) {
         if (!isSupabaseConfigured) return [];
-        let q = supabase.from('ponds').select('*, households(*)');
+        let q = supabase.from('ponds').select('*, households(*), pond_cycles(*)');
         q = applySortAndLimit(q, sort, limit);
         const { data, error } = await q;
         if (error) throw error;
-        return (data || []).map((row) => ({
-          ...row,
-          owner_name: row.owner_name || row.households?.name || '',
-        }));
+        return (data || []).map((row) => flattenPondRow(row));
+      },
+      /** Một ao + toàn bộ chu kỳ (đã flatten active_cycle). */
+      async getWithCycles(id) {
+        if (!isSupabaseConfigured) return null;
+        const { data, error } = await supabase
+          .from('ponds')
+          .select('*, households(*), pond_cycles(*)')
+          .eq('id', id)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) return null;
+        return flattenPondRow(data);
+      },
+      /** Tra theo mã ao (không phân biệt hoa thường khi cần fallback client). */
+      async findByCodeFlattened(code) {
+        if (!isSupabaseConfigured) return null;
+        const c = String(code || '').trim();
+        if (!c) return null;
+        const { data, error } = await supabase
+          .from('ponds')
+          .select('*, households(*), pond_cycles(*)')
+          .eq('code', c)
+          .maybeSingle();
+        if (error && error.code !== 'PGRST116') throw error;
+        if (data) return flattenPondRow(data);
+        const { data: rows, error: err2 } = await supabase
+          .from('ponds')
+          .select('*, households(*), pond_cycles(*)')
+          .limit(500);
+        if (err2) throw err2;
+        const row = (rows || []).find((x) => pondCodesEqual(x.code, c));
+        return row ? flattenPondRow(row) : null;
       },
     },
+    PondCycle: entityApi('PondCycle'),
     PondLog: entityApi('PondLog'),
     HarvestRecord: entityApi('HarvestRecord'),
     Household: entityApi('Household'),
