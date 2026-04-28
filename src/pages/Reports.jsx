@@ -275,7 +275,7 @@ export default function Reports() {
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Đã thu thực tế</p>
           <p className="text-2xl font-bold mt-1 text-green-600">{(totalActual/1000).toFixed(1)}T</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{filteredHarvests.length} đợt thu</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{filteredHarvests.length} phiếu thu</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Còn tồn chưa thu</p>

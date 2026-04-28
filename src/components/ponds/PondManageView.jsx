@@ -134,12 +134,22 @@ export default function PondManageView({
     () => [
       { value: '__none__', label: '— Chọn chu kỳ —' },
       ...cycles.map((c, i) => ({
-        value: c.id,
+        value: String(c.id),
         label: cycleLabel(c, i),
       })),
     ],
     [cycles]
   );
+
+  /** Base UI Select đôi khi in ra `value` (UUID) thay vì nhãn — ép hiển thị bằng text tước tiên. */
+  const selectedCycleTriggerLabel = useMemo(() => {
+    if (!selectedCycleId) return null;
+    const it = cycleSelectItems.find((x) => x.value === String(selectedCycleId));
+    if (it?.label) return it.label;
+    const idx = cycles.findIndex((c) => String(c.id) === String(selectedCycleId));
+    if (idx >= 0) return cycleLabel(cycles[idx], idx);
+    return null;
+  }, [selectedCycleId, cycleSelectItems, cycles]);
 
   return (
     <>
@@ -182,11 +192,15 @@ export default function PondManageView({
               </p>
               <Select
                 modal={false}
-                value={selectedCycleId || '__none__'}
+                value={selectedCycleId ? String(selectedCycleId) : '__none__'}
                 onValueChange={(v) => setSelectedCycleId(v === '__none__' ? '' : v)}
               >
                 <SelectTrigger className="mt-1 h-9">
-                  <SelectValue placeholder="Chọn chu kỳ" />
+                  <SelectValue placeholder="Chọn chu kỳ">
+                    {selectedCycleId
+                      ? (selectedCycleTriggerLabel ?? 'Đang tải chu kỳ…')
+                      : undefined}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
                   {cycleSelectItems.map((it) => (

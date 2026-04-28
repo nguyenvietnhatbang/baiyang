@@ -1,11 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Save, Plus } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Save } from 'lucide-react';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
 
@@ -22,38 +21,9 @@ export default function Settings() {
   const [error, setError] = useState('');
   const [ok, setOk] = useState(false);
 
-  const [stockSeasons, setStockSeasons] = useState([]);
-  const [stockBatches, setStockBatches] = useState([]);
-  const [batchSeasonId, setBatchSeasonId] = useState('');
-  const [batchCode, setBatchCode] = useState('');
-  const [batchName, setBatchName] = useState('');
-  const [batchRefDate, setBatchRefDate] = useState('');
-  const [batchSaving, setBatchSaving] = useState(false);
-  const [batchErr, setBatchErr] = useState('');
-  const [batchOk, setBatchOk] = useState(false);
-  const [seasonCode, setSeasonCode] = useState('');
-  const [seasonName, setSeasonName] = useState('');
-  const [seasonSaving, setSeasonSaving] = useState(false);
-  const [seasonErr, setSeasonErr] = useState('');
-  const [seasonOk, setSeasonOk] = useState(false);
-
-  const loadStockingData = () => {
-    Promise.all([
-      base44.entities.Season.filter({ active: true }, 'code', 100),
-      base44.entities.StockingBatch.list('sort_order', 500),
-    ]).then(([s, b]) => {
-      setStockSeasons(s);
-      setStockBatches(b);
-    });
-  };
-
   useEffect(() => {
     setDays(String(harvestAlertDays));
   }, [harvestAlertDays]);
-
-  useEffect(() => {
-    if (user?.role === 'admin') loadStockingData();
-  }, [user?.role]);
 
   useEffect(() => {
     const w = getWaterThresholdDefaults(appSettings);
@@ -62,87 +32,6 @@ export default function Settings() {
     setTempMin(String(w.temp_min));
     setTempMax(String(w.temp_max));
   }, [appSettings]);
-
-  const batchesBySeason = useMemo(() => {
-    const m = new Map();
-    for (const b of stockBatches) {
-      const arr = m.get(b.season_id) || [];
-      arr.push(b);
-      m.set(b.season_id, arr);
-    }
-    return m;
-  }, [stockBatches]);
-
-  const batchSeasonSelectItems = useMemo(
-    () => stockSeasons.map((s) => ({ value: s.id, label: `${s.code} — ${s.name}` })),
-    [stockSeasons]
-  );
-
-  const handleAddBatch = async () => {
-    if (!batchSeasonId) {
-      setBatchErr('Chọn vụ');
-      return;
-    }
-    const code = batchCode.trim();
-    const name = batchName.trim();
-    if (!code || !name) {
-      setBatchErr('Mã đợt và tên là bắt buộc');
-      return;
-    }
-    setBatchErr('');
-    setBatchOk(false);
-    setBatchSaving(true);
-    try {
-      const n = stockBatches.filter((x) => x.season_id === batchSeasonId).length;
-      await base44.entities.StockingBatch.create({
-        season_id: batchSeasonId,
-        code,
-        name,
-        stock_reference_date: batchRefDate || null,
-        sort_order: n,
-        active: true,
-      });
-      setBatchCode('');
-      setBatchName('');
-      setBatchRefDate('');
-      setBatchOk(true);
-      loadStockingData();
-    } catch (e) {
-      const msg = formatSupabaseError(e);
-      if (msg.includes('stocking_batches') || msg.includes('does not exist')) {
-        setBatchErr('Chưa có bảng đợt thả. Chạy scripts/migrations/20260426_stocking_batches.sql trên Supabase.');
-      } else {
-        setBatchErr(msg);
-      }
-    }
-    setBatchSaving(false);
-  };
-
-  const handleAddSeason = async () => {
-    const code = seasonCode.trim();
-    const name = seasonName.trim();
-    if (!code || !name) {
-      setSeasonErr('Mã vụ và tên vụ là bắt buộc');
-      return;
-    }
-    setSeasonErr('');
-    setSeasonOk(false);
-    setSeasonSaving(true);
-    try {
-      await base44.entities.Season.create({
-        code,
-        name,
-        active: true,
-      });
-      setSeasonCode('');
-      setSeasonName('');
-      setSeasonOk(true);
-      loadStockingData();
-    } catch (e) {
-      setSeasonErr(formatSupabaseError(e));
-    }
-    setSeasonSaving(false);
-  };
 
   if (user?.role !== 'admin') {
     return (
@@ -237,154 +126,12 @@ export default function Settings() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Các giá trị pH / nhiệt độ được gán khi tạo ao mới và khi nhân bản vụ; từng ao vẫn chỉnh riêng trong chi tiết ao.
+          Các giá trị pH / nhiệt độ được gán khi tạo ao mới; từng ao vẫn chỉnh riêng trong trang chi tiết ao.
         </p>
         <Button onClick={handleSave} disabled={saving} className="bg-primary text-white">
           <Save className="w-4 h-4 mr-2" />
           {saving ? 'Đang lưu...' : 'Lưu cài đặt'}
         </Button>
-      </div>
-
-      <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Vụ nuôi</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Tạo vụ mới để dùng khi lập kế hoạch ao và gắn đợt thả.
-          </p>
-        </div>
-        {seasonErr && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{seasonErr}</p>
-        )}
-        {seasonOk && (
-          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">Đã thêm vụ.</p>
-        )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs font-semibold text-muted-foreground uppercase">Mã vụ *</Label>
-            <Input
-              value={seasonCode}
-              onChange={(e) => setSeasonCode(e.target.value)}
-              placeholder="VD: 2026-A"
-              className="mt-1 font-mono"
-            />
-          </div>
-          <div>
-            <Label className="text-xs font-semibold text-muted-foreground uppercase">Tên vụ *</Label>
-            <Input
-              value={seasonName}
-              onChange={(e) => setSeasonName(e.target.value)}
-              placeholder="VD: Vụ xuân 2026"
-              className="mt-1"
-            />
-          </div>
-        </div>
-        <Button onClick={handleAddSeason} disabled={seasonSaving} className="bg-primary text-white">
-          <Plus className="w-4 h-4 mr-2" />
-          {seasonSaving ? 'Đang thêm...' : 'Thêm vụ'}
-        </Button>
-        <div className="border-t border-border pt-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Vụ đang hoạt động</p>
-          <div className="rounded-lg border border-border divide-y divide-border max-h-52 overflow-y-auto text-sm">
-            {stockSeasons.length === 0 ? (
-              <p className="p-3 text-muted-foreground text-xs">Chưa có vụ.</p>
-            ) : (
-              stockSeasons.map((s) => (
-                <div key={s.id} className="p-3 flex items-center justify-between gap-3">
-                  <span className="font-medium">{s.code}</span>
-                  <span className="text-muted-foreground text-xs">{s.name}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Đợt thả cá (trong từng vụ)</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Mỗi ao gán một đợt thả để lọc báo cáo và nhật ký. Vụ mới có sẵn đợt <strong>D1</strong> sau khi chạy migration; có thể thêm D2, L1… tại đây.
-          </p>
-        </div>
-        {batchErr && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{batchErr}</p>
-        )}
-        {batchOk && (
-          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">Đã thêm đợt thả.</p>
-        )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase">Vụ *</Label>
-            <Select value={batchSeasonId} onValueChange={setBatchSeasonId} items={batchSeasonSelectItems}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Chọn vụ" />
-              </SelectTrigger>
-              <SelectContent>
-                {stockSeasons.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs font-semibold text-muted-foreground uppercase">Mã đợt *</Label>
-            <Input
-              value={batchCode}
-              onChange={(e) => setBatchCode(e.target.value)}
-              placeholder="VD: D2, L1"
-              className="mt-1 font-mono"
-            />
-          </div>
-          <div>
-            <Label className="text-xs font-semibold text-muted-foreground uppercase">Tên hiển thị *</Label>
-            <Input
-              value={batchName}
-              onChange={(e) => setBatchName(e.target.value)}
-              placeholder="VD: Đợt 2 — thả 15/03"
-              className="mt-1"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase">Ngày tham chiếu (tuỳ chọn)</Label>
-            <Input type="date" value={batchRefDate} onChange={(e) => setBatchRefDate(e.target.value)} className="mt-1 w-48" />
-          </div>
-        </div>
-        <Button onClick={handleAddBatch} disabled={batchSaving} className="bg-primary text-white">
-          <Plus className="w-4 h-4 mr-2" />
-          {batchSaving ? 'Đang thêm...' : 'Thêm đợt thả'}
-        </Button>
-
-        <div className="border-t border-border pt-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Danh sách</p>
-          <div className="rounded-lg border border-border divide-y divide-border max-h-64 overflow-y-auto text-sm">
-            {stockSeasons.length === 0 ? (
-              <p className="p-3 text-muted-foreground text-xs">Chưa có vụ.</p>
-            ) : (
-              stockSeasons.map((s) => {
-                const rows = batchesBySeason.get(s.id) || [];
-                return (
-                  <div key={s.id} className="p-3 bg-muted/20">
-                    <p className="font-semibold text-primary text-xs mb-1">{s.code} — {s.name}</p>
-                    {rows.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Chưa có đợt (chạy migration hoặc thêm ở trên).</p>
-                    ) : (
-                      <ul className="space-y-0.5 text-xs">
-                        {rows.map((b) => (
-                          <li key={b.id} className="flex justify-between gap-2">
-                            <span>{b.code} — {b.name}</span>
-                            {b.stock_reference_date && (
-                              <span className="text-muted-foreground shrink-0">{b.stock_reference_date}</span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -29,7 +29,7 @@ export const UAT_PHASES = [
   {
     phase: 'Pha 5 — Báo cáo + cảnh báo',
     cases: [
-      'Filter vụ trên báo cáo; cột diện tích + FCR + nhóm Đã/Sắp/Chưa thu',
+      'Lọc báo cáo theo chu kỳ / đại lý; cột diện tích + FCR + nhóm Đã/Sắp/Chưa thu',
       'Đổi harvest_alert_days trong Cài đặt; Dashboard / Ao / Banner đồng bộ ngưỡng',
       'Xuất CSV báo cáo thu',
     ],
