@@ -29,9 +29,8 @@ export default function PondPlanTab({
   isAdmin = false,
   siblingPonds = [],
 }) {
-  const [seasons, setSeasons] = useState([]);
-  const [batches, setBatches] = useState([]);
   const [initialForm, setInitialForm] = useState({
+    cycle_name: '',
     stock_date: '',
     total_fish: '',
     seed_size: '',
@@ -39,7 +38,6 @@ export default function PondPlanTab({
     survival_rate: 90,
     target_weight: 800,
     initial_expected_harvest_date: '',
-    stocking_batch_id: '',
   });
   const [adjustedForm, setAdjustedForm] = useState({
     current_fish: '',
@@ -50,6 +48,7 @@ export default function PondPlanTab({
   const [nextCycleForm, setNextCycleForm] = useState({
     enabled: false,
     gap_days: 20,
+    name: '',
     total_fish: '',
     survival_rate: 90,
     target_weight: 800,
@@ -59,29 +58,10 @@ export default function PondPlanTab({
   const [savingInitial, setSavingInitial] = useState(false);
   const [savingAdjusted, setSavingAdjusted] = useState(false);
   const [error, setError] = useState('');
-  const [seasonBatchListsReady, setSeasonBatchListsReady] = useState(false);
-
-  useEffect(() => {
-    setSeasonBatchListsReady(false);
-    Promise.all([
-      base44.entities.Season.filter({ active: true }, 'code', 100),
-      base44.entities.StockingBatch.list('sort_order', 500),
-    ])
-      .then(([s, b]) => {
-        setSeasons(s || []);
-        const rows = (b || []).filter((row) => row.active !== false);
-        setBatches(rows);
-      })
-      .catch(() => {
-        setSeasons([]);
-        setBatches([]);
-      })
-      .finally(() => setSeasonBatchListsReady(true));
-  }, []);
-
   useEffect(() => {
     if (!cycle) return;
     setInitialForm({
+      cycle_name: cycle.name || '',
       stock_date: cycle.stock_date || '',
       total_fish: cycle.total_fish ?? '',
       seed_size: cycle.seed_size ?? '',
@@ -89,7 +69,6 @@ export default function PondPlanTab({
       survival_rate: cycle.survival_rate ?? 90,
       target_weight: cycle.target_weight ?? 800,
       initial_expected_harvest_date: cycle.initial_expected_harvest_date || '',
-      stocking_batch_id: cycle.stocking_batch_id || '',
     });
     setAdjustedForm({
       current_fish: cycle.current_fish ?? cycle.total_fish ?? '',
@@ -152,37 +131,11 @@ export default function PondPlanTab({
     [templatePonds]
   );
 
-  const batchesSortedForPlan = useMemo(
-    () =>
-      [...batches].sort((a, b) => {
-        const ca = seasons.find((s) => s.id === a.season_id)?.code ?? '';
-        const cb = seasons.find((s) => s.id === b.season_id)?.code ?? '';
-        if (ca !== cb) return ca.localeCompare(cb);
-        return (a.sort_order ?? 0) - (b.sort_order ?? 0) || String(a.code).localeCompare(String(b.code));
-      }),
-    [batches, seasons]
-  );
-
-  const batchPlanSelectItems = useMemo(
-    () => [
-      { value: '__none__', label: '— Chưa chọn —' },
-      ...batchesSortedForPlan.map((b) => {
-        const sn = seasons.find((s) => s.id === b.season_id);
-        return {
-          value: b.id,
-          label: `${sn ? `${sn.code} · ` : ''}${b.code} — ${b.name}`,
-        };
-      }),
-    ],
-    [batchesSortedForPlan, seasons]
-  );
-
   const applyPondTemplate = (tpl) => {
     if (!tpl) return;
     const src = pickActiveCycle(tpl.pond_cycles) || tpl;
     setInitialForm((f) => ({
       ...f,
-      stocking_batch_id: src.stocking_batch_id || f.stocking_batch_id,
       stock_date: src.stock_date || f.stock_date,
       initial_expected_harvest_date:
         src.initial_expected_harvest_date || src.expected_harvest_date || f.initial_expected_harvest_date,
@@ -191,19 +144,13 @@ export default function PondPlanTab({
 
   const handleSaveInitial = async () => {
     if (!canEditPlan || !cycle) return;
-    if (!initialForm.stocking_batch_id) {
-      setError('Chọn vụ / đợt thả trước khi lưu kế hoạch ban đầu.');
-      return;
-    }
     setError('');
     setSavingInitial(true);
     try {
       const y = initialYield;
       const curFish = Number(adjustedForm.current_fish) || Number(initialForm.total_fish) || 0;
-      const selBatch = initialForm.stocking_batch_id
-        ? batches.find((x) => x.id === initialForm.stocking_batch_id)
-        : null;
       await base44.entities.PondCycle.update(cycle.id, {
+        name: initialForm.cycle_name?.trim() || null,
         stock_date: initialForm.stock_date || null,
         total_fish: Number(initialForm.total_fish) || null,
         seed_size: initialForm.seed_size === '' ? null : Number(initialForm.seed_size),
@@ -211,8 +158,8 @@ export default function PondPlanTab({
         survival_rate: Number(initialForm.survival_rate) || null,
         target_weight: Number(initialForm.target_weight) || null,
         initial_expected_harvest_date: initialForm.initial_expected_harvest_date || null,
-        season_id: selBatch?.season_id ?? null,
-        stocking_batch_id: selBatch?.id ?? null,
+        season_id: null,
+        stocking_batch_id: null,
         initial_plan_locked: false,
         ...(cycle.expected_yield == null || cycle.expected_yield === 0 ? { expected_yield: y } : {}),
         status: curFish > 0 ? 'CC' : 'CT',
@@ -294,16 +241,15 @@ export default function PondPlanTab({
         });
         await base44.entities.PondCycle.create({
           pond_id: pond.id,
-          season_id: cycle.season_id || null,
-          stocking_batch_id: cycle.stocking_batch_id || null,
           status: 'CC',
+          name: nextCycleForm.name?.trim() || null,
           stock_date: nextStockDate,
           total_fish: Number(nextCycleForm.total_fish),
           current_fish: Number(nextCycleForm.total_fish),
           survival_rate: Number(nextCycleForm.survival_rate),
           target_weight: Number(nextCycleForm.target_weight),
           expected_yield: ny,
-          notes: `Gối vụ sau thu ${adjustedForm.expected_harvest_date || '—'} (ao ${pond.code})`,
+          notes: `Sau thu ${adjustedForm.expected_harvest_date || '—'} · ${pond.code}`,
         });
       }
 
@@ -346,7 +292,7 @@ export default function PondPlanTab({
           <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
             <div className="flex-1 min-w-0">
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                <ClipboardCopy className="w-3.5 h-3.5" /> Gợi ý đợt nuôi từ ao khác
+                <ClipboardCopy className="w-3.5 h-3.5" /> Gợi ý mốc thời gian từ ao khác
               </Label>
               <Select
                 modal={false}
@@ -360,7 +306,7 @@ export default function PondPlanTab({
                 items={templatePickItems}
               >
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Sao chép vụ &amp; mốc thời gian từ ao khác" />
+                  <SelectValue placeholder="Sao chép ngày thả / thu dự kiến từ ao khác" />
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
                   <SelectItem value="__none__">— Chọn ao mẫu —</SelectItem>
@@ -379,36 +325,15 @@ export default function PondPlanTab({
         )}
 
         <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Vụ / đợt thả</Label>
-          <p className="text-[11px] text-muted-foreground mt-0.5 mb-1">
-            Một lựa chọn = vụ nuôi + đợt thả trong vụ đó (không tách hai bước).
-          </p>
-          <Select
-            modal={false}
-            value={initialForm.stocking_batch_id || '__none__'}
-            onValueChange={(v) =>
-              setInitialForm({ ...initialForm, stocking_batch_id: v === '__none__' ? '' : v })
-            }
-            disabled={roInitial || batchesSortedForPlan.length === 0}
-            items={batchPlanSelectItems}
-          >
-            <SelectTrigger className="mt-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-64">
-              {batchPlanSelectItems.map((it) => (
-                <SelectItem key={it.value} value={it.value}>
-                  {it.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {seasonBatchListsReady && !roInitial && batchesSortedForPlan.length === 0 && (
-            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-2">
-              Chưa có đợt thả để chọn. Tài khoản quản lý vào <strong>Cài đặt</strong> để tạo <strong>vụ</strong> và{' '}
-              <strong>đợt thả</strong> (hoặc kiểm tra quyền đọc dữ liệu đợt thả).
-            </p>
-          )}
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tên chu kỳ</Label>
+          <p className="text-[11px] text-muted-foreground mt-0.5 mb-1">Đặt khi tạo chu kỳ hoặc sửa tại đây (tuỳ chọn).</p>
+          <Input
+            readOnly={roInitial}
+            value={initialForm.cycle_name}
+            onChange={(e) => setInitialForm({ ...initialForm, cycle_name: e.target.value })}
+            placeholder="Ví dụ: Thả T3/2026"
+            className="mt-1"
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -577,7 +502,7 @@ export default function PondPlanTab({
             >
               <div className="flex items-center gap-2">
                 <RefreshCw className="w-4 h-4 text-primary" />
-                <span className="text-sm font-semibold text-primary">Lập kế hoạch gối vụ (đợt tiếp)</span>
+                <span className="text-sm font-semibold text-primary">Chu kỳ nuôi tiếp theo</span>
               </div>
               <span
                 className={`text-xs px-2 py-0.5 rounded-full font-medium ${nextCycleForm.enabled ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'}`}
@@ -599,7 +524,7 @@ export default function PondPlanTab({
                     />
                   </div>
                   <div>
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dự kiến ngày thả đợt sau</Label>
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dự kiến ngày thả chu kỳ sau</Label>
                     <Input type="date" value={nextStockDate} readOnly className="mt-1 bg-muted/50 text-muted-foreground" />
                   </div>
                   <div>
@@ -634,7 +559,7 @@ export default function PondPlanTab({
                   <div className="bg-white border border-primary/20 rounded-lg p-3 flex items-center gap-3">
                     <Calculator className="w-4 h-4 text-primary flex-shrink-0" />
                     <div>
-                      <p className="text-xs text-primary/70 font-medium">SL dự kiến đợt sau (tự tính)</p>
+                      <p className="text-xs text-primary/70 font-medium">SL dự kiến chu kỳ sau (tự tính)</p>
                       <p className="text-lg font-bold text-primary">{nextExpectedYield.toLocaleString()} kg</p>
                       <p className="text-xs text-primary/60">
                         Tạo <strong>chu kỳ mới</strong> trên ao <strong>{pond.code}</strong> — trạng thái đang nuôi (CC)
@@ -653,7 +578,7 @@ export default function PondPlanTab({
           className="w-full bg-amber-700 hover:bg-amber-800 text-white"
         >
           <Save className="w-4 h-4 mr-2" />
-          {savingAdjusted ? 'Đang lưu...' : nextCycleForm.enabled ? 'Lưu kế hoạch điều chỉnh + Tạo gối vụ' : 'Lưu kế hoạch điều chỉnh'}
+          {savingAdjusted ? 'Đang lưu...' : nextCycleForm.enabled ? 'Lưu điều chỉnh + Tạo chu kỳ mới' : 'Lưu kế hoạch điều chỉnh'}
         </Button>
       </div>
     </div>

@@ -33,7 +33,8 @@
     "last_medicine_date": { "type": "string", "format": "date" },
     "withdrawal_days": { "type": "number" },
     "withdrawal_end_date": { "type": "string", "format": "date" },
-    "notes": { "type": "string" }
+    "notes": { "type": "string" },
+    "name": { "type": "string", "description": "T\u00ean g\u1ecdi chu k\u1ef3 (tu\u1ef3 ch\u1ecdn)" }
   },
   "required": ["pond_id"]
 }

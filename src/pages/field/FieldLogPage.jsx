@@ -209,10 +209,17 @@ export default function FieldLogPage() {
   if (!cycle) {
     return (
       <div className="text-center py-14 space-y-4 px-2">
-        <p className="text-stone-800 text-base">Ao chưa có chu kỳ thả. Vào trang quản lý ao để tạo chu kỳ trước khi nhập nhật ký.</p>
-        <Button asChild variant="outline" className="h-12 text-base border-stone-300">
-          <Link to="/field">Về trang chủ</Link>
-        </Button>
+        <p className="text-stone-800 text-base">
+          Ao chưa có chu kỳ thả. Tài khoản văn phòng mở <strong>Quản lý ao</strong> → trang ao để tạo chu kỳ và đặt tên trước khi nhập nhật ký.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2 justify-center">
+          <Button asChild variant="outline" className="h-12 text-base border-stone-300">
+            <Link to="/field">Về trang chủ</Link>
+          </Button>
+          <Button asChild variant="default" className="h-12 text-base bg-teal-700 hover:bg-teal-800">
+            <Link to={`/ponds/${pond.id}`}>Mở trang ao (văn phòng)</Link>
+          </Button>
+        </div>
       </div>
     );
   }

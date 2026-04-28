@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import PondStatusBadge from '@/components/ponds/PondStatusBadge';
-import PondDrawer from '@/components/ponds/PondDrawer';
 import QRBatchDownload from '@/components/ponds/QRBatchDownload';
 import PondMobileCard from '@/components/ponds/PondMobileCard';
 import { differenceInDays, parseISO } from 'date-fns';
@@ -29,6 +28,7 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
   const [households, setHouseholds] = useState([]);
   const [form, setForm] = useState({
     household_id: '',
+    first_cycle_name: '',
     area: '',
     depth: '',
     location: '',
@@ -40,7 +40,7 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
   useEffect(() => {
     if (open) {
       base44.entities.Household.filter({ active: true }, 'name', 500).then(setHouseholds);
-      setForm({ household_id: '', area: '', depth: '', location: '', codePreview: '' });
+      setForm({ household_id: '', first_cycle_name: '', area: '', depth: '', location: '', codePreview: '' });
       setError('');
     }
   }, [open]);
@@ -84,7 +84,7 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
     try {
       const code = await base44.rpc('next_pond_code', { p_household_id: form.household_id });
       const w = getWaterThresholdDefaults(appSettings);
-      await base44.rpc('create_pond_with_initial_cycle', {
+      const pondId = await base44.rpc('create_pond_with_initial_cycle', {
         p_code: code,
         p_household_id: form.household_id,
         p_owner_name: selectedHousehold?.name || '',
@@ -98,6 +98,13 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
         p_temp_max: w.temp_max,
         p_qr_code: pondQrPayload(code),
       });
+      const label = form.first_cycle_name?.trim();
+      if (label && pondId) {
+        const cycles = await base44.entities.PondCycle.filter({ pond_id: pondId }, 'created_at', 1);
+        if (cycles[0]) {
+          await base44.entities.PondCycle.update(cycles[0].id, { name: label });
+        }
+      }
       onCreated();
       onClose();
     } catch (e) {
@@ -144,9 +151,15 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
             <p className="text-xs text-muted-foreground mt-0.5">
               Cấu trúc: mã tỉnh–đại lý–hộ–STT. Mã tỉnh lấy theo hộ (thường trùng tỉnh đã chọn khi tạo đại lý).
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Vụ và đợt thả nhập sau, tại tab <strong>Kế hoạch</strong> khi đăng ký kế hoạch ban đầu.
-            </p>
+          </div>
+          <div>
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tên chu kỳ đầu (tuỳ chọn)</Label>
+            <Input
+              className="mt-1"
+              value={form.first_cycle_name}
+              onChange={(e) => setForm({ ...form, first_cycle_name: e.target.value })}
+              placeholder="Ví dụ: Vụ xuân 2026"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -173,6 +186,7 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
 
 export default function Ponds() {
   const { harvestAlertDays, appSettings } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mainTab = searchParams.get('tab') === 'households' ? 'households' : 'ponds';
 
@@ -182,7 +196,6 @@ export default function Ponds() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [agencyFilter, setAgencyFilter] = useState('all');
-  const [selectedPond, setSelectedPond] = useState(null);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [checkedHarvest, setCheckedHarvest] = useState(new Set());
   const [confirming, setConfirming] = useState(false);
@@ -199,15 +212,6 @@ export default function Ponds() {
   };
 
   useEffect(() => { loadPonds(); }, []);
-
-  const handlePondUpdate = async () => {
-    const data = await loadPonds();
-    setSelectedPond((prev) => {
-      if (!prev) return null;
-      const u = data.find((p) => p.id === prev.id);
-      return u || prev;
-    });
-  };
 
   const agencyCodes = [...new Set(ponds.map(p => p.agency_code).filter(Boolean))];
   const agencyFilterItems = useMemo(
@@ -361,7 +365,7 @@ export default function Ponds() {
             pond={p}
             checked={checkedHarvest.has(p.id)}
             onCheck={e => toggleHarvestCheck(p.id, e)}
-            onClick={() => setSelectedPond(p)}
+            onClick={() => navigate(`/ponds/${p.id}`)}
             harvestAlertDays={harvestAlertDays}
           />
         ))}
@@ -399,7 +403,7 @@ export default function Ponds() {
                 return (
                   <tr
                     key={p.id}
-                    onClick={() => setSelectedPond(p)}
+                    onClick={() => navigate(`/ponds/${p.id}`)}
                     className={`hover:bg-muted/30 cursor-pointer transition-colors ${isOverdue ? 'bg-red-50/40' : isUrgent ? 'bg-yellow-50/40' : ''}`}
                   >
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
@@ -436,15 +440,6 @@ export default function Ponds() {
           </table>
         </div>
       </div>
-
-      {selectedPond && (
-        <PondDrawer
-          pond={selectedPond}
-          onClose={() => setSelectedPond(null)}
-          onUpdate={handlePondUpdate}
-          siblingPonds={ponds}
-        />
-      )}
 
       <NewPondDialog
         open={showNewDialog}

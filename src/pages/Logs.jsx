@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { QrCode, Search, ClipboardList, Camera, ChevronRight, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import PondDrawer from '@/components/ponds/PondDrawer';
 import QRScanner from '@/components/scanner/QRScanner';
 import LogDetailModal from '@/components/ponds/LogDetailModal';
 import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
+import { pickActiveCycle } from '@/lib/pondCycleHelpers';
 
 function inDateScope(logDate, logDateFrom, logDateTo, monthFilter) {
   if (!logDate) return false;
@@ -22,12 +23,11 @@ function inDateScope(logDate, logDateFrom, logDateTo, monthFilter) {
 }
 
 export default function Logs() {
+  const navigate = useNavigate();
   const [ponds, setPonds] = useState([]);
   const [logs, setLogs] = useState([]);
   const [harvests, setHarvests] = useState([]);
-  const [seasons, setSeasons] = useState([]);
   const [search, setSearch] = useState('');
-  const [selectedPond, setSelectedPond] = useState(null);
   const [activePond, setActivePond] = useState(null);
   const [qrInput, setQrInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -37,19 +37,17 @@ export default function Logs() {
   const [logDateFrom, setLogDateFrom] = useState('');
   const [logDateTo, setLogDateTo] = useState('');
   const [agencyFilter, setAgencyFilter] = useState('all');
-  const [seasonFilter, setSeasonFilter] = useState('all');
+  const [cycleFilter, setCycleFilter] = useState('all');
 
   const loadData = async () => {
-    const [p, l, h, s] = await Promise.all([
+    const [p, l, h] = await Promise.all([
       base44.entities.Pond.listWithHouseholds('-updated_date', 500),
       base44.entities.PondLog.list('-log_date', 2500),
       base44.entities.HarvestRecord.list('-harvest_date', 1500),
-      base44.entities.Season.filter({ active: true }, 'code', 100),
     ]);
     setPonds(p);
     setLogs(l);
     setHarvests(h || []);
-    setSeasons(s || []);
     setLoading(false);
   };
 
@@ -73,7 +71,7 @@ export default function Logs() {
     setShowCamera(false);
     if (pond) {
       setActivePond(pond);
-      setSelectedPond(pond);
+      navigate(`/ponds/${pond.id}?tab=log`);
       setQrInput('');
     } else {
       alert(`Không tìm thấy ao: ${code}`);
@@ -93,16 +91,20 @@ export default function Logs() {
     [ponds]
   );
 
-  const seasonFilterItems = useMemo(
-    () => [
-      { value: 'all', label: 'Tất cả vụ' },
-      ...seasons.map((s) => ({
-        value: s.id,
-        label: `${s.code}${s.name ? ` — ${s.name}` : ''}`,
-      })),
-    ],
-    [seasons]
-  );
+  const cycleFilterItems = useMemo(() => {
+    const items = [{ value: 'all', label: 'Tất cả chu kỳ' }];
+    const seen = new Set();
+    for (const p of ponds) {
+      const cycles = p.pond_cycles || [];
+      for (const c of cycles) {
+        if (!c?.id || seen.has(c.id)) continue;
+        seen.add(c.id);
+        const title = (c.name && String(c.name).trim()) || (c.stock_date ? `Thả ${c.stock_date}` : 'Chu kỳ');
+        items.push({ value: c.id, label: `${p.code} — ${title}` });
+      }
+    }
+    return items.sort((a, b) => String(a.label).localeCompare(String(b.label), 'vi'));
+  }, [ponds]);
 
   const agencyFilterItems = useMemo(
     () => [{ value: 'all', label: 'Tất cả đại lý' }, ...agencyCodes.map((a) => ({ value: a, label: a }))],
@@ -130,10 +132,13 @@ export default function Logs() {
       if (!pond) return false;
       if (activePond && log.pond_id !== activePond.id) return false;
       if (agencyFilter !== 'all' && (pond.agency_code || '') !== agencyFilter) return false;
-      if (seasonFilter !== 'all' && pond.season_id !== seasonFilter) return false;
+      if (cycleFilter !== 'all') {
+        const cid = log.pond_cycle_id || pickActiveCycle(pond.pond_cycles)?.id;
+        if (cid !== cycleFilter) return false;
+      }
       return inDateScope(log.log_date, logDateFrom, logDateTo, monthFilter);
     });
-  }, [logs, pondById, activePond, agencyFilter, seasonFilter, logDateFrom, logDateTo, monthFilter]);
+  }, [logs, pondById, activePond, agencyFilter, cycleFilter, logDateFrom, logDateTo, monthFilter]);
 
   const filteredHarvests = useMemo(() => {
     return harvests.filter((h) => {
@@ -141,10 +146,13 @@ export default function Logs() {
       if (!pond) return false;
       if (activePond && h.pond_id !== activePond.id) return false;
       if (agencyFilter !== 'all' && (pond.agency_code || '') !== agencyFilter) return false;
-      if (seasonFilter !== 'all' && pond.season_id !== seasonFilter) return false;
+      if (cycleFilter !== 'all') {
+        const cid = h.pond_cycle_id || pickActiveCycle(pond.pond_cycles)?.id;
+        if (cid !== cycleFilter) return false;
+      }
       return inDateScope(h.harvest_date, logDateFrom, logDateTo, monthFilter);
     });
-  }, [harvests, pondById, activePond, agencyFilter, seasonFilter, logDateFrom, logDateTo, monthFilter]);
+  }, [harvests, pondById, activePond, agencyFilter, cycleFilter, logDateFrom, logDateTo, monthFilter]);
 
   const summary = useMemo(() => {
     const nLogs = filteredLogs.length;
@@ -193,7 +201,7 @@ export default function Logs() {
         </div>
         <div className="flex flex-col gap-4">
           <p className="text-[11px] text-muted-foreground -mt-1">
-            Chọn khoảng ngày hoặc một tháng (không dùng cùng lúc). Đại lý / vụ lọc theo ao tương ứng.
+            Chọn khoảng ngày hoặc một tháng (không dùng cùng lúc). Đại lý và chu kỳ lọc theo ao / phiếu tương ứng.
           </p>
           <div className="flex flex-wrap items-end gap-x-4 gap-y-4">
             <div className="w-full min-w-0 md:flex-1 md:min-w-[17rem]">
@@ -259,15 +267,15 @@ export default function Logs() {
               </Select>
             </div>
             <div className="w-full sm:min-w-[14rem] sm:max-w-xs sm:flex-1 min-w-0">
-              <Label className="text-xs font-medium text-muted-foreground">Vụ nuôi (theo ao)</Label>
-              <Select value={seasonFilter} onValueChange={setSeasonFilter} items={seasonFilterItems}>
+              <Label className="text-xs font-medium text-muted-foreground">Chu kỳ</Label>
+              <Select value={cycleFilter} onValueChange={setCycleFilter} items={cycleFilterItems}>
                 <SelectTrigger className="h-9 text-sm mt-1 w-full min-w-0">
                   <SelectValue>
-                    {seasonFilter === 'all' ? 'Tất cả vụ' : seasonFilterItems.find((x) => x.value === seasonFilter)?.label}
+                    {cycleFilter === 'all' ? 'Tất cả chu kỳ' : cycleFilterItems.find((x) => x.value === cycleFilter)?.label}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
-                  {seasonFilterItems.map((it) => (
+                  {cycleFilterItems.map((it) => (
                     <SelectItem key={it.value} value={it.value}>
                       {it.label}
                     </SelectItem>
@@ -392,10 +400,10 @@ export default function Logs() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedPond(p);
+                        navigate(`/ponds/${p.id}?tab=log`);
                       }}
                       className="text-xs px-1.5 py-0.5 bg-primary text-white rounded font-medium hover:bg-primary/80"
-                      title="Nhập nhật ký"
+                      title="Mở trang ao — tab nhật ký"
                     >
                       + Log
                     </button>
@@ -538,18 +546,6 @@ export default function Logs() {
       </div>
 
       {showCamera && <QRScanner onScan={handleQrScan} onClose={() => setShowCamera(false)} />}
-
-      {selectedPond && (
-        <PondDrawer
-          pond={selectedPond}
-          defaultTab="log"
-          onClose={() => setSelectedPond(null)}
-          onUpdate={() => {
-            void loadData();
-            setSelectedPond(null);
-          }}
-        />
-      )}
 
       {selectedLog && <LogDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} />}
     </div>

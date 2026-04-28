@@ -13,6 +13,7 @@ import Login from '@/pages/Login';
 // Pages
 import Dashboard from './pages/Dashboard';
 import Ponds from './pages/Ponds';
+import PondDetailPage from './pages/PondDetailPage';
 import Logs from './pages/Logs';
 import Reports from './pages/Reports';
 import Agencies from './pages/Agencies';
@@ -51,6 +52,7 @@ function App() {
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/ponds" element={<Ponds />} />
+                  <Route path="/ponds/:pondId" element={<PondDetailPage />} />
                   <Route path="/logs" element={<Logs />} />
                   <Route path="/reports" element={<Reports />} />
                   <Route path="/agencies" element={<Agencies />} />

@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -12,6 +13,7 @@ import {
 import ReportOriginal from '@/components/reports/ReportOriginal';
 import ReportAdjusted from '@/components/reports/ReportAdjusted';
 import ReportHarvest from '@/components/reports/ReportHarvest';
+import { pickActiveCycle } from '@/lib/pondCycleHelpers';
 
 const MONTHS = ['Th1','Th2','Th3','Th4','Th5','Th6','Th7','Th8','Th9','Th10','Th11','Th12'];
 
@@ -37,13 +39,11 @@ export default function Reports() {
   const { harvestAlertDays } = useAuth();
   const [ponds, setPonds] = useState([]);
   const [harvests, setHarvests] = useState([]);
-  const [seasons, setSeasons] = useState([]);
-  const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reportType, setReportType] = useState('summary');
   const [agencyFilter, setAgencyFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
-  const [batchFilter, setBatchFilter] = useState('all');
+  const [cycleSearch, setCycleSearch] = useState('');
   const [exportGranularity, setExportGranularity] = useState('agency');
   const [exporting, setExporting] = useState(false);
 
@@ -51,27 +51,12 @@ export default function Reports() {
     Promise.all([
       base44.entities.Pond.listWithHouseholds('-updated_date', 500),
       base44.entities.HarvestRecord.list('-harvest_date', 500),
-      base44.entities.Season.filter({ active: true }, 'code', 100),
-      base44.entities.StockingBatch.filter({ active: true }, 'sort_order', 500),
-    ]).then(([p, h, s, b]) => {
+    ]).then(([p, h]) => {
       setPonds(p);
       setHarvests(h);
-      setSeasons(s);
-      setBatches(b);
       setLoading(false);
     });
   }, []);
-
-  const batchesSortedForSelect = useMemo(
-    () =>
-      [...batches].sort((a, b) => {
-        const ca = seasons.find((s) => s.id === a.season_id)?.code ?? '';
-        const cb = seasons.find((s) => s.id === b.season_id)?.code ?? '';
-        if (ca !== cb) return ca.localeCompare(cb);
-        return (a.sort_order ?? 0) - (b.sort_order ?? 0) || String(a.code).localeCompare(String(b.code));
-      }),
-    [batches, seasons]
-  );
 
   const exportGranularityItems = useMemo(
     () => [
@@ -96,49 +81,40 @@ export default function Reports() {
     []
   );
 
-  const batchFilterItems = useMemo(
-    () => [
-      { value: 'all', label: 'Tất cả đợt thả' },
-      ...batchesSortedForSelect.map((b) => {
-        const sn = seasons.find((s) => s.id === b.season_id);
-        return {
-          value: b.id,
-          label: `${sn ? `${sn.code} · ` : ''}${b.code} — ${b.name}`,
-        };
-      }),
-    ],
-    [batchesSortedForSelect, seasons]
+  const filteredPonds = useMemo(
+    () => ponds.filter((p) => agencyFilter === 'all' || p.agency_code === agencyFilter),
+    [ponds, agencyFilter]
   );
 
-  const filteredPonds = ponds.filter(p => agencyFilter === 'all' || p.agency_code === agencyFilter);
-  const batchFilteredPonds = batchFilter === 'all'
-    ? filteredPonds
-    : filteredPonds.filter((p) => p.stocking_batch_id === batchFilter);
+  const scopedPonds = useMemo(() => {
+    const q = cycleSearch.trim().toLowerCase();
+    if (!q) return filteredPonds;
+    return filteredPonds.filter((p) => {
+      const c = pickActiveCycle(p.pond_cycles);
+      const parts = [c?.name, c?.stock_date].filter(Boolean);
+      return parts.join(' ').toLowerCase().includes(q);
+    });
+  }, [filteredPonds, cycleSearch]);
 
-  const batchPondIds = useMemo(() => new Set(batchFilteredPonds.map((p) => p.id)), [batchFilteredPonds]);
-  const batchPondCodes = useMemo(
-    () => new Set(batchFilteredPonds.map((p) => p.code).filter(Boolean)),
-    [batchFilteredPonds]
+  const scopedPondIds = useMemo(() => new Set(scopedPonds.map((p) => p.id)), [scopedPonds]);
+  const scopedPondCodes = useMemo(
+    () => new Set(scopedPonds.map((p) => p.code).filter(Boolean)),
+    [scopedPonds]
   );
 
   const filteredHarvests = harvests.filter((h) => {
     const matchAgency = agencyFilter === 'all' || h.agency_code === agencyFilter;
     const matchYear = !h.harvest_date || h.harvest_date.startsWith(yearFilter);
-    const matchBatch =
-      batchFilter === 'all' ||
-      (h.pond_id && batchPondIds.has(h.pond_id)) ||
-      (h.pond_code && batchPondCodes.has(h.pond_code));
-    return matchAgency && matchYear && matchBatch;
+    const matchPondScope =
+      (h.pond_id && scopedPondIds.has(h.pond_id)) || (h.pond_code && scopedPondCodes.has(h.pond_code));
+    return matchAgency && matchYear && matchPondScope;
   });
   const agencies = agencyFilter === 'all' ? allAgencies : allAgencies.filter(a => a === agencyFilter);
 
-  const batchLabel = useMemo(() => {
-    if (batchFilter === 'all') return 'Tất cả đợt thả';
-    const b = batches.find((x) => x.id === batchFilter);
-    if (!b) return 'Tất cả đợt thả';
-    const sn = seasons.find((s) => s.id === b.season_id);
-    return `${sn?.code ?? '—'} · ${b.code} — ${b.name}`;
-  }, [batchFilter, batches, seasons]);
+  const cycleFilterLabel = useMemo(() => {
+    const q = cycleSearch.trim();
+    return q ? `Chu kỳ CC chứa "${q}"` : 'Tất cả (theo ao đã lọc đại lý)';
+  }, [cycleSearch]);
 
   const agencyFilterLabel = agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter;
 
@@ -149,14 +125,14 @@ export default function Reports() {
       await downloadReportsExcel({
         reportType,
         granularity: exportGranularity,
-        ponds: batchFilteredPonds,
+        ponds: scopedPonds,
         harvests: filteredHarvests,
         agencies,
         harvestAlertDays,
         filters: {
           yearFilter,
           agencyFilterLabel,
-          batchLabel,
+          batchLabel: cycleFilterLabel,
         },
       });
       toast.success('Đã tải file Excel');
@@ -171,26 +147,26 @@ export default function Reports() {
   // Summary chart data
   const monthlyData = MONTHS.map((m, i) => ({
     month: m,
-    keHoach: yieldByMonth(batchFilteredPonds, i),
+    keHoach: yieldByMonth(scopedPonds, i),
     thucTe: yieldHarvestByMonth(filteredHarvests, i),
   }));
 
   // FCR distribution
   const fcrData = [
-    { name: 'Xuất sắc ≤1.3', value: batchFilteredPonds.filter(p => p.fcr && p.fcr <= 1.3).length, color: '#22c55e' },
-    { name: 'Tốt 1.3–1.6',   value: batchFilteredPonds.filter(p => p.fcr && p.fcr > 1.3 && p.fcr <= 1.6).length, color: '#f59e0b' },
-    { name: 'Kém >1.6',      value: batchFilteredPonds.filter(p => p.fcr && p.fcr > 1.6).length, color: '#ef4444' },
-    { name: 'Chưa có',       value: batchFilteredPonds.filter(p => !p.fcr).length, color: '#94a3b8' },
+    { name: 'Xuất sắc ≤1.3', value: scopedPonds.filter(p => p.fcr && p.fcr <= 1.3).length, color: '#22c55e' },
+    { name: 'Tốt 1.3–1.6',   value: scopedPonds.filter(p => p.fcr && p.fcr > 1.3 && p.fcr <= 1.6).length, color: '#f59e0b' },
+    { name: 'Kém >1.6',      value: scopedPonds.filter(p => p.fcr && p.fcr > 1.6).length, color: '#ef4444' },
+    { name: 'Chưa có',       value: scopedPonds.filter(p => !p.fcr).length, color: '#94a3b8' },
   ].filter(d => d.value > 0);
 
-  const totalAdjustedYield = batchFilteredPonds.reduce((s,p)=>s+(p.expected_yield||0),0);
+  const totalAdjustedYield = scopedPonds.reduce((s,p)=>s+(p.expected_yield||0),0);
   const totalActual = filteredHarvests.reduce((s,h)=>s+(h.actual_yield||0),0);
 
   const calcOriginalYield = (p) => {
     if (!p.total_fish || !p.survival_rate || !p.target_weight) return 0;
     return Math.round((p.total_fish * (p.survival_rate / 100) * p.target_weight) / 1000);
   };
-  const totalOriginalYield = batchFilteredPonds.reduce((s,p)=>s+calcOriginalYield(p),0);
+  const totalOriginalYield = scopedPonds.reduce((s,p)=>s+calcOriginalYield(p),0);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" /></div>;
@@ -273,18 +249,15 @@ export default function Reports() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={batchFilter} onValueChange={setBatchFilter} items={batchFilterItems}>
-          <SelectTrigger className="w-[min(100%,20rem)]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {batchFilterItems.map((it) => (
-              <SelectItem key={it.value} value={it.value}>
-                {it.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-1 min-w-[12rem] max-w-xs">
+          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Chu kỳ đang nuôi (CC)</span>
+          <Input
+            className="h-9 text-sm"
+            placeholder="Lọc theo tên hoặc ngày thả…"
+            value={cycleSearch}
+            onChange={(e) => setCycleSearch(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* KPI Cards — always shown */}
@@ -292,12 +265,12 @@ export default function Reports() {
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">KH Gốc</p>
           <p className="text-2xl font-bold mt-1 text-foreground">{(totalOriginalYield/1000).toFixed(1)}T</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{batchFilteredPonds.length} ao đã đăng ký</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{scopedPonds.length} ao đã đăng ký</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">KH Điều chỉnh</p>
           <p className="text-2xl font-bold mt-1 text-amber-600">{(totalAdjustedYield/1000).toFixed(1)}T</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{batchFilteredPonds.filter(p=>p.status==='CC').length} ao đang CC</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{scopedPonds.filter(p=>p.status==='CC').length} ao đang CC</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Đã thu thực tế</p>
@@ -380,7 +353,7 @@ export default function Reports() {
                   {allAgencies.length === 0 ? (
                     <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">Chưa có dữ liệu</td></tr>
                   ) : allAgencies.map(agency => {
-                    const ap = batchFilteredPonds.filter(p => p.agency_code === agency);
+                    const ap = scopedPonds.filter(p => p.agency_code === agency);
                     const ah = filteredHarvests.filter(h => h.agency_code === agency);
                     const origYield = ap.reduce((s,p)=>s+calcOriginalYield(p),0);
                     const adjYield = ap.reduce((s,p)=>s+(p.expected_yield||0),0);
@@ -410,9 +383,9 @@ export default function Reports() {
                   })}
                   <tr className="bg-muted/30 font-bold border-t border-border">
                     <td className="px-4 py-3 text-foreground">TỔNG</td>
-                    <td className="px-4 py-3 text-center">{batchFilteredPonds.length}</td>
-                    <td className="px-4 py-3 text-center text-blue-600">{batchFilteredPonds.filter(p=>p.status==='CC').length}</td>
-                    <td className="px-4 py-3 text-center">{batchFilteredPonds.filter(p=>p.status==='CT').length}</td>
+                    <td className="px-4 py-3 text-center">{scopedPonds.length}</td>
+                    <td className="px-4 py-3 text-center text-blue-600">{scopedPonds.filter(p=>p.status==='CC').length}</td>
+                    <td className="px-4 py-3 text-center">{scopedPonds.filter(p=>p.status==='CT').length}</td>
                     <td className="px-4 py-3 text-right text-muted-foreground">{totalOriginalYield.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right text-amber-700">{totalAdjustedYield.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right text-green-700">{totalActual > 0 ? totalActual.toLocaleString() : '—'}</td>
@@ -433,9 +406,9 @@ export default function Reports() {
             <h3 className="font-semibold text-foreground">{reportMeta[reportType]?.label}</h3>
             <p className="text-xs text-muted-foreground mt-0.5">{reportMeta[reportType]?.desc} — Năm {yearFilter}</p>
           </div>
-          {reportType === 'original' && <ReportOriginal ponds={batchFilteredPonds} agencies={agencies} />}
-          {reportType === 'adjusted' && <ReportAdjusted ponds={batchFilteredPonds} agencies={agencies} />}
-          {reportType === 'harvest'  && <ReportHarvest ponds={batchFilteredPonds} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
+          {reportType === 'original' && <ReportOriginal ponds={scopedPonds} agencies={agencies} />}
+          {reportType === 'adjusted' && <ReportAdjusted ponds={scopedPonds} agencies={agencies} />}
+          {reportType === 'harvest'  && <ReportHarvest ponds={scopedPonds} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
         </div>
       )}
     </div>

@@ -176,6 +176,7 @@ create table if not exists public.pond_cycles (
   withdrawal_days numeric,
   withdrawal_end_date date,
   notes text,
+  name text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );

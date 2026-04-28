@@ -530,7 +530,7 @@ export async function downloadReportsExcel(opts) {
   const filterLine = [
     `Năm thu (lọc): ${yearFilter}`,
     `Đại lý: ${agencyFilterLabel}`,
-    `Đợt thả: ${batchLabel}`,
+    `Chu kỳ: ${batchLabel}`,
     `Chi tiết: ${granularity === 'agency' ? 'Tổng hợp theo đại lý' : 'Từng ao'}`,
   ].join('  ·  ');
 

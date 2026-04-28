@@ -137,7 +137,7 @@ export default function PondEditDialog({ pond, open, onClose, onSaved, onDeleted
               </Select>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Vụ / đợt thả: chỉnh trong chi tiết ao → tab <strong>Kế hoạch</strong> (kế hoạch ban đầu).
+              Tên chu kỳ và kế hoạch thả: trang chi tiết ao → tab <strong>Kế hoạch</strong>.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div>

@@ -24,6 +24,7 @@ const CYCLE_FIELDS = [
   'withdrawal_days',
   'withdrawal_end_date',
   'notes',
+  'name',
 ];
 
 /**
