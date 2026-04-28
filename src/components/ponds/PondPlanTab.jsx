@@ -63,15 +63,25 @@ export default function PondPlanTab({
   const [savingInitial, setSavingInitial] = useState(false);
   const [savingAdjusted, setSavingAdjusted] = useState(false);
   const [error, setError] = useState('');
+  const [seasonBatchListsReady, setSeasonBatchListsReady] = useState(false);
 
   useEffect(() => {
+    setSeasonBatchListsReady(false);
     Promise.all([
       base44.entities.Season.filter({ active: true }, 'code', 100),
-      base44.entities.StockingBatch.filter({ active: true }, 'sort_order', 300),
-    ]).then(([s, b]) => {
-      setSeasons(s);
-      setBatches(b);
-    });
+      base44.entities.StockingBatch.list('sort_order', 500),
+    ])
+      .then(([s, b]) => {
+        setSeasons(s || []);
+        // RLS hoặc dữ liệu cũ có thể để active = null — vẫn hiển thị đợt (tránh ô chọn bị khóa oan).
+        const rows = (b || []).filter((row) => row.active !== false);
+        setBatches(rows);
+      })
+      .catch(() => {
+        setSeasons([]);
+        setBatches([]);
+      })
+      .finally(() => setSeasonBatchListsReady(true));
   }, []);
 
   useEffect(() => {
@@ -323,6 +333,7 @@ export default function PondPlanTab({
                 <ClipboardCopy className="w-3.5 h-3.5" /> Gợi ý đợt nuôi từ ao khác
               </Label>
               <Select
+                modal={false}
                 value={templatePickValue}
                 onValueChange={(v) => {
                   setTemplatePickValue('__none__');
@@ -358,6 +369,7 @@ export default function PondPlanTab({
             Một lựa chọn = vụ nuôi + đợt thả trong vụ đó (không tách hai bước).
           </p>
           <Select
+            modal={false}
             value={initialForm.stocking_batch_id || '__none__'}
             onValueChange={(v) =>
               setInitialForm({ ...initialForm, stocking_batch_id: v === '__none__' ? '' : v })
@@ -376,6 +388,12 @@ export default function PondPlanTab({
               ))}
             </SelectContent>
           </Select>
+          {seasonBatchListsReady && !roInitial && batchesSortedForPlan.length === 0 && (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-2">
+              Chưa có đợt thả để chọn. Tài khoản quản lý vào <strong>Cài đặt</strong> để tạo <strong>vụ</strong> và{' '}
+              <strong>đợt thả</strong> (hoặc kiểm tra quyền đọc dữ liệu đợt thả).
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
