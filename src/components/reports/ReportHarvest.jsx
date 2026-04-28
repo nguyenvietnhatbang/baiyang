@@ -16,7 +16,14 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
     .sort((a, b) => a.localeCompare(b));
 
   const getHarvestData = (p) => {
-    const pondHarvests = harvests.filter(h => h.pond_code === p.code || h.pond_id === p.id);
+    const pondHarvests = harvests.filter((h) => {
+      if (p.pond_cycle_id) {
+        if (h.pond_cycle_id) return h.pond_cycle_id === p.pond_cycle_id;
+        // Fallback only for legacy records without pond_cycle_id
+        return h.pond_id === p.pond_id || h.pond_code === p.pond_code;
+      }
+      return h.pond_code === p.code || h.pond_id === p.id;
+    });
     const totalActual = pondHarvests.reduce((s, h) => s + (h.actual_yield || 0), 0);
     const planned = p.expected_yield || 0;
     const remaining = planned > 0 ? Math.max(0, planned - totalActual) : null;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Fish, ClipboardList, ShoppingCart, QrCode, Pencil, AlertTriangle, Plus } from 'lucide-react';
+import { Fish, ClipboardList, ShoppingCart, QrCode, Pencil, AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,6 +56,8 @@ export default function PondManageView({
   const [newCycleOpen, setNewCycleOpen] = useState(false);
   const [newCycleName, setNewCycleName] = useState('');
   const [statusSaving, setStatusSaving] = useState(false);
+  const [deleteCycleOpen, setDeleteCycleOpen] = useState(false);
+  const [deletingCycle, setDeletingCycle] = useState(false);
 
   const loadCycles = useCallback(async () => {
     setCycleLoadErr('');
@@ -128,6 +130,20 @@ export default function PondManageView({
       setCycleLoadErr(formatSupabaseError(e));
     }
     setAddingCycle(false);
+  };
+
+  const handleDeleteSelectedCycle = async () => {
+    if (!selectedCycle || !canEditThisPond) return;
+    setDeletingCycle(true);
+    setCycleLoadErr('');
+    try {
+      await base44.entities.PondCycle.delete(selectedCycle.id);
+      setDeleteCycleOpen(false);
+      await handleLocalUpdate();
+    } catch (e) {
+      setCycleLoadErr(formatSupabaseError(e));
+    }
+    setDeletingCycle(false);
   };
 
   const cycleSelectItems = useMemo(
@@ -254,6 +270,17 @@ export default function PondManageView({
                   <strong>CT</strong>.
                 </p>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="sm:ml-auto text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                onClick={() => setDeleteCycleOpen(true)}
+                disabled={statusSaving || deletingCycle}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1" />
+                Xóa chu kỳ
+              </Button>
             </div>
           )}
 
@@ -375,6 +402,33 @@ export default function PondManageView({
             </Button>
             <Button type="button" onClick={() => void handleConfirmNewCycle()} disabled={addingCycle}>
               {addingCycle ? 'Đang tạo…' : 'Tạo chu kỳ'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteCycleOpen} onOpenChange={setDeleteCycleOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Xóa chu kỳ này?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Bạn sắp xóa chu kỳ <strong className="text-foreground">{selectedCycleTriggerLabel || 'đang chọn'}</strong>.
+            </p>
+            <p>Nhật ký và phiếu thu hoạch gắn với chu kỳ này sẽ bị xóa theo.</p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setDeleteCycleOpen(false)} disabled={deletingCycle}>
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => void handleDeleteSelectedCycle()}
+              disabled={deletingCycle}
+            >
+              {deletingCycle ? 'Đang xóa…' : 'Xóa chu kỳ'}
             </Button>
           </DialogFooter>
         </DialogContent>
