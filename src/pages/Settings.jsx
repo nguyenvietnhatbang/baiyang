@@ -133,7 +133,6 @@ export default function Settings() {
         code,
         name,
         active: true,
-        sort_order: stockSeasons.length,
       });
       setSeasonCode('');
       setSeasonName('');

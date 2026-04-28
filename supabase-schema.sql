@@ -43,6 +43,9 @@ create table if not exists public.seasons (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+alter table public.seasons
+  add column if not exists sort_order int not null default 0;
+
 -- ---------------------------------------------------------------------------
 -- Stocking batches / đợt thả (trong một vụ)
 -- ---------------------------------------------------------------------------
