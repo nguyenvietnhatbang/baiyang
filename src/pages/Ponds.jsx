@@ -465,7 +465,13 @@ export default function Ponds() {
                         {visibleCols.agency_code && <td className="px-4 py-3 text-muted-foreground text-xs">{r.agency_code || '—'}</td>}
                         {visibleCols.status && <td className="px-4 py-3"><PondStatusBadge status={r.status} /></td>}
                         {visibleCols.stock_date && <td className="px-4 py-3 text-foreground text-xs">{r.stock_date || '—'}</td>}
-                        {visibleCols.current_fish && <td className="px-4 py-3 text-right">{r.current_fish ? Number(r.current_fish).toLocaleString() : '—'}</td>}
+                        {visibleCols.current_fish && (
+                          <td className="px-4 py-3 text-right">
+                            {r.current_fish != null && !Number.isNaN(Number(r.current_fish))
+                              ? Number(r.current_fish).toLocaleString()
+                              : '—'}
+                          </td>
+                        )}
                         {visibleCols.expected_yield && <td className="px-4 py-3 text-right font-medium">{r.expected_yield ? `${Number(r.expected_yield).toLocaleString()} kg` : '—'}</td>}
                         {visibleCols.expected_harvest_date && <td className={`px-4 py-3 text-xs ${isUrgent ? 'font-bold text-red-600' : 'text-foreground'}`}>{r.expected_harvest_date || '—'}{isOverdue && <span className="text-red-500 ml-1">(QH)</span>}</td>}
                         {visibleCols.fcr && (

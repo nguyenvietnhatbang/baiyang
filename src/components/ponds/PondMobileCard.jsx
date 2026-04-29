@@ -7,6 +7,8 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
   const isUrgent = diff !== null && diff <= harvestAlertDays;
   const isOverdue = diff !== null && diff < 0;
   const isWithdrawal = pond.withdrawal_end_date && differenceInDays(parseISO(pond.withdrawal_end_date), today) >= 0;
+  const currentFishNumber = Number(pond.current_fish);
+  const hasCurrentFish = pond.current_fish != null && !Number.isNaN(currentFishNumber);
 
   return (
     <div
@@ -45,7 +47,7 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
         </div>
         <div className="bg-muted/50 rounded-lg p-2 text-center">
           <p className="text-muted-foreground">Số cá</p>
-          <p className="font-semibold mt-0.5">{pond.current_fish ? pond.current_fish.toLocaleString() : '—'}</p>
+          <p className="font-semibold mt-0.5">{hasCurrentFish ? currentFishNumber.toLocaleString() : '—'}</p>
         </div>
         <div className="bg-muted/50 rounded-lg p-2 text-center">
           <p className="text-muted-foreground">SL dự kiến</p>
