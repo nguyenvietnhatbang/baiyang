@@ -270,7 +270,7 @@ export default function Ponds() {
             cycle_id: c.id,
             cycle_name: cycleLabel(c, idx),
             status: c.status || 'CT',
-            current_fish: c.current_fish,
+            current_fish: c.current_fish ?? c.total_fish ?? null,
             expected_yield: c.expected_yield,
             expected_harvest_date: plannedHarvestDateForDisplay(c),
             stock_date: c.stock_date,

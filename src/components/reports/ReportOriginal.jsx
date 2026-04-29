@@ -102,7 +102,7 @@ export default function ReportOriginal({ ponds, agencies }) {
               </th>
               <th
                 className="text-center px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap border-l border-border"
-                colSpan={3}
+                colSpan={2}
               >
                 KH Gốc (kg)
               </th>
@@ -112,6 +112,9 @@ export default function ReportOriginal({ ponds, agencies }) {
               >
                 Sản lượng kế hoạch theo tháng (kg)
               </th>
+              <th className="text-right px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap border-l border-border">
+                Tổng KH (kg)
+              </th>
             </tr>
             <tr className="bg-muted/40 border-b border-border">
               <th className="text-center px-3 py-2 font-medium text-blue-600 whitespace-nowrap">CC</th>
@@ -119,7 +122,6 @@ export default function ReportOriginal({ ponds, agencies }) {
               <th className="text-center px-3 py-2 font-medium text-foreground whitespace-nowrap">Tổng</th>
               <th className="text-right px-3 py-2 font-medium text-blue-600 whitespace-nowrap border-l border-border">CC</th>
               <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">CT</th>
-              <th className="text-right px-3 py-2 font-medium text-foreground whitespace-nowrap">Tổng</th>
               {activeMonthIdx.map((mi) => (
                 <th
                   key={mi}
@@ -128,6 +130,7 @@ export default function ReportOriginal({ ponds, agencies }) {
                   {MONTHS[mi]}
                 </th>
               ))}
+              <th className="text-right px-3 py-2 font-medium text-foreground whitespace-nowrap border-l border-border">Tổng</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -164,7 +167,6 @@ export default function ReportOriginal({ ponds, agencies }) {
                       {r.totalCC > 0 ? r.totalCC.toLocaleString() : '—'}
                     </td>
                     <td className="px-3 py-2.5 text-right text-muted-foreground">{r.totalCT > 0 ? r.totalCT.toLocaleString() : '—'}</td>
-                    <td className="px-3 py-2.5 text-right font-bold text-foreground">{r.totalAll > 0 ? r.totalAll.toLocaleString() : '—'}</td>
                     {activeMonthIdx.map((mi, i) => {
                       const total = r.monthCC[i] + r.monthCT[i];
                       return (
@@ -181,6 +183,9 @@ export default function ReportOriginal({ ponds, agencies }) {
                         </td>
                       );
                     })}
+                    <td className="px-3 py-2.5 text-right font-bold text-foreground border-l border-border">
+                      {r.totalAll > 0 ? r.totalAll.toLocaleString() : '—'}
+                    </td>
                   </tr>
                 );
 
@@ -212,10 +217,10 @@ export default function ReportOriginal({ ponds, agencies }) {
                         <td className="px-3 py-2.5 text-right text-muted-foreground">
                           {p.status === 'CT' && y > 0 ? y.toLocaleString() : '—'}
                         </td>
-                        <td className="px-3 py-2.5 text-right font-medium">{y > 0 ? y.toLocaleString() : '—'}</td>
                         {activeMonthIdx.map((mIdx) => (
                           <MonthCell key={mIdx} value={mIdx === mi ? y : 0} />
                         ))}
+                        <td className="px-3 py-2.5 text-right font-medium border-l border-border">{y > 0 ? y.toLocaleString() : '—'}</td>
                       </tr>
                     );
                   });
@@ -231,7 +236,6 @@ export default function ReportOriginal({ ponds, agencies }) {
               <td className="px-3 py-3 text-center">{ponds.length}</td>
               <td className="px-3 py-3 text-right text-blue-600 border-l border-border">{grandTotalCC.toLocaleString()}</td>
               <td className="px-3 py-3 text-right text-muted-foreground">{grandTotalCT.toLocaleString()}</td>
-              <td className="px-3 py-3 text-right text-foreground">{grandTotalAll.toLocaleString()}</td>
               {activeMonthIdx.map((mi, i) => {
                 const total = grandMonthCC[i] + grandMonthCT[i];
                 return (
@@ -252,6 +256,7 @@ export default function ReportOriginal({ ponds, agencies }) {
                   </td>
                 );
               })}
+              <td className="px-3 py-3 text-right text-foreground border-l border-border">{grandTotalAll.toLocaleString()}</td>
             </tr>
           </tbody>
         </table>

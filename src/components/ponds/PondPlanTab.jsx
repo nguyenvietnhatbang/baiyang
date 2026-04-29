@@ -148,11 +148,16 @@ export default function PondPlanTab({
     setSavingInitial(true);
     try {
       const y = initialYield;
-      const curFish = Number(adjustedForm.current_fish) || Number(initialForm.total_fish) || 0;
+      const adjustedCurrentInput = adjustedForm.current_fish;
+      const hasAdjustedCurrent = adjustedCurrentInput !== '' && Number.isFinite(Number(adjustedCurrentInput));
+      const curFish = hasAdjustedCurrent
+        ? Number(adjustedCurrentInput)
+        : cycle.current_fish ?? Number(initialForm.total_fish) ?? 0;
       await base44.entities.PondCycle.update(cycle.id, {
         name: initialForm.cycle_name?.trim() || null,
         stock_date: initialForm.stock_date || null,
         total_fish: Number(initialForm.total_fish) || null,
+        current_fish: curFish,
         seed_size: initialForm.seed_size === '' ? null : Number(initialForm.seed_size),
         seed_weight: initialForm.seed_weight === '' ? null : Number(initialForm.seed_weight),
         survival_rate: Number(initialForm.survival_rate) || null,
