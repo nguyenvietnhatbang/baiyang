@@ -26,6 +26,17 @@ function MonthCell({ value }) {
 export default function ReportOriginal({ ponds, agencies }) {
   const [collapsed, setCollapsed] = useState({});
 
+  const activeMonthIdx = (() => {
+    const set = new Set();
+    ponds.forEach((p) => {
+      const d = originalHarvestDateForReport(p);
+      if (!d) return;
+      const y = calcOriginalYield(p);
+      if (y > 0) set.add(new Date(d).getMonth());
+    });
+    return [...set].sort((a, b) => a - b);
+  })();
+
   const toggleAgency = (agency) => {
     setCollapsed((prev) => ({ ...prev, [agency]: !prev[agency] }));
   };
@@ -38,13 +49,13 @@ export default function ReportOriginal({ ponds, agencies }) {
     const totalCT = ct.reduce((s, p) => s + calcOriginalYield(p), 0);
     const totalAll = totalCC + totalCT;
 
-    const monthCC = MONTHS.map((_, i) =>
+    const monthCC = activeMonthIdx.map((i) =>
       cc.reduce((s, p) => {
         const d = originalHarvestDateForReport(p);
         return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
       }, 0)
     );
-    const monthCT = MONTHS.map((_, i) =>
+    const monthCT = activeMonthIdx.map((i) =>
       ct.reduce((s, p) => {
         const d = originalHarvestDateForReport(p);
         return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
@@ -57,8 +68,8 @@ export default function ReportOriginal({ ponds, agencies }) {
   const grandTotalCC = allAgencyRows.reduce((s, r) => s + r.totalCC, 0);
   const grandTotalCT = allAgencyRows.reduce((s, r) => s + r.totalCT, 0);
   const grandTotalAll = grandTotalCC + grandTotalCT;
-  const grandMonthCC = MONTHS.map((_, i) => allAgencyRows.reduce((s, r) => s + r.monthCC[i], 0));
-  const grandMonthCT = MONTHS.map((_, i) => allAgencyRows.reduce((s, r) => s + r.monthCT[i], 0));
+  const grandMonthCC = activeMonthIdx.map((_, i) => allAgencyRows.reduce((s, r) => s + (r.monthCC[i] || 0), 0));
+  const grandMonthCT = activeMonthIdx.map((_, i) => allAgencyRows.reduce((s, r) => s + (r.monthCT[i] || 0), 0));
 
   return (
     <div>
@@ -84,7 +95,7 @@ export default function ReportOriginal({ ponds, agencies }) {
                 className="sticky left-0 bg-muted/60 text-left px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap border-r border-border"
                 rowSpan={2}
               >
-                Đại lý / Ao
+                Hệ thống
               </th>
               <th className="text-center px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap" colSpan={3}>
                 Số ao
@@ -97,7 +108,7 @@ export default function ReportOriginal({ ponds, agencies }) {
               </th>
               <th
                 className="text-center px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap border-l border-border"
-                colSpan={12}
+                colSpan={Math.max(1, activeMonthIdx.length)}
               >
                 Sản lượng kế hoạch theo tháng (kg)
               </th>
@@ -109,12 +120,12 @@ export default function ReportOriginal({ ponds, agencies }) {
               <th className="text-right px-3 py-2 font-medium text-blue-600 whitespace-nowrap border-l border-border">CC</th>
               <th className="text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">CT</th>
               <th className="text-right px-3 py-2 font-medium text-foreground whitespace-nowrap">Tổng</th>
-              {MONTHS.map((m) => (
+              {activeMonthIdx.map((mi) => (
                 <th
-                  key={m}
+                  key={mi}
                   className="text-right px-2 py-2 font-medium text-muted-foreground whitespace-nowrap border-l border-border/50"
                 >
-                  {m}
+                  {MONTHS[mi]}
                 </th>
               ))}
             </tr>
@@ -122,13 +133,13 @@ export default function ReportOriginal({ ponds, agencies }) {
           <tbody className="divide-y divide-border">
             {allAgencyRows.length === 0 ? (
               <tr>
-                <td colSpan={19} className="text-center py-8 text-muted-foreground">
+                <td colSpan={7 + Math.max(1, activeMonthIdx.length)} className="text-center py-8 text-muted-foreground">
                   Chưa có dữ liệu
                 </td>
               </tr>
             ) : (
               allAgencyRows.flatMap((r) => {
-                const isOpen = !collapsed[r.agency];
+                const isOpen = collapsed[r.agency] === true;
                 const agencyRow = (
                   <tr
                     key={`ag-${r.agency}`}
@@ -154,10 +165,10 @@ export default function ReportOriginal({ ponds, agencies }) {
                     </td>
                     <td className="px-3 py-2.5 text-right text-muted-foreground">{r.totalCT > 0 ? r.totalCT.toLocaleString() : '—'}</td>
                     <td className="px-3 py-2.5 text-right font-bold text-foreground">{r.totalAll > 0 ? r.totalAll.toLocaleString() : '—'}</td>
-                    {MONTHS.map((m, i) => {
+                    {activeMonthIdx.map((mi, i) => {
                       const total = r.monthCC[i] + r.monthCT[i];
                       return (
-                        <td key={m} className="px-2 py-2.5 text-right border-l border-border/50">
+                        <td key={mi} className="px-2 py-2.5 text-right border-l border-border/50">
                           {total > 0 ? (
                             <div>
                               <div className="font-semibold text-foreground">{total.toLocaleString()}</div>
@@ -202,8 +213,8 @@ export default function ReportOriginal({ ponds, agencies }) {
                           {p.status === 'CT' && y > 0 ? y.toLocaleString() : '—'}
                         </td>
                         <td className="px-3 py-2.5 text-right font-medium">{y > 0 ? y.toLocaleString() : '—'}</td>
-                        {MONTHS.map((m, i) => (
-                          <MonthCell key={m} value={i === mi ? y : 0} />
+                        {activeMonthIdx.map((mIdx) => (
+                          <MonthCell key={mIdx} value={mIdx === mi ? y : 0} />
                         ))}
                       </tr>
                     );
@@ -221,10 +232,10 @@ export default function ReportOriginal({ ponds, agencies }) {
               <td className="px-3 py-3 text-right text-blue-600 border-l border-border">{grandTotalCC.toLocaleString()}</td>
               <td className="px-3 py-3 text-right text-muted-foreground">{grandTotalCT.toLocaleString()}</td>
               <td className="px-3 py-3 text-right text-foreground">{grandTotalAll.toLocaleString()}</td>
-              {MONTHS.map((m, i) => {
+              {activeMonthIdx.map((mi, i) => {
                 const total = grandMonthCC[i] + grandMonthCT[i];
                 return (
-                  <td key={m} className="px-2 py-3 text-right border-l border-border/50">
+                  <td key={mi} className="px-2 py-3 text-right border-l border-border/50">
                     {total > 0 ? (
                       <div>
                         <div className="font-bold text-foreground">{total.toLocaleString()}</div>

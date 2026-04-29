@@ -32,6 +32,18 @@ function DiffBadge({ original, adjusted }) {
 export default function ReportAdjusted({ ponds, agencies }) {
   const [collapsed, setCollapsed] = useState({});
 
+  const activeMonthIdx = (() => {
+    const set = new Set();
+    ponds.forEach((p) => {
+      if (p.expected_harvest_date && (p.expected_yield || 0) > 0) {
+        set.add(new Date(p.expected_harvest_date).getMonth());
+      }
+      const d0 = originalHarvestDateForReport(p);
+      if (d0 && calcOriginalYield(p) > 0) set.add(new Date(d0).getMonth());
+    });
+    return [...set].sort((a, b) => a - b);
+  })();
+
   const toggleAgency = (agency) => {
     setCollapsed((prev) => ({ ...prev, [agency]: !prev[agency] }));
   };
@@ -41,13 +53,13 @@ export default function ReportAdjusted({ ponds, agencies }) {
     const origTotal = ap.reduce((s, p) => s + calcOriginalYield(p), 0);
     const adjTotal = ap.reduce((s, p) => s + (p.expected_yield || 0), 0);
 
-    const origByMonth = MONTHS.map((_, i) =>
+    const origByMonth = activeMonthIdx.map((i) =>
       ap.reduce((s, p) => {
         const d = originalHarvestDateForReport(p);
         return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
       }, 0)
     );
-    const adjByMonth = MONTHS.map((_, i) =>
+    const adjByMonth = activeMonthIdx.map((i) =>
       ap.reduce(
         (s, p) =>
           s +
@@ -61,8 +73,8 @@ export default function ReportAdjusted({ ponds, agencies }) {
 
   const grandOrig = rows.reduce((s, r) => s + r.origTotal, 0);
   const grandAdj = rows.reduce((s, r) => s + r.adjTotal, 0);
-  const grandOrigByMonth = MONTHS.map((_, i) => rows.reduce((s, r) => s + r.origByMonth[i], 0));
-  const grandAdjByMonth = MONTHS.map((_, i) => rows.reduce((s, r) => s + r.adjByMonth[i], 0));
+  const grandOrigByMonth = activeMonthIdx.map((_, i) => rows.reduce((s, r) => s + (r.origByMonth[i] || 0), 0));
+  const grandAdjByMonth = activeMonthIdx.map((_, i) => rows.reduce((s, r) => s + (r.adjByMonth[i] || 0), 0));
 
   return (
     <div>
@@ -86,7 +98,7 @@ export default function ReportAdjusted({ ponds, agencies }) {
                 className="sticky left-0 bg-muted/60 text-left px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap border-r border-border"
                 rowSpan={2}
               >
-                Đại lý / Ao
+                Hệ thống
               </th>
               <th className="text-center px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap">CC</th>
               <th className="text-center px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap">CT</th>
@@ -97,7 +109,7 @@ export default function ReportAdjusted({ ponds, agencies }) {
               <th className="text-center px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap">Chênh</th>
               <th
                 className="text-center px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap border-l border-border"
-                colSpan={12}
+                colSpan={Math.max(1, activeMonthIdx.length)}
               >
                 Sản lượng ĐC theo tháng (kg)
               </th>
@@ -108,12 +120,12 @@ export default function ReportAdjusted({ ponds, agencies }) {
               <th />
               <th />
               <th />
-              {MONTHS.map((m) => (
+              {activeMonthIdx.map((mi) => (
                 <th
-                  key={m}
+                  key={mi}
                   className="text-right px-2 py-2 font-medium text-muted-foreground whitespace-nowrap border-l border-border/50"
                 >
-                  {m}
+                  {MONTHS[mi]}
                 </th>
               ))}
             </tr>
@@ -121,13 +133,13 @@ export default function ReportAdjusted({ ponds, agencies }) {
           <tbody className="divide-y divide-border">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={18} className="text-center py-8 text-muted-foreground">
+                <td colSpan={6 + Math.max(1, activeMonthIdx.length)} className="text-center py-8 text-muted-foreground">
                   Chưa có dữ liệu
                 </td>
               </tr>
             ) : (
               rows.flatMap((r) => {
-                const isOpen = !collapsed[r.agency];
+                const isOpen = collapsed[r.agency] === true;
                 const agencyRow = (
                   <tr
                     key={`ag-${r.agency}`}
@@ -154,12 +166,12 @@ export default function ReportAdjusted({ ponds, agencies }) {
                     <td className="px-3 py-2.5 text-center">
                       <DiffBadge original={r.origTotal} adjusted={r.adjTotal} />
                     </td>
-                    {MONTHS.map((m, i) => {
+                    {activeMonthIdx.map((mi, i) => {
                       const adj = r.adjByMonth[i];
                       const orig = r.origByMonth[i];
                       const diff = adj - orig;
                       return (
-                        <td key={m} className="px-2 py-2.5 text-right border-l border-border/50">
+                        <td key={mi} className="px-2 py-2.5 text-right border-l border-border/50">
                           {adj > 0 ? (
                             <div>
                               <div className="font-semibold text-amber-700">{adj.toLocaleString()}</div>
@@ -209,16 +221,16 @@ export default function ReportAdjusted({ ponds, agencies }) {
                         <td className="px-3 py-2.5 text-center">
                           <DiffBadge original={orig} adjusted={adj} />
                         </td>
-                        {MONTHS.map((m, i) => {
+                        {activeMonthIdx.map((mi, i) => {
                           const dAdj =
-                            p.expected_harvest_date && new Date(p.expected_harvest_date).getMonth() === i ? adj : 0;
+                            p.expected_harvest_date && new Date(p.expected_harvest_date).getMonth() === mi ? adj : 0;
                           const dOrig = (() => {
                             const d = originalHarvestDateForReport(p);
-                            return d && new Date(d).getMonth() === i ? orig : 0;
+                            return d && new Date(d).getMonth() === mi ? orig : 0;
                           })();
                           const diff = dAdj - dOrig;
                           return (
-                            <td key={m} className="px-2 py-2.5 text-right border-l border-border/50">
+                            <td key={mi} className="px-2 py-2.5 text-right border-l border-border/50">
                               {dAdj > 0 ? (
                                 <div>
                                   <div className="font-semibold text-amber-700">{dAdj.toLocaleString()}</div>
@@ -252,12 +264,12 @@ export default function ReportAdjusted({ ponds, agencies }) {
               <td className="px-3 py-3 text-center">
                 <DiffBadge original={grandOrig} adjusted={grandAdj} />
               </td>
-              {MONTHS.map((m, i) => {
+              {activeMonthIdx.map((mi, i) => {
                 const adj = grandAdjByMonth[i];
                 const orig = grandOrigByMonth[i];
                 const diff = adj - orig;
                 return (
-                  <td key={m} className="px-2 py-3 text-right border-l border-border/50">
+                  <td key={mi} className="px-2 py-3 text-right border-l border-border/50">
                     {adj > 0 ? (
                       <div>
                         <div className="font-bold text-amber-700">{adj.toLocaleString()}</div>

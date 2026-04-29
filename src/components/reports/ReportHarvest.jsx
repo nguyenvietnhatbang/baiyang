@@ -77,7 +77,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
             <tr><td colSpan={12} className="text-center py-10 text-muted-foreground">Chưa có dữ liệu ao nuôi</td></tr>
           ) : agencies.map(agency => {
             const agencyPonds = activePonds.filter(p => (p.agency_code || '(Chưa phân)') === agency);
-            const isOpen = !collapsed[agency];
+            const isOpen = collapsed[agency] === true;
             const agPlanned = agencyPonds.reduce((s, p) => s + (p.expected_yield || 0), 0);
             const agActual = agencyPonds.reduce((s, p) => {
               const d = getHarvestData(p);

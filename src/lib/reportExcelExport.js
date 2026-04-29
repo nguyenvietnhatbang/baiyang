@@ -9,6 +9,17 @@ import { classifyHarvestStatus, harvestStatusLabel } from '@/lib/harvestAlerts';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `T${i + 1}`);
 
+function activeMonthIdxFromRows(rows, dateAccessor, valueAccessor) {
+  const set = new Set();
+  (rows || []).forEach((r) => {
+    const d = dateAccessor(r);
+    const v = valueAccessor(r);
+    if (!d || !v || Number(v) <= 0) return;
+    set.add(new Date(d).getMonth());
+  });
+  return [...set].sort((a, b) => a - b);
+}
+
 function calcOriginalYield(p) {
   if (!p?.total_fish || !p?.survival_rate || !p?.target_weight) return 0;
   return Math.round((p.total_fish * (p.survival_rate / 100) * p.target_weight) / 1000);
@@ -121,10 +132,16 @@ function finalizeSheetView(sheet, headerRowIndex) {
 
 function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
   const title = 'Kế hoạch ban đầu (gốc)';
+  const monthIdx = activeMonthIdxFromRows(
+    ponds,
+    (p) => originalHarvestDateForReport(p),
+    (p) => calcOriginalYield(p)
+  );
+  const monthLabels = monthIdx.map((i) => MONTHS[i]);
   if (granularity === 'agency') {
-    const headers = ['Đại lý', 'Số ao CC', 'Số ao CT', 'Tổng ao', 'KH CC (kg)', 'KH CT (kg)', 'KH Tổng (kg)', ...MONTHS];
+    const headers = ['Hệ thống', 'Số ao CC', 'Số ao CT', 'Tổng ao', 'KH CC (kg)', 'KH CT (kg)', 'KH Tổng (kg)', ...monthLabels];
     addSheetCommonTop(sheet, { title, filterLine, headers });
-    const numFmt = ['', '', '', '', '#,##0', '#,##0', '#,##0', ...MONTHS.map(() => '#,##0')];
+    const numFmt = ['', '', '', '', '#,##0', '#,##0', '#,##0', ...monthLabels.map(() => '#,##0')];
     agencies.forEach((agency, idx) => {
       const ap = ponds.filter((p) => p.agency_code === agency);
       const cc = ap.filter((p) => p.status === 'CC');
@@ -132,7 +149,7 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
       const totalCC = cc.reduce((s, p) => s + calcOriginalYield(p), 0);
       const totalCT = ct.reduce((s, p) => s + calcOriginalYield(p), 0);
       const totalAll = totalCC + totalCT;
-      const monthVals = MONTHS.map((_, i) => {
+      const monthVals = monthIdx.map((i) => {
         const vcc = cc.reduce((s, p) => {
           const d = originalHarvestDateForReport(p);
           return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
@@ -152,7 +169,7 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
     const gCCkg = ponds.filter((p) => p.status === 'CC').reduce((s, p) => s + calcOriginalYield(p), 0);
     const gCTkg = ponds.filter((p) => p.status === 'CT').reduce((s, p) => s + calcOriginalYield(p), 0);
     const gAll = gCCkg + gCTkg;
-    const gMonths = MONTHS.map((_, i) =>
+    const gMonths = monthIdx.map((i) =>
       ponds.reduce((s, p) => {
         const d = originalHarvestDateForReport(p);
         return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
@@ -161,7 +178,7 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
     const totalRow = sheet.addRow(['TỔNG CỘNG', grandCC, grandCT, ponds.length, gCCkg, gCTkg, gAll, ...gMonths]);
     applyNumberFormats(totalRow, numFmt);
     styleBodyRow(totalRow, { isTotal: true });
-    setColumnWidths(sheet, [22, 10, 10, 10, 14, 14, 14, ...MONTHS.map(() => 11)]);
+    setColumnWidths(sheet, [22, 10, 10, 10, 14, 14, 14, ...monthLabels.map(() => 11)]);
   } else {
     const headers = [
       'Đại lý',
@@ -173,7 +190,7 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
       'KH CT (kg)',
       'KH Tổng (kg)',
       'Ngày thu KH (gốc)',
-      ...MONTHS,
+      ...monthLabels,
     ];
     addSheetCommonTop(sheet, { title, filterLine, headers });
     const sorted = [...ponds].sort((a, b) => {
@@ -182,12 +199,12 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
       if (ac !== bc) return ac.localeCompare(bc);
       return String(a.code).localeCompare(String(b.code));
     });
-    const numFmt = ['', '', '', '0.00', '', '#,##0', '#,##0', '#,##0', 'yyyy-mm-dd', ...MONTHS.map(() => '#,##0')];
+    const numFmt = ['', '', '', '0.00', '', '#,##0', '#,##0', '#,##0', 'yyyy-mm-dd', ...monthLabels.map(() => '#,##0')];
     sorted.forEach((p, idx) => {
       const y = calcOriginalYield(p);
       const d = originalHarvestDateForReport(p);
       const mi = d ? new Date(d).getMonth() : -1;
-      const monthVals = MONTHS.map((_, i) => (i === mi ? y : null));
+      const monthVals = monthIdx.map((i) => (i === mi ? y : null));
       const row = sheet.addRow([
         p.agency_code || '',
         p.code,
@@ -203,23 +220,28 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
       applyNumberFormats(row, numFmt);
       styleBodyRow(row, { zebra: idx % 2 === 1 });
     });
-    setColumnWidths(sheet, [16, 12, 22, 12, 6, 12, 12, 12, 14, ...MONTHS.map(() => 10)]);
+    setColumnWidths(sheet, [16, 12, 22, 12, 6, 12, 12, 12, 14, ...monthLabels.map(() => 10)]);
   }
   finalizeSheetView(sheet, 4);
 }
 
 function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
   const title = 'Kế hoạch điều chỉnh';
+  const monthIdx = [...new Set([
+    ...activeMonthIdxFromRows(ponds, (p) => originalHarvestDateForReport(p), (p) => calcOriginalYield(p)),
+    ...activeMonthIdxFromRows(ponds, (p) => p.expected_harvest_date, (p) => p.expected_yield || 0),
+  ])].sort((a, b) => a - b);
+  const monthLabels = monthIdx.map((i) => MONTHS[i]);
   if (granularity === 'agency') {
-    const headers = ['Đại lý', 'Số ao CC', 'Số ao CT', 'KH Gốc (kg)', 'KH Điều chỉnh (kg)', 'Chênh lệch (%)', ...MONTHS];
+    const headers = ['Hệ thống', 'Số ao CC', 'Số ao CT', 'KH Gốc (kg)', 'KH Điều chỉnh (kg)', 'Chênh lệch (%)', ...monthLabels];
     addSheetCommonTop(sheet, { title, filterLine, headers });
-    const numFmt = ['', '', '', '#,##0', '#,##0', '0', ...MONTHS.map(() => '#,##0')];
+    const numFmt = ['', '', '', '#,##0', '#,##0', '0', ...monthLabels.map(() => '#,##0')];
     agencies.forEach((agency, idx) => {
       const ap = ponds.filter((p) => p.agency_code === agency);
       const origTotal = ap.reduce((s, p) => s + calcOriginalYield(p), 0);
       const adjTotal = ap.reduce((s, p) => s + (p.expected_yield || 0), 0);
       const pct = diffPct(origTotal, adjTotal);
-      const monthAdj = MONTHS.map((_, i) =>
+      const monthAdj = monthIdx.map((i) =>
         ap.reduce(
           (s, p) =>
             s +
@@ -242,7 +264,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
     const grandOrig = ponds.reduce((s, p) => s + calcOriginalYield(p), 0);
     const grandAdj = ponds.reduce((s, p) => s + (p.expected_yield || 0), 0);
     const grandPct = diffPct(grandOrig, grandAdj);
-    const grandMonths = MONTHS.map((_, i) =>
+    const grandMonths = monthIdx.map((i) =>
       ponds.reduce(
         (s, p) =>
           s +
@@ -261,7 +283,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
     ]);
     applyNumberFormats(totalRow, numFmt);
     styleBodyRow(totalRow, { isTotal: true });
-    setColumnWidths(sheet, [20, 10, 10, 16, 18, 14, ...MONTHS.map(() => 11)]);
+    setColumnWidths(sheet, [20, 10, 10, 16, 18, 14, ...monthLabels.map(() => 11)]);
   } else {
     const headers = [
       'Đại lý',
@@ -272,7 +294,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
       'KH Điều chỉnh (kg)',
       'Chênh lệch (%)',
       'Ngày thu ĐC',
-      ...MONTHS,
+      ...monthLabels,
     ];
     addSheetCommonTop(sheet, { title, filterLine, headers });
     const sorted = [...ponds].sort((a, b) => {
@@ -281,13 +303,13 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
       if (ac !== bc) return ac.localeCompare(bc);
       return String(a.code).localeCompare(String(b.code));
     });
-    const numFmt = ['', '', '', '', '#,##0', '#,##0', '0', 'yyyy-mm-dd', ...MONTHS.map(() => '#,##0')];
+    const numFmt = ['', '', '', '', '#,##0', '#,##0', '0', 'yyyy-mm-dd', ...monthLabels.map(() => '#,##0')];
     sorted.forEach((p, idx) => {
       const orig = calcOriginalYield(p);
       const adj = p.expected_yield || 0;
       const pct = orig > 0 ? Math.round(((adj - orig) / orig) * 100) : null;
       const ed = p.expected_harvest_date ? new Date(p.expected_harvest_date) : null;
-      const monthVals = MONTHS.map((_, i) =>
+      const monthVals = monthIdx.map((i) =>
         p.expected_harvest_date && new Date(p.expected_harvest_date).getMonth() === i ? adj : null
       );
       const row = sheet.addRow([
@@ -304,7 +326,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
       applyNumberFormats(row, numFmt);
       styleBodyRow(row, { zebra: idx % 2 === 1 });
     });
-    setColumnWidths(sheet, [16, 12, 22, 6, 14, 16, 12, 14, ...MONTHS.map(() => 10)]);
+    setColumnWidths(sheet, [16, 12, 22, 6, 14, 16, 12, 14, ...monthLabels.map(() => 10)]);
   }
   finalizeSheetView(sheet, 4);
 }
