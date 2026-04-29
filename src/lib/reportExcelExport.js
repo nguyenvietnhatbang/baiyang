@@ -4,7 +4,7 @@
  */
 
 import ExcelJS from 'exceljs';
-import { originalHarvestDateForReport } from '@/lib/planReportHelpers';
+import { originalHarvestDateForReport, plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { classifyHarvestStatus, harvestStatusLabel } from '@/lib/harvestAlerts';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `T${i + 1}`);
@@ -227,9 +227,10 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
 
 function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
   const title = 'Kế hoạch điều chỉnh';
+  const adjustedHarvestDate = (p) => plannedHarvestDateForDisplay(p);
   const monthIdx = [...new Set([
     ...activeMonthIdxFromRows(ponds, (p) => originalHarvestDateForReport(p), (p) => calcOriginalYield(p)),
-    ...activeMonthIdxFromRows(ponds, (p) => p.expected_harvest_date, (p) => p.expected_yield || 0),
+    ...activeMonthIdxFromRows(ponds, (p) => adjustedHarvestDate(p), (p) => p.expected_yield || 0),
   ])].sort((a, b) => a - b);
   const monthLabels = monthIdx.map((i) => MONTHS[i]);
   if (granularity === 'agency') {
@@ -245,7 +246,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
         ap.reduce(
           (s, p) =>
             s +
-            (p.expected_harvest_date && new Date(p.expected_harvest_date).getMonth() === i ? p.expected_yield || 0 : 0),
+            (adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0),
           0
         )
       );
@@ -268,7 +269,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
       ponds.reduce(
         (s, p) =>
           s +
-          (p.expected_harvest_date && new Date(p.expected_harvest_date).getMonth() === i ? p.expected_yield || 0 : 0),
+          (adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0),
         0
       )
     );
@@ -308,9 +309,10 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
       const orig = calcOriginalYield(p);
       const adj = p.expected_yield || 0;
       const pct = orig > 0 ? Math.round(((adj - orig) / orig) * 100) : null;
-      const ed = p.expected_harvest_date ? new Date(p.expected_harvest_date) : null;
+      const edRaw = adjustedHarvestDate(p);
+      const ed = edRaw ? new Date(edRaw) : null;
       const monthVals = monthIdx.map((i) =>
-        p.expected_harvest_date && new Date(p.expected_harvest_date).getMonth() === i ? adj : null
+        edRaw && new Date(edRaw).getMonth() === i ? adj : null
       );
       const row = sheet.addRow([
         p.agency_code || '',
@@ -333,7 +335,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
 
 function buildHarvest(sheet, { granularity, ponds, harvests, harvestAlertDays, filterLine }) {
   const title = 'Kế hoạch thu & Thực thu';
-  const active = ponds.filter((p) => p.status === 'CC' || p.expected_harvest_date);
+  const active = ponds.filter((p) => p.status === 'CC' || plannedHarvestDateForDisplay(p));
   if (granularity === 'agency') {
     const headers = ['Đại lý', 'Số ao', 'Tổng KH thu (kg)', 'Đã thu (kg)', 'Còn tồn (kg)', 'FCR trung bình'];
     addSheetCommonTop(sheet, { title, filterLine, headers });
@@ -399,7 +401,7 @@ function buildHarvest(sheet, { granularity, ponds, harvests, harvestAlertDays, f
         p.area != null ? Number(p.area) : null,
         p.status || '',
         harvestStatusLabel(hStatus),
-        p.expected_harvest_date ? new Date(p.expected_harvest_date) : null,
+        plannedHarvestDateForDisplay(p) ? new Date(plannedHarvestDateForDisplay(p)) : null,
         planned || null,
         totalAct || null,
         remaining,

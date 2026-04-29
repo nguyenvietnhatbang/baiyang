@@ -6,11 +6,12 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { classifyHarvestStatus, harvestStatusLabel } from '@/lib/harvestAlerts';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 
 export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 }) {
   const [collapsed, setCollapsed] = useState({});
 
-  const activePonds = ponds.filter(p => p.status === 'CC' || p.expected_harvest_date);
+  const activePonds = ponds.filter((p) => p.status === 'CC' || plannedHarvestDateForDisplay(p));
 
   const agencies = [...new Set(activePonds.map(p => p.agency_code || '(Chưa phân)'))]
     .sort((a, b) => a.localeCompare(b));
@@ -147,7 +148,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                     <td className="px-4 py-2.5 text-center">
                       <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${stClass}`}>{stLabel}</span>
                     </td>
-                    <td className="px-4 py-2.5 text-center whitespace-nowrap text-muted-foreground">{p.expected_harvest_date || '—'}</td>
+                    <td className="px-4 py-2.5 text-center whitespace-nowrap text-muted-foreground">{plannedHarvestDateForDisplay(p) || '—'}</td>
                     <td className="px-4 py-2.5 text-right font-medium">{planned > 0 ? planned.toLocaleString() : '—'}</td>
                     <td className="px-4 py-2.5 text-right font-bold text-green-700">
                       {totalActual > 0 ? totalActual.toLocaleString() : <span className="text-muted-foreground font-normal">Chưa thu</span>}

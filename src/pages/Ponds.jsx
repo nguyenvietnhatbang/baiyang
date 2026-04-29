@@ -15,6 +15,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { pondQrPayload } from '@/lib/fieldAuthHelpers';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HouseholdsPanel } from '@/components/households/HouseholdsPanel';
 
@@ -271,7 +272,7 @@ export default function Ponds() {
             status: c.status || 'CT',
             current_fish: c.current_fish,
             expected_yield: c.expected_yield,
-            expected_harvest_date: c.expected_harvest_date,
+            expected_harvest_date: plannedHarvestDateForDisplay(c),
             stock_date: c.stock_date,
             withdrawal_end_date: c.withdrawal_end_date,
             fcr: c.fcr,

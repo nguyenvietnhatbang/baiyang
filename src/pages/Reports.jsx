@@ -13,6 +13,7 @@ import {
 import ReportOriginal from '@/components/reports/ReportOriginal';
 import ReportAdjusted from '@/components/reports/ReportAdjusted';
 import ReportHarvest from '@/components/reports/ReportHarvest';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 
 const MONTHS = ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'];
 
@@ -47,6 +48,7 @@ function toCycleRows(ponds) {
       pond_code: pond.code,
       code: `${pond.code}${cycles.length > 1 ? ` · CK${idx + 1}` : ''}`,
       pond_cycle_id: cycle.id,
+      expected_harvest_date: plannedHarvestDateForDisplay(cycle),
     }));
   });
 }

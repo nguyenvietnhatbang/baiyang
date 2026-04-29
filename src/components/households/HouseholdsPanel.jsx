@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Plus, Pencil, Trash2, AlertTriangle, Save } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, Save, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
+import ExcelJS from 'exceljs';
 
 function normalizeSegment(s) {
   const t = (s || '').trim();
@@ -252,6 +253,8 @@ export function HouseholdsPanel({ embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
 
   const load = async () => {
     const [h, a, r] = await Promise.all([
@@ -269,6 +272,109 @@ export function HouseholdsPanel({ embedded = false }) {
 
   const agencyMap = Object.fromEntries(agencies.map((a) => [a.id, a]));
 
+  const agencyCodeMap = useMemo(() => {
+    const m = new Map();
+    agencies.forEach((a) => {
+      const raw = String(a.code || '').trim();
+      const compact = raw.replace(/\s+/g, '').toUpperCase();
+      const digits = compact.replace(/\D/g, '');
+      if (raw) m.set(raw.toUpperCase(), a);
+      if (compact) m.set(compact, a);
+      if (digits) m.set(digits, a);
+      if (digits) m.set(digits.padStart(2, '0'), a);
+    });
+    return m;
+  }, [agencies]);
+
+  const parseAgencyAndSegment = (rawCode) => {
+    const txt = String(rawCode || '').trim();
+    if (!txt) return null;
+    const groups = txt.match(/\d+/g) || [];
+    if (groups.length < 3) return null;
+    const agencyCode = groups[1].padStart(2, '0');
+    const segment = normalizeSegment(groups[2]);
+    if (!segment) return null;
+    return { agencyCode, segment };
+  };
+
+  const handleImportExcel = async (file) => {
+    if (!file) return;
+    setImportMsg('');
+    setImporting(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+      const ws = wb.worksheets[0];
+      if (!ws) throw new Error('File Excel không có sheet dữ liệu.');
+
+      const header = ws.getRow(1).values || [];
+      const cells = Array.isArray(header) ? header : [];
+      const normalized = cells.map((v) => String(v || '').trim().toLowerCase());
+      let nameCol = normalized.findIndex((x) => x.includes('hộ nuôi'));
+      let codeCol = normalized.findIndex((x) => x.includes('mã hộ'));
+      if (nameCol <= 0) nameCol = 1;
+      if (codeCol <= 0) codeCol = 2;
+
+      const dedupInFile = new Set();
+      const existing = new Set(rows.map((r) => `${r.agency_id}::${r.household_segment}`));
+      let created = 0;
+      let skipped = 0;
+      const issues = [];
+
+      for (let r = 2; r <= ws.rowCount; r += 1) {
+        const row = ws.getRow(r);
+        const name = String(row.getCell(nameCol).value || '').trim();
+        const codeRaw = String(row.getCell(codeCol).value || '').trim();
+        if (!name && !codeRaw) continue;
+
+        const parsed = parseAgencyAndSegment(codeRaw);
+        if (!parsed) {
+          skipped += 1;
+          issues.push(`Dòng ${r}: mã hộ không hợp lệ "${codeRaw}"`);
+          continue;
+        }
+
+        const agency =
+          agencyCodeMap.get(parsed.agencyCode) ||
+          agencyCodeMap.get(parsed.agencyCode.replace(/^0+/, '')) ||
+          null;
+        if (!agency) {
+          skipped += 1;
+          issues.push(`Dòng ${r}: không tìm thấy đại lý mã ${parsed.agencyCode}`);
+          continue;
+        }
+
+        const key = `${agency.id}::${parsed.segment}`;
+        if (dedupInFile.has(key) || existing.has(key)) {
+          skipped += 1;
+          continue;
+        }
+        dedupInFile.add(key);
+
+        await base44.entities.Household.create({
+          agency_id: agency.id,
+          region_code: agency.region_code || '17',
+          household_segment: parsed.segment,
+          name: name || `Hộ ${parsed.segment}`,
+          address: null,
+          active: true,
+        });
+        created += 1;
+      }
+
+      await load();
+      const issueText = issues.slice(0, 3).join(' | ');
+      setImportMsg(
+        `Import xong: tạo ${created} hộ, bỏ qua ${skipped} dòng.` +
+          (issueText ? ` Lỗi mẫu: ${issueText}${issues.length > 3 ? ' ...' : ''}` : '')
+      );
+    } catch (e) {
+      setImportMsg(`Import thất bại: ${formatSupabaseError(e)}`);
+    }
+    setImporting(false);
+  };
+
   return (
     <div className={embedded ? 'space-y-4' : 'p-6 space-y-5 max-w-7xl mx-auto'}>
       <div className={`flex flex-col sm:flex-row sm:items-center gap-3 ${embedded ? 'sm:justify-end' : 'sm:justify-between'}`}>
@@ -278,15 +384,44 @@ export function HouseholdsPanel({ embedded = false }) {
             <p className="text-muted-foreground text-sm mt-0.5">Mã hộ dùng trong mã ao (khu vực–đại lý–hộ–STT ao)</p>
           </div>
         )}
-        <Button
-          onClick={() => { setEditRow(null); setDialogOpen(true); }}
-          className="bg-primary text-white flex items-center gap-2 shrink-0"
-          disabled={agencies.length === 0}
-        >
-          <Plus className="w-4 h-4" />
-          Thêm hộ
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="flex items-center gap-2 shrink-0"
+            disabled={agencies.length === 0 || importing}
+            onClick={() => document.getElementById('household-import-excel')?.click()}
+          >
+            <Upload className="w-4 h-4" />
+            {importing ? 'Đang import...' : 'Import Excel'}
+          </Button>
+          <input
+            id="household-import-excel"
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleImportExcel(f);
+              e.target.value = '';
+            }}
+          />
+          <Button
+            onClick={() => {
+              setEditRow(null);
+              setDialogOpen(true);
+            }}
+            className="bg-primary text-white flex items-center gap-2 shrink-0"
+            disabled={agencies.length === 0}
+          >
+            <Plus className="w-4 h-4" />
+            Thêm hộ
+          </Button>
+        </div>
       </div>
+
+      {importMsg && (
+        <p className="text-xs text-muted-foreground bg-muted/40 border border-border rounded-lg px-3 py-2">{importMsg}</p>
+      )}
 
       {agencies.length === 0 && (
         <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">

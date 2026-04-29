@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 
 function cycleLabel(c, idx) {
   if (!c) return '';
@@ -88,8 +89,9 @@ export default function PondManageView({
     selectedCycle?.withdrawal_end_date &&
     differenceInDays(parseISO(selectedCycle.withdrawal_end_date), today) >= 0;
 
-  const harvestDiff = selectedCycle?.expected_harvest_date
-    ? differenceInDays(parseISO(selectedCycle.expected_harvest_date), today)
+  const selectedHarvestDate = plannedHarvestDateForDisplay(selectedCycle);
+  const harvestDiff = selectedHarvestDate
+    ? differenceInDays(parseISO(selectedHarvestDate), today)
     : null;
 
   const isUrgent = harvestDiff !== null && harvestDiff <= harvestAlertDays;

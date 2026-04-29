@@ -1,4 +1,5 @@
 import { differenceInDays, parseISO } from 'date-fns';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 
 /** @param {{ harvest_alert_days?: number } | null | undefined} settings */
 export function getHarvestAlertDays(settings) {
@@ -14,14 +15,15 @@ export function getHarvestAlertDays(settings) {
  */
 export function classifyHarvestStatus(pond, totalHarvestedKg, alertDays) {
   const planned = pond.expected_yield || 0;
+  const plannedHarvestDate = plannedHarvestDateForDisplay(pond);
   if (pond.harvest_done || (totalHarvestedKg > 0 && planned > 0 && totalHarvestedKg >= planned)) {
     return 'harvested';
   }
-  if (!pond.expected_harvest_date) {
+  if (!plannedHarvestDate) {
     return 'not_ready';
   }
   const today = new Date();
-  const diff = differenceInDays(parseISO(pond.expected_harvest_date), today);
+  const diff = differenceInDays(parseISO(plannedHarvestDate), today);
   if (diff <= alertDays) {
     return 'upcoming';
   }
