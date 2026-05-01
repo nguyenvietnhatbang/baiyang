@@ -234,57 +234,62 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
   ])].sort((a, b) => a - b);
   const monthLabels = monthIdx.map((i) => MONTHS[i]);
   if (granularity === 'agency') {
-    const headers = ['Hệ thống', 'Số ao CC', 'Số ao CT', 'KH Gốc (kg)', 'KH Điều chỉnh (kg)', 'Chênh lệch (%)', ...monthLabels];
+    const monthHeaders = monthLabels.flatMap((m) => [`${m} CC`, `${m} CT`, `${m} TH`]);
+    const headers = ['Hệ thống', 'Số ao', 'Diện tích (m²)', ...monthHeaders, 'Tổng CC', 'Tổng CT', 'Tổng TH'];
     addSheetCommonTop(sheet, { title, filterLine, headers });
-    const numFmt = ['', '', '', '#,##0', '#,##0', '0', ...monthLabels.map(() => '#,##0')];
+    const numFmt = ['', '', '0.00', ...monthHeaders.map(() => '#,##0'), '#,##0', '#,##0', '#,##0'];
     agencies.forEach((agency, idx) => {
       const ap = ponds.filter((p) => p.agency_code === agency);
-      const origTotal = ap.reduce((s, p) => s + calcOriginalYield(p), 0);
-      const adjTotal = ap.reduce((s, p) => s + (p.expected_yield || 0), 0);
-      const pct = diffPct(origTotal, adjTotal);
-      const monthAdj = monthIdx.map((i) =>
-        ap.reduce(
-          (s, p) =>
-            s +
-            (adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0),
-          0
-        )
+      const cc = ap.filter((p) => p.status === 'CC');
+      const ct = ap.filter((p) => p.status === 'CT');
+      const totalArea = ap.reduce((s, p) => s + (Number(p.area) || 0), 0);
+      const monthCC = monthIdx.map((i) =>
+        cc.reduce((s, p) => s + (adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0), 0)
       );
+      const monthCT = monthIdx.map((i) =>
+        ct.reduce((s, p) => s + (adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0), 0)
+      );
+      const monthTH = monthCC.map((v, i) => v + monthCT[i]);
+      const totalCC = monthCC.reduce((s, v) => s + v, 0);
+      const totalCT = monthCT.reduce((s, v) => s + v, 0);
+      const totalTH = totalCC + totalCT;
+      const monthTriplets = monthIdx.flatMap((_, i) => [monthCC[i] || null, monthCT[i] || null, monthTH[i] || null]);
       const row = sheet.addRow([
         agency,
-        ap.filter((p) => p.status === 'CC').length,
-        ap.filter((p) => p.status === 'CT').length,
-        origTotal || null,
-        adjTotal || null,
-        pct != null ? pct : null,
-        ...monthAdj,
+        ap.length || null,
+        totalArea || null,
+        ...monthTriplets,
+        totalCC || null,
+        totalCT || null,
+        totalTH || null,
       ]);
       applyNumberFormats(row, numFmt);
       styleBodyRow(row, { zebra: idx % 2 === 1 });
     });
-    const grandOrig = ponds.reduce((s, p) => s + calcOriginalYield(p), 0);
-    const grandAdj = ponds.reduce((s, p) => s + (p.expected_yield || 0), 0);
-    const grandPct = diffPct(grandOrig, grandAdj);
-    const grandMonths = monthIdx.map((i) =>
-      ponds.reduce(
-        (s, p) =>
-          s +
-          (adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0),
-        0
-      )
+    const grandArea = ponds.reduce((s, p) => s + (Number(p.area) || 0), 0);
+    const grandMonthCC = monthIdx.map((i) =>
+      ponds.reduce((s, p) => s + (p.status === 'CC' && adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0), 0)
     );
+    const grandMonthCT = monthIdx.map((i) =>
+      ponds.reduce((s, p) => s + (p.status === 'CT' && adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0), 0)
+    );
+    const grandMonthTH = grandMonthCC.map((v, i) => v + grandMonthCT[i]);
+    const grandTotalCC = grandMonthCC.reduce((s, v) => s + v, 0);
+    const grandTotalCT = grandMonthCT.reduce((s, v) => s + v, 0);
+    const grandTotalTH = grandTotalCC + grandTotalCT;
+    const grandTriplets = monthIdx.flatMap((_, i) => [grandMonthCC[i] || null, grandMonthCT[i] || null, grandMonthTH[i] || null]);
     const totalRow = sheet.addRow([
       'TỔNG CỘNG',
-      ponds.filter((p) => p.status === 'CC').length,
-      ponds.filter((p) => p.status === 'CT').length,
-      grandOrig,
-      grandAdj,
-      grandPct != null ? grandPct : null,
-      ...grandMonths,
+      ponds.length || null,
+      grandArea || null,
+      ...grandTriplets,
+      grandTotalCC || null,
+      grandTotalCT || null,
+      grandTotalTH || null,
     ]);
     applyNumberFormats(totalRow, numFmt);
     styleBodyRow(totalRow, { isTotal: true });
-    setColumnWidths(sheet, [20, 10, 10, 16, 18, 14, ...monthLabels.map(() => 11)]);
+    setColumnWidths(sheet, [20, 10, 14, ...monthLabels.flatMap(() => [10, 10, 10]), 12, 12, 12]);
   } else {
     const headers = [
       'Đại lý',
