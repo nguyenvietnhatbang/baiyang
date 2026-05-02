@@ -39,7 +39,7 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
 
   const prevExpectedYield = cycle.expected_yield;
   const newExpectedYield =
-    cycle.survival_rate && cycle.target_weight && newCurrentFish
+    cycle.survival_rate && cycle.target_weight
       ? Math.round((newCurrentFish * (cycle.survival_rate / 100) * cycle.target_weight) / 1000)
       : cycle.expected_yield;
 
@@ -47,10 +47,34 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
   const allHarvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id });
   const totalActualYield = allHarvests.reduce((sum, h) => sum + (h.actual_yield || 0), 0);
   
-  // Tính FCR nếu có total_feed_used và actual_yield
+  // Tính FCR
   let fcr = cycle.fcr;
-  if (totalFeed > 0 && totalActualYield > 0) {
-    fcr = Math.round((totalFeed / totalActualYield) * 10000) / 10000;
+  if (totalActualYield > 0) {
+    // FCR chốt sau thu hoạch
+    fcr = Math.round((totalFeed / totalActualYield) * 100) / 100;
+  } else if (newCurrentFish > 0) {
+    // FCR tạm tính (Running FCR)
+    let latestAvgWeight = Number(form.avg_weight) || 0;
+    
+    // Nếu log hiện tại không có TL TB, tìm log gần nhất có TL TB
+    if (latestAvgWeight <= 0) {
+      const recentLogs = await base44.entities.PondLog.filter(
+        { pond_cycle_id: cycle.id }, 
+        '-log_date', 
+        20
+      );
+      const logWithWeight = recentLogs.find(l => Number(l.avg_weight) > 0);
+      if (logWithWeight) {
+        latestAvgWeight = Number(logWithWeight.avg_weight);
+      }
+    }
+
+    if (latestAvgWeight > 0) {
+      const estimatedBiomass = (newCurrentFish * latestAvgWeight) / 1000;
+      if (estimatedBiomass > 0) {
+        fcr = Math.round((totalFeed / estimatedBiomass) * 100) / 100;
+      }
+    }
   }
 
   await base44.entities.PondCycle.update(cycle.id, {

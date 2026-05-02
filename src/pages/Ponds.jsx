@@ -417,7 +417,12 @@ export default function Ponds() {
     setConfirming(true);
     await Promise.all(
       [...checkedHarvest].map(async (cycleId) => {
-        await base44.entities.PondCycle.update(cycleId, { harvest_done: true, status: 'CT', current_fish: 0 });
+        await base44.entities.PondCycle.update(cycleId, { 
+          harvest_done: true, 
+          status: 'CT', 
+          current_fish: 0,
+          expected_yield: 0
+        });
       })
     );
     setCheckedHarvest(new Set());
