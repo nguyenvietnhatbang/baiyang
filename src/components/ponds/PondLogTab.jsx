@@ -4,11 +4,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Save, ChevronDown, ChevronUp, AlertTriangle, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { submitPondLogEntry } from '@/lib/pondLogSubmit';
 import { POND_LOG_ENV_RANGES, pondLogEnvOutOfRange } from '@/lib/pondLogEnvRanges';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 function isAlert(key, value) {
   return pondLogEnvOutOfRange(key, value);
@@ -17,9 +17,6 @@ function isAlert(key, value) {
 export default function PondLogTab({ pond, cycle, onUpdate }) {
   const [showHistory, setShowHistory] = useState(false);
   const [logs, setLogs] = useState([]);
-  const [feedDateFrom, setFeedDateFrom] = useState('');
-  const [feedDateTo, setFeedDateTo] = useState('');
-  const [sumRpcRange, setSumRpcRange] = useState(null);
   const [form, setForm] = useState({
     log_date: format(new Date(), 'yyyy-MM-dd'),
     ph: '', temperature: '', do: '', nh3: '', no2: '', h2s: '',
@@ -42,30 +39,7 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
     void loadLogs();
   }, [pond.id, cycle?.id]);
 
-  useEffect(() => {
-    if (!feedDateFrom || !feedDateTo || !cycle?.id) {
-      setSumRpcRange(null);
-      return;
-    }
-    let cancelled = false;
-    base44
-      .rpc('sum_pond_cycle_feed', { p_pond_cycle_id: cycle.id, p_from: feedDateFrom, p_to: feedDateTo })
-      .then((v) => {
-        if (!cancelled) setSumRpcRange(Number(v));
-      })
-      .catch(() => {
-        if (!cancelled) setSumRpcRange(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [cycle?.id, feedDateFrom, feedDateTo]);
-
-  const filteredLogs = logs.filter((l) => {
-    if (feedDateFrom && l.log_date < feedDateFrom) return false;
-    if (feedDateTo && l.log_date > feedDateTo) return false;
-    return true;
-  });
+  const filteredLogs = logs;
 
   const handleSave = async () => {
     setSaving(true);
@@ -86,35 +60,8 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
     }
   };
 
-  const chartData = [...filteredLogs].reverse().slice(-14).map(l => ({
-    date: l.log_date.slice(5),
-    pH: l.ph,
-    'Nhiệt độ': l.temperature,
-    DO: l.do,
-  }));
-
   return (
-    <div className="space-y-5">
-      <div className="bg-muted/40 border border-border rounded-lg p-3 space-y-2">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Lọc &amp; lũy kế thức ăn</p>
-        <div className="flex flex-wrap gap-2 items-end">
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Từ ngày</Label>
-            <Input type="date" className="h-8 text-xs mt-0.5" value={feedDateFrom} onChange={(e) => setFeedDateFrom(e.target.value)} />
-          </div>
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Đến ngày</Label>
-            <Input type="date" className="h-8 text-xs mt-0.5" value={feedDateTo} onChange={(e) => setFeedDateTo(e.target.value)} />
-          </div>
-        </div>
-        <div className="text-xs text-foreground space-y-0.5">
-          {feedDateFrom && feedDateTo && sumRpcRange != null && (
-            <p><span className="text-muted-foreground">Tổng TA trong khoảng (SQL):</span> <strong>{sumRpcRange.toLocaleString()} kg</strong></p>
-          )}
-          <p><span className="text-muted-foreground">Lũy kế toàn ao (hệ thống):</span> <strong>{(pond.total_feed_used || 0).toLocaleString()} kg</strong></p>
-          <p className="text-muted-foreground">FCR trên ao cập nhật theo tổng TA / tổng thu hoạch thực tế (sau khi có bản ghi thu hoạch).</p>
-        </div>
-      </div>
+    <div className="space-y-5 pt-2">
 
       <div className="grid grid-cols-3 gap-3">
         {Object.entries(POND_LOG_ENV_RANGES).map(([key, cfg]) => (
@@ -145,7 +92,19 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Màu nước</Label>
-          <Input value={form.water_color} onChange={e => setForm({...form, water_color: e.target.value})} className="mt-1" placeholder="VD: xanh lá, nâu..." />
+          <Select value={form.water_color} onValueChange={(v) => setForm({ ...form, water_color: v })}>
+            <SelectTrigger className="mt-1 h-9">
+              <SelectValue placeholder="Chọn màu nước..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Xanh lá">Xanh lá</SelectItem>
+              <SelectItem value="Xanh trà">Xanh trà</SelectItem>
+              <SelectItem value="Nâu">Nâu</SelectItem>
+              <SelectItem value="Nâu đỏ">Nâu đỏ</SelectItem>
+              <SelectItem value="Vàng nhạt">Vàng nhạt</SelectItem>
+              <SelectItem value="Trong">Trong</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày ghi</Label>
@@ -210,23 +169,6 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
 
       {showHistory && (
         <div className="space-y-4">
-          {chartData.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">Biểu đồ môi trường 14 ngày</p>
-              <ResponsiveContainer width="100%" height={160}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip contentStyle={{ fontSize: 11, borderRadius: '8px' }} />
-                  <Line type="monotone" dataKey="pH" stroke="hsl(213,65%,45%)" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="Nhiệt độ" stroke="hsl(38,85%,55%)" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="DO" stroke="hsl(145,55%,42%)" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
           <div className="space-y-2">
             {filteredLogs.map(log => (
               <div key={log.id} className="bg-muted/50 rounded-lg p-3 text-xs">

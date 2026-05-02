@@ -194,32 +194,47 @@ export default function Logs() {
       </div>
 
       {/* Bộ lọc — trên cùng */}
-      <div className="bg-card rounded-xl border border-border p-4 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <Filter className="w-4 h-4 text-primary" />
-          Lọc nhật ký &amp; thống kê
+      <div className="bg-card rounded-xl border border-border p-4 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+            <Filter className="w-4 h-4 text-primary" />
+            Lọc nhật ký &amp; thống kê
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="xs" className="h-7 text-[10px] px-2" onClick={clearDateMonth}>
+              Xóa ngày/tháng
+            </Button>
+            {activePond && (
+              <Button type="button" variant="secondary" size="xs" className="h-7 text-[10px] px-2" onClick={() => setActivePond(null)}>
+                Bỏ chọn ao
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col gap-4">
-          <p className="text-[11px] text-muted-foreground -mt-1">
-            Chọn khoảng ngày hoặc một tháng (không dùng cùng lúc). Đại lý và chu kỳ lọc theo ao / phiếu tương ứng.
-          </p>
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-4">
-            <div className="w-full min-w-0 md:flex-1 md:min-w-[17rem]">
-              <Label className="text-xs font-medium text-muted-foreground">Khoảng ngày (nhật ký &amp; thu hoạch)</Label>
-              <div className="flex flex-wrap gap-2 mt-1 items-center">
+        
+        <p className="text-[10px] text-muted-foreground">
+          Chọn khoảng ngày hoặc một tháng (không dùng cùng lúc). Đại lý và chu kỳ lọc theo ao.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 pt-1">
+          {/* Cột 1: Thời gian */}
+          <div className="space-y-3">
+            <div>
+              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Khoảng ngày (nhật ký &amp; thu hoạch)</Label>
+              <div className="flex items-center gap-2 mt-1">
                 <Input
                   type="date"
-                  className="h-9 text-sm w-[9.5rem] sm:w-36 shrink-0"
+                  className="h-8 text-xs flex-1"
                   value={logDateFrom}
                   onChange={(e) => {
                     setLogDateFrom(e.target.value);
                     setMonthFilter('all');
                   }}
                 />
-                <span className="text-muted-foreground text-sm">→</span>
+                <span className="text-muted-foreground text-xs">→</span>
                 <Input
                   type="date"
-                  className="h-9 text-sm w-[9.5rem] sm:w-36 shrink-0"
+                  className="h-8 text-xs flex-1"
                   value={logDateTo}
                   onChange={(e) => {
                     setLogDateTo(e.target.value);
@@ -228,8 +243,8 @@ export default function Logs() {
                 />
               </div>
             </div>
-            <div className="w-full sm:w-48 sm:shrink-0 min-w-0">
-              <Label className="text-xs font-medium text-muted-foreground">Hoặc theo tháng</Label>
+            <div>
+              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Hoặc theo tháng</Label>
               <Select
                 value={monthFilter}
                 onValueChange={(v) => {
@@ -239,7 +254,7 @@ export default function Logs() {
                 }}
                 items={monthFilterItems}
               >
-                <SelectTrigger className="h-9 text-sm mt-1 w-full min-w-0">
+                <SelectTrigger className="h-8 text-xs mt-1 w-full">
                   <SelectValue>{monthFilterItems.find((x) => x.value === monthFilter)?.label ?? monthFilter}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -251,10 +266,14 @@ export default function Logs() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-full sm:w-48 sm:shrink-0 min-w-0">
-              <Label className="text-xs font-medium text-muted-foreground">Đại lý</Label>
+          </div>
+
+          {/* Cột 2: Đối tượng */}
+          <div className="space-y-3">
+            <div>
+              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Đại lý</Label>
               <Select value={agencyFilter} onValueChange={setAgencyFilter} items={agencyFilterItems}>
-                <SelectTrigger className="h-9 text-sm mt-1 w-full min-w-0">
+                <SelectTrigger className="h-8 text-xs mt-1 w-full">
                   <SelectValue>{agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -266,10 +285,10 @@ export default function Logs() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-full sm:min-w-[14rem] sm:max-w-xs sm:flex-1 min-w-0">
-              <Label className="text-xs font-medium text-muted-foreground">Chu kỳ</Label>
+            <div>
+              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Chu kỳ</Label>
               <Select value={cycleFilter} onValueChange={setCycleFilter} items={cycleFilterItems}>
-                <SelectTrigger className="h-9 text-sm mt-1 w-full min-w-0">
+                <SelectTrigger className="h-8 text-xs mt-1 w-full">
                   <SelectValue>
                     {cycleFilter === 'all' ? 'Tất cả chu kỳ' : cycleFilterItems.find((x) => x.value === cycleFilter)?.label}
                   </SelectValue>
@@ -283,22 +302,16 @@ export default function Logs() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:shrink-0">
-              <Button type="button" variant="outline" size="sm" className="h-9" onClick={clearDateMonth}>
-                Xóa ngày/tháng
-              </Button>
-              {activePond && (
-                <Button type="button" variant="secondary" size="sm" className="h-9" onClick={() => setActivePond(null)}>
-                  Bỏ chọn ao
-                </Button>
-              )}
-            </div>
           </div>
         </div>
+
         {activePond && (
-          <p className="text-xs text-primary font-medium">
-            Đang lọc theo ao: <strong>{activePond.code}</strong> — kết quả bên dưới chỉ áp dụng ao này.
-          </p>
+          <div className="mt-2 p-2 bg-primary/5 rounded-md border border-primary/10">
+            <p className="text-[11px] text-primary font-bold flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              Đang lọc theo ao: {activePond.code} — {activePond.owner_name}
+            </p>
+          </div>
         )}
       </div>
 
@@ -412,43 +425,6 @@ export default function Logs() {
               ))}
             </div>
           </div>
-
-          {activePond && (
-            <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-              <div className="px-3 py-2.5 border-b border-border bg-primary/5">
-                <p className="text-xs font-bold text-primary">
-                  {activePond.code} — {activePond.owner_name}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">Lịch sử {pondLogs.length} bản ghi</p>
-              </div>
-              <div className="overflow-y-auto max-h-72 divide-y divide-border/50">
-                {pondLogs.length === 0 ? (
-                  <p className="text-center py-6 text-xs text-muted-foreground">Chưa có nhật ký</p>
-                ) : (
-                  pondLogs.map((log) => (
-                    <button
-                      key={log.id}
-                      type="button"
-                      onClick={() => setSelectedLog(log)}
-                      className="w-full text-left px-3 py-2.5 hover:bg-muted/40 transition-colors flex items-center justify-between"
-                    >
-                      <div>
-                        <p className="text-xs font-semibold text-foreground">{log.log_date}</p>
-                        <div className="flex gap-2 mt-0.5 text-xs text-muted-foreground">
-                          {log.ph && <span>pH {log.ph}</span>}
-                          {log.temperature && <span>T° {log.temperature}</span>}
-                          {log.dead_fish > 0 && <span className="text-red-500">-{log.dead_fish}c</span>}
-                          {log.feed_amount && <span className="text-blue-500">{log.feed_amount}kg</span>}
-                          {log.medicine_used && <span className="text-orange-500">💊</span>}
-                        </div>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="lg:col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden flex flex-col">

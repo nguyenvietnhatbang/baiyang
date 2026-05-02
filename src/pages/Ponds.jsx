@@ -12,6 +12,24 @@ import QRBatchDownload from '@/components/ponds/QRBatchDownload';
 import PondMobileCard from '@/components/ponds/PondMobileCard';
 import { differenceInDays, parseISO } from 'date-fns';
 import { useAuth } from '@/lib/AuthContext';
+import { MoreHorizontal, Eye, Edit, Trash2, AlertCircle } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { pondQrPayload } from '@/lib/fieldAuthHelpers';
@@ -26,18 +44,18 @@ const POND_STATUS_FILTER_ITEMS = [
 ];
 
 const CYCLE_COLUMNS = [
-  { key: 'pond_code', label: 'Mã ao' },
-  { key: 'cycle_name', label: 'Chu kỳ' },
-  { key: 'owner_name', label: 'Chủ hộ' },
-  { key: 'agency_code', label: 'Đại lý' },
-  { key: 'status', label: 'Trạng thái' },
-  { key: 'stock_date', label: 'Ngày thả' },
-  { key: 'current_fish', label: 'Số cá' },
-  { key: 'expected_yield', label: 'SL dự kiến' },
-  { key: 'expected_harvest_date', label: 'Thu hoạch DK' },
+  { key: 'pond_code', label: 'MÃ AO' },
+  { key: 'cycle_name', label: 'CHU KỲ' },
+  { key: 'owner_name', label: 'CHỦ HỘ' },
+  { key: 'agency_code', label: 'ĐẠI LÝ' },
+  { key: 'status', label: 'TRẠNG THÁI' },
+  { key: 'stock_date', label: 'NGÀY THẢ' },
+  { key: 'current_fish', label: 'SỐ CÁ' },
+  { key: 'expected_yield', label: 'SL DỰ KIẾN' },
+  { key: 'expected_harvest_date', label: 'THU HOẠCH DK' },
   { key: 'fcr', label: 'FCR' },
-  { key: 'area', label: 'Diện tích' },
-  { key: 'alerts', label: 'Cảnh báo' },
+  { key: 'alerts', label: 'CẢNH BÁO' },
+  { key: 'actions', label: '' },
 ];
 
 const DEFAULT_VISIBLE_COLUMNS = {
@@ -51,8 +69,8 @@ const DEFAULT_VISIBLE_COLUMNS = {
   expected_yield: true,
   expected_harvest_date: true,
   fcr: true,
-  area: false,
   alerts: true,
+  actions: true,
 };
 
 function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
@@ -198,6 +216,73 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
   );
 }
 
+function EditPondDialog({ open, onClose, pond, onUpdated }) {
+  const [form, setForm] = useState({
+    area: '',
+    depth: '',
+    location: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open && pond) {
+      setForm({
+        area: pond.area || '',
+        depth: pond.depth || '',
+        location: pond.location || '',
+      });
+      setError('');
+    }
+  }, [open, pond]);
+
+  const handleUpdate = async () => {
+    setSaving(true);
+    try {
+      await base44.entities.Pond.update(pond.id, {
+        area: Number(form.area) || null,
+        depth: Number(form.depth) || null,
+        location: form.location?.trim() || null,
+      });
+      onUpdated();
+      onClose();
+    } catch (e) {
+      setError(formatSupabaseError(e));
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Chỉnh sửa thông tin ao {pond?.code}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          {error && <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Diện tích (m²)</Label>
+              <Input type="number" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Độ sâu (m)</Label>
+              <Input type="number" step="0.1" value={form.depth} onChange={(e) => setForm({ ...form, depth: e.target.value })} className="mt-1" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Địa điểm</Label>
+            <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="mt-1" />
+          </div>
+          <Button onClick={handleUpdate} disabled={saving} className="w-full bg-primary text-white">
+            {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function cycleLabel(c, idx) {
   const n = String(c?.name || '').trim();
   return n || (c?.stock_date ? `Thả ${c.stock_date}` : `Chu kỳ ${idx + 1}`);
@@ -216,8 +301,12 @@ export default function Ponds() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [agencyFilter, setAgencyFilter] = useState('all');
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [selectedPond, setSelectedPond] = useState(null);
   const [checkedHarvest, setCheckedHarvest] = useState(new Set());
   const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE_COLUMNS);
 
@@ -247,6 +336,8 @@ export default function Ponds() {
           owner_name: p.owner_name,
           agency_code: p.agency_code,
           area: p.area,
+          location: p.location,
+          depth: p.depth,
           cycle_id: null,
           cycle_name: 'Chưa có chu kỳ',
           status: 'CT',
@@ -267,6 +358,8 @@ export default function Ponds() {
             owner_name: p.owner_name,
             agency_code: p.agency_code,
             area: p.area,
+            location: p.location,
+            depth: p.depth,
             cycle_id: c.id,
             cycle_name: cycleLabel(c, idx),
             status: c.status || 'CT',
@@ -281,7 +374,14 @@ export default function Ponds() {
         });
       }
     }
-    return rows;
+    // Group by pond_code
+    return rows.sort((a, b) => {
+      if (a.pond_code !== b.pond_code) return a.pond_code.localeCompare(b.pond_code);
+      // Sort cycles within pond by stock_date desc
+      if (!a.stock_date) return 1;
+      if (!b.stock_date) return -1;
+      return b.stock_date.localeCompare(a.stock_date);
+    });
   }, [ponds]);
 
   const agencyCodes = [...new Set(cycleRows.map((r) => r.agency_code).filter(Boolean))];
@@ -323,6 +423,20 @@ export default function Ponds() {
     setCheckedHarvest(new Set());
     await loadPonds();
     setConfirming(false);
+  };
+
+  const handleDeletePond = async () => {
+    if (!selectedPond) return;
+    setDeleting(true);
+    try {
+      await base44.entities.Pond.delete(selectedPond.id);
+      await loadPonds();
+      setShowDeleteConfirm(false);
+      setSelectedPond(null);
+    } catch (e) {
+      alert(formatSupabaseError(e));
+    }
+    setDeleting(false);
   };
 
   return (
@@ -433,59 +547,88 @@ export default function Ponds() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-muted/50 border-b border-border">
+                  <tr className="bg-muted/30 border-b border-border">
                     <th className="px-4 py-3 w-8" />
                     {CYCLE_COLUMNS.filter((c) => visibleCols[c.key]).map((h) => (
-                      <th key={h.key} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h.label}</th>
+                      <th key={h.key} className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h.label}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-border/60">
                   {loading ? (
                     Array(6).fill(0).map((_, i) => (
                       <tr key={i}><td className="px-4 py-3" colSpan={CYCLE_COLUMNS.length + 1}><div className="h-4 bg-muted rounded animate-pulse w-32" /></td></tr>
                     ))
                   ) : filteredRows.length === 0 ? (
                     <tr><td colSpan={CYCLE_COLUMNS.length + 1} className="text-center py-12 text-muted-foreground">Không tìm thấy chu kỳ nào</td></tr>
-                  ) : filteredRows.map((r) => {
+                  ) : filteredRows.map((r, idx) => {
+                    const prevRow = filteredRows[idx - 1];
+                    const isNewGroup = !prevRow || prevRow.pond_code !== r.pond_code;
                     const diff = r.expected_harvest_date ? differenceInDays(parseISO(r.expected_harvest_date), today) : null;
                     const isUrgent = diff !== null && diff <= harvestAlertDays;
                     const isOverdue = diff !== null && diff < 0;
                     const isWithdrawal = r.withdrawal_end_date && differenceInDays(parseISO(r.withdrawal_end_date), today) >= 0;
+
                     return (
-                      <tr key={r.row_id} onClick={() => navigate(`/ponds/${r.pond_id}`)} className={`hover:bg-muted/30 cursor-pointer transition-colors ${isOverdue ? 'bg-red-50/40' : isUrgent ? 'bg-yellow-50/40' : ''}`}>
+                      <tr key={r.row_id} onClick={() => navigate(`/ponds/${r.pond_id}`)} className={`hover:bg-primary/5 cursor-pointer transition-colors ${isNewGroup ? 'border-t-2 border-t-muted/40' : ''} ${isOverdue ? 'bg-red-50/40' : isUrgent ? 'bg-yellow-50/40' : ''}`}>
                         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           {(isUrgent && r.status === 'CC' && r.cycle_id) && (
                             <input type="checkbox" checked={checkedHarvest.has(r.cycle_id)} onChange={(e) => toggleHarvestCheck(r.cycle_id, e)} className="w-4 h-4 accent-green-600 cursor-pointer" />
                           )}
                         </td>
-                        {visibleCols.pond_code && <td className="px-4 py-3 font-semibold text-primary">{r.pond_code}</td>}
-                        {visibleCols.cycle_name && <td className="px-4 py-3 text-foreground">{r.cycle_name}</td>}
-                        {visibleCols.owner_name && <td className="px-4 py-3 text-foreground">{r.owner_name}</td>}
+                        {visibleCols.pond_code && (
+                          <td className="px-4 py-3 font-bold text-slate-700">
+                            {r.pond_code}
+                          </td>
+                        )}
+                        {visibleCols.cycle_name && <td className="px-4 py-3 text-slate-600 font-medium">{r.cycle_name}</td>}
+                        {visibleCols.owner_name && <td className="px-4 py-3 text-slate-600">{r.owner_name}</td>}
                         {visibleCols.agency_code && <td className="px-4 py-3 text-muted-foreground text-xs">{r.agency_code || '—'}</td>}
                         {visibleCols.status && <td className="px-4 py-3"><PondStatusBadge status={r.status} /></td>}
-                        {visibleCols.stock_date && <td className="px-4 py-3 text-foreground text-xs">{r.stock_date || '—'}</td>}
+                        {visibleCols.stock_date && <td className="px-4 py-3 text-slate-500 text-xs">{r.stock_date || '—'}</td>}
                         {visibleCols.current_fish && (
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-3 text-right font-medium text-slate-700">
                             {r.current_fish != null && !Number.isNaN(Number(r.current_fish))
                               ? Number(r.current_fish).toLocaleString()
                               : '—'}
                           </td>
                         )}
-                        {visibleCols.expected_yield && <td className="px-4 py-3 text-right font-medium">{r.expected_yield ? `${Number(r.expected_yield).toLocaleString()} kg` : '—'}</td>}
-                        {visibleCols.expected_harvest_date && <td className={`px-4 py-3 text-xs ${isUrgent ? 'font-bold text-red-600' : 'text-foreground'}`}>{r.expected_harvest_date || '—'}{isOverdue && <span className="text-red-500 ml-1">(QH)</span>}</td>}
+                        {visibleCols.expected_yield && <td className="px-4 py-3 text-right font-bold text-slate-800">{r.expected_yield ? `${Number(r.expected_yield).toLocaleString()} kg` : '—'}</td>}
+                        {visibleCols.expected_harvest_date && <td className={`px-4 py-3 text-xs ${isUrgent ? 'font-bold text-red-600' : 'text-slate-600'}`}>{r.expected_harvest_date || '—'}{isOverdue && <span className="text-red-500 ml-1">(QH)</span>}</td>}
                         {visibleCols.fcr && (
                           <td className="px-4 py-3 text-center">
                             {r.fcr ? <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${r.fcr <= 1.3 ? 'bg-green-100 text-green-700' : r.fcr <= 1.6 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{r.fcr}</span> : '—'}
                           </td>
                         )}
-                        {visibleCols.area && <td className="px-4 py-3 text-muted-foreground">{r.area ? `${r.area} m²` : '—'}</td>}
                         {visibleCols.alerts && (
                           <td className="px-4 py-3">
                             <div className="flex gap-1">
-                              {isUrgent && <span className="text-xs px-1.5 py-0.5 bg-red-100 text-red-600 rounded font-medium">THU</span>}
-                              {isWithdrawal && <span className="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded font-medium">THUỐC</span>}
+                              {isUrgent && <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded-sm font-bold tracking-tight">THU</span>}
+                              {isWithdrawal && <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-sm font-bold tracking-tight">THUỐC</span>}
                             </div>
+                          </td>
+                        )}
+                        {visibleCols.actions && (
+                          <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-32">
+                                <DropdownMenuItem onClick={() => navigate(`/ponds/${r.pond_id}`)}>
+                                  <Eye className="w-4 h-4 mr-2" /> Xem
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setSelectedPond({ id: r.pond_id, code: r.pond_code, area: r.area, depth: r.depth, location: r.location }); setShowEditDialog(true); }}>
+                                  <Edit className="w-4 h-4 mr-2" /> Sửa
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => { setSelectedPond({ id: r.pond_id, code: r.pond_code }); setShowDeleteConfirm(true); }}>
+                                  <Trash2 className="w-4 h-4 mr-2" /> Xoá
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </td>
                         )}
                       </tr>
@@ -497,6 +640,26 @@ export default function Ponds() {
           </div>
 
           <NewPondDialog open={showNewDialog} onClose={() => setShowNewDialog(false)} onCreated={loadPonds} agencies={agencies} appSettings={appSettings} />
+          <EditPondDialog open={showEditDialog} onClose={() => { setShowEditDialog(false); setSelectedPond(null); }} pond={selectedPond} onUpdated={loadPonds} />
+
+          <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+                  <AlertCircle className="w-5 h-5" /> Xác nhận xoá ao
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Bạn có chắc chắn muốn xoá ao <strong>{selectedPond?.code}</strong>? Hành động này sẽ xoá tất cả chu kỳ và dữ liệu liên quan. Thao tác này không thể hoàn tác.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setSelectedPond(null)}>Huỷ</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeletePond} disabled={deleting} className="bg-red-600 hover:bg-red-700 text-white">
+                  {deleting ? 'Đang xoá...' : 'Xác nhận xoá'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </TabsContent>
 
         <TabsContent value="households" className="mt-3 sm:mt-4 outline-none">
