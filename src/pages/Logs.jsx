@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { QrCode, Search, ClipboardList, Camera, ChevronRight, Filter } from 'lucide-react';
+import { QrCode, Search, ClipboardList, Camera, ChevronRight, Filter, LayoutGrid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import QRScanner from '@/components/scanner/QRScanner';
@@ -27,7 +27,6 @@ export default function Logs() {
   const [ponds, setPonds] = useState([]);
   const [logs, setLogs] = useState([]);
   const [harvests, setHarvests] = useState([]);
-  const [search, setSearch] = useState('');
   const [activePond, setActivePond] = useState(null);
   const [qrInput, setQrInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -78,23 +77,31 @@ export default function Logs() {
     }
   };
 
-  const filteredPonds = useMemo(() => {
-    const q = search.toLowerCase();
-    return ponds.filter((p) => {
-      const matchSearch = !q || p.code?.toLowerCase().includes(q) || p.owner_name?.toLowerCase().includes(q);
-      return matchSearch && p.status === 'CC';
-    });
-  }, [ponds, search]);
-
   const agencyCodes = useMemo(
     () => [...new Set(ponds.map((p) => p.agency_code).filter(Boolean))].sort(),
     [ponds]
   );
 
+  const agencyFilterItems = useMemo(
+    () => [{ value: 'all', label: 'Tất cả đại lý' }, ...agencyCodes.map((a) => ({ value: a, label: a }))],
+    [agencyCodes]
+  );
+
+  const pondFilterItems = useMemo(() => {
+    const items = [{ value: 'all', label: 'Tất cả các ao' }];
+    const sorted = [...ponds].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+    sorted.forEach(p => {
+      items.push({ value: p.id, label: `${p.code} — ${p.owner_name}` });
+    });
+    return items;
+  }, [ponds]);
+
   const cycleFilterItems = useMemo(() => {
     const items = [{ value: 'all', label: 'Tất cả chu kỳ' }];
     const seen = new Set();
-    for (const p of ponds) {
+    const relevantPonds = activePond ? [activePond] : ponds;
+    
+    for (const p of relevantPonds) {
       const cycles = p.pond_cycles || [];
       for (const c of cycles) {
         if (!c?.id || seen.has(c.id)) continue;
@@ -104,12 +111,7 @@ export default function Logs() {
       }
     }
     return items.sort((a, b) => String(a.label).localeCompare(String(b.label), 'vi'));
-  }, [ponds]);
-
-  const agencyFilterItems = useMemo(
-    () => [{ value: 'all', label: 'Tất cả đại lý' }, ...agencyCodes.map((a) => ({ value: a, label: a }))],
-    [agencyCodes]
-  );
+  }, [ponds, activePond]);
 
   const logsInScope = useMemo(() => {
     if (activePond) return logs.filter((l) => l.pond_id === activePond.id);
@@ -176,8 +178,6 @@ export default function Logs() {
     return [...filteredLogs].sort((a, b) => String(b.log_date).localeCompare(String(a.log_date)));
   }, [filteredLogs]);
 
-  const pondLogs = activePond ? logs.filter((l) => l.pond_id === activePond.id) : [];
-
   const clearDateMonth = () => {
     setLogDateFrom('');
     setLogDateTo('');
@@ -185,344 +185,251 @@ export default function Logs() {
   };
 
   return (
-    <div className="p-3 sm:p-6 space-y-4 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground">Nhật ký ao nuôi</h1>
-        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
-          Nhập liệu hàng ngày • {logs.length} bản ghi trong hệ thống
-        </p>
+    <div className="p-2 sm:p-4 space-y-3 max-w-7xl mx-auto bg-slate-50/50 min-h-screen">
+      <div className="flex items-center justify-between px-1">
+        <div>
+          <h1 className="text-lg sm:text-xl font-bold text-slate-800">Nhật ký & Thống kê</h1>
+          <p className="text-slate-500 text-[10px] sm:text-xs">Quản lý nhập liệu tập trung</p>
+        </div>
+        <div className="flex gap-2">
+           <Button onClick={() => setShowCamera(true)} className="bg-primary text-white h-8 text-xs shadow-sm" size="sm">
+            <Camera className="w-3.5 h-3.5 mr-1.5" />
+            Quét QR
+          </Button>
+        </div>
       </div>
 
-      {/* Bộ lọc — trên cùng */}
-      <div className="bg-card rounded-xl border border-border p-4 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-            <Filter className="w-4 h-4 text-primary" />
-            Lọc nhật ký &amp; thống kê
+      {/* Bộ lọc — Thu gọn và chuyên nghiệp hơn */}
+      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          
+          {/* Nhóm 1: Thời gian (4 cols) */}
+          <div className="lg:col-span-4 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Thời gian</Label>
+              <button onClick={clearDateMonth} className="text-[10px] text-primary hover:underline">Xóa mốc</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="date"
+                className="h-8 text-[11px] px-2"
+                value={logDateFrom}
+                onChange={(e) => { setLogDateFrom(e.target.value); setMonthFilter('all'); }}
+              />
+              <Input
+                type="date"
+                className="h-8 text-[11px] px-2"
+                value={logDateTo}
+                onChange={(e) => { setLogDateTo(e.target.value); setMonthFilter('all'); }}
+              />
+            </div>
+            <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); setLogDateFrom(''); setLogDateTo(''); }}>
+              <SelectTrigger className="h-8 text-[11px]">
+                <SelectValue placeholder="Chọn tháng" />
+              </SelectTrigger>
+              <SelectContent>
+                {monthFilterItems.map((it) => (
+                  <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" size="xs" className="h-7 text-[10px] px-2" onClick={clearDateMonth}>
-              Xóa ngày/tháng
-            </Button>
-            {activePond && (
-              <Button type="button" variant="secondary" size="xs" className="h-7 text-[10px] px-2" onClick={() => setActivePond(null)}>
-                Bỏ chọn ao
-              </Button>
-            )}
+
+          {/* Nhóm 2: Đối tượng (8 cols) */}
+          <div className="lg:col-span-8 space-y-2.5">
+             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Đối tượng lọc</Label>
+             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Select value={activePond?.id || 'all'} onValueChange={(v) => setActivePond(v === 'all' ? null : ponds.find(p => p.id === v))}>
+                  <SelectTrigger className="h-8 text-[11px]">
+                    <SelectValue placeholder="Chọn ao nuôi" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {pondFilterItems.map((it) => (
+                      <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={agencyFilter} onValueChange={setAgencyFilter}>
+                  <SelectTrigger className="h-8 text-[11px]">
+                    <SelectValue placeholder="Đại lý" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agencyFilterItems.map((it) => (
+                      <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={cycleFilter} onValueChange={setCycleFilter}>
+                  <SelectTrigger className="h-8 text-[11px]">
+                    <SelectValue placeholder="Chu kỳ" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {cycleFilterItems.map((it) => (
+                      <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+             </div>
+
+             <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <QrCode className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <Input
+                    placeholder="Quét hoặc nhập mã ao nhanh..."
+                    value={qrInput}
+                    onChange={(e) => setQrInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleQrScan()}
+                    className="pl-8 h-8 text-[11px] bg-slate-50 border-dashed"
+                  />
+                </div>
+                {(activePond || agencyFilter !== 'all' || cycleFilter !== 'all') && (
+                  <Button variant="ghost" size="sm" className="h-8 text-[10px] text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => { setActivePond(null); setAgencyFilter('all'); setCycleFilter('all'); }}>
+                    Xóa tất cả lọc
+                  </Button>
+                )}
+             </div>
           </div>
         </div>
-        
-        <p className="text-[10px] text-muted-foreground">
-          Chọn khoảng ngày hoặc một tháng (không dùng cùng lúc). Đại lý và chu kỳ lọc theo ao.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 pt-1">
-          {/* Cột 1: Thời gian */}
-          <div className="space-y-3">
-            <div>
-              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Khoảng ngày (nhật ký &amp; thu hoạch)</Label>
-              <div className="flex items-center gap-2 mt-1">
-                <Input
-                  type="date"
-                  className="h-8 text-xs flex-1"
-                  value={logDateFrom}
-                  onChange={(e) => {
-                    setLogDateFrom(e.target.value);
-                    setMonthFilter('all');
-                  }}
-                />
-                <span className="text-muted-foreground text-xs">→</span>
-                <Input
-                  type="date"
-                  className="h-8 text-xs flex-1"
-                  value={logDateTo}
-                  onChange={(e) => {
-                    setLogDateTo(e.target.value);
-                    setMonthFilter('all');
-                  }}
-                />
-              </div>
-            </div>
-            <div>
-              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Hoặc theo tháng</Label>
-              <Select
-                value={monthFilter}
-                onValueChange={(v) => {
-                  setMonthFilter(v);
-                  setLogDateFrom('');
-                  setLogDateTo('');
-                }}
-                items={monthFilterItems}
-              >
-                <SelectTrigger className="h-8 text-xs mt-1 w-full">
-                  <SelectValue>{monthFilterItems.find((x) => x.value === monthFilter)?.label ?? monthFilter}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {monthFilterItems.map((it) => (
-                    <SelectItem key={it.value} value={it.value}>
-                      {it.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Cột 2: Đối tượng */}
-          <div className="space-y-3">
-            <div>
-              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Đại lý</Label>
-              <Select value={agencyFilter} onValueChange={setAgencyFilter} items={agencyFilterItems}>
-                <SelectTrigger className="h-8 text-xs mt-1 w-full">
-                  <SelectValue>{agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {agencyFilterItems.map((it) => (
-                    <SelectItem key={it.value} value={it.value}>
-                      {it.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-[11px] font-bold text-muted-foreground uppercase tracking-tight">Chu kỳ</Label>
-              <Select value={cycleFilter} onValueChange={setCycleFilter} items={cycleFilterItems}>
-                <SelectTrigger className="h-8 text-xs mt-1 w-full">
-                  <SelectValue>
-                    {cycleFilter === 'all' ? 'Tất cả chu kỳ' : cycleFilterItems.find((x) => x.value === cycleFilter)?.label}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {cycleFilterItems.map((it) => (
-                    <SelectItem key={it.value} value={it.value}>
-                      {it.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        {activePond && (
-          <div className="mt-2 p-2 bg-primary/5 rounded-md border border-primary/10">
-            <p className="text-[11px] text-primary font-bold flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              Đang lọc theo ao: {activePond.code} — {activePond.owner_name}
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* Tổng hợp sau lọc */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
-          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Bản ghi NK</p>
-          <p className="text-xl font-bold text-foreground mt-1">{summary.nLogs.toLocaleString()}</p>
+      {/* Thống kê nhanh — Nhỏ gọn hơn */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-0.5">
+        <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm">
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Số bản ghi</p>
+          <p className="text-sm font-bold text-slate-700 mt-0.5">{summary.nLogs.toLocaleString()}</p>
         </div>
-        <div className="rounded-xl border border-border bg-blue-50/80 dark:bg-blue-950/20 px-4 py-3">
-          <p className="text-[11px] font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wide">Thức ăn</p>
-          <p className="text-xl font-bold text-blue-900 dark:text-blue-100 mt-1">
+        <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm border-l-4 border-l-blue-500">
+          <p className="text-[9px] font-bold text-blue-500 uppercase tracking-tight">Thức ăn</p>
+          <p className="text-sm font-bold text-slate-700 mt-0.5">
             {summary.sumFeedKg > 0 ? `${summary.sumFeedKg.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : '—'}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-emerald-50/80 dark:bg-emerald-950/20 px-4 py-3">
-          <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 uppercase tracking-wide">Thu hoạch (kg)</p>
-          <p className="text-xl font-bold text-emerald-900 dark:text-emerald-100 mt-1">
+        <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm border-l-4 border-l-emerald-500">
+          <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-tight">Thu hoạch</p>
+          <p className="text-sm font-bold text-slate-700 mt-0.5">
             {summary.sumHarvestKg > 0 ? `${summary.sumHarvestKg.toLocaleString(undefined, { maximumFractionDigits: 0 })} kg` : '—'}
           </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Từ phiếu thu trong cùng bộ lọc</p>
         </div>
-        <div className="rounded-xl border border-border bg-amber-50/80 dark:bg-amber-950/20 px-4 py-3">
-          <p className="text-[11px] font-semibold text-amber-900 dark:text-amber-200 uppercase tracking-wide">Hao ước (kg)</p>
-          <p className="text-xl font-bold text-amber-950 dark:text-amber-100 mt-1">
-            {summary.estLossKg > 0 ? `${summary.estLossKg.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : '—'}
-          </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            Σ (chết × TL TB ÷ 1000) khi có TL TB trong NK • {summary.sumDead.toLocaleString()} con
+        <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm border-l-4 border-l-amber-500">
+          <p className="text-[9px] font-bold text-amber-500 uppercase tracking-tight">Hao hụt</p>
+          <p className="text-sm font-bold text-slate-700 mt-0.5">
+            {summary.sumDead.toLocaleString()} con
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-violet-50/80 dark:bg-violet-950/20 px-4 py-3 col-span-2 sm:col-span-1">
-          <p className="text-[11px] font-semibold text-violet-800 dark:text-violet-300 uppercase tracking-wide">FCR kỳ lọc</p>
-          <p className="text-xl font-bold text-violet-900 dark:text-violet-100 mt-1">
+        <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm border-l-4 border-l-violet-500 col-span-2 sm:col-span-1">
+          <p className="text-[9px] font-bold text-violet-500 uppercase tracking-tight">FCR Kỳ lọc</p>
+          <p className="text-sm font-bold text-slate-700 mt-0.5">
             {summary.fcrPeriod != null ? summary.fcrPeriod.toLocaleString() : '—'}
           </p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Thức ăn ÷ thu hoạch (kg), cần có thu trong kỳ</p>
         </div>
       </div>
 
-      {/* QR Scan */}
-      <div className="bg-card rounded-xl border border-border p-4 shadow-sm">
-        <div className="flex items-center gap-2 mb-3">
-          <QrCode className="w-4 h-4 text-primary" />
-          <h3 className="font-semibold text-foreground text-sm">Nhập nhanh qua mã QR</h3>
+      {/* Danh sách — Full width */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <h3 className="font-bold text-slate-700 flex items-center gap-2 text-xs">
+            <ClipboardList className="w-3.5 h-3.5 text-primary" />
+            DANH SÁCH NHẬT KÝ {activePond ? `— ${activePond.code}` : ''}
+          </h3>
+          <span className="text-[10px] font-medium text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">{displayLogs.length} dòng</span>
         </div>
-        <div className="flex gap-2">
-          <Input
-            placeholder="Nhập mã ao (VD: AO-001)..."
-            value={qrInput}
-            onChange={(e) => setQrInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleQrScan()}
-            className="flex-1 text-sm"
-          />
-          <Button onClick={() => handleQrScan()} variant="outline" size="sm">
-            <QrCode className="w-4 h-4" />
-          </Button>
-          <Button onClick={() => setShowCamera(true)} className="bg-primary text-white" size="sm">
-            <Camera className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Quét</span>
-          </Button>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="flex flex-col gap-3">
-          <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-            <div className="px-3 py-2.5 border-b border-border">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Tìm ao..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8 h-7 text-xs"
-                />
-              </div>
-            </div>
-            <div className="overflow-y-auto max-h-64">
-              {filteredPonds.length === 0 && (
-                <p className="text-center py-6 text-xs text-muted-foreground">Không có ao CC nào</p>
-              )}
-              {filteredPonds.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setActivePond(activePond?.id === p.id ? null : p)}
-                  className={`w-full text-left px-3 py-2.5 border-b border-border/50 transition-colors flex items-center justify-between ${
-                    activePond?.id === p.id ? 'bg-primary/10 border-l-2 border-l-primary' : 'hover:bg-muted/50'
-                  }`}
-                >
-                  <div>
-                    <p className="font-semibold text-xs text-primary">{p.code}</p>
-                    <p className="text-xs text-muted-foreground">{p.owner_name}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">CC</span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/ponds/${p.id}?tab=log`);
-                      }}
-                      className="text-xs px-1.5 py-0.5 bg-primary text-white rounded font-medium hover:bg-primary/80"
-                      title="Mở trang ao — tab nhật ký"
-                    >
-                      + Log
-                    </button>
-                  </div>
-                </button>
+        <div className="overflow-x-auto min-h-[400px]">
+          {loading ? (
+            <div className="p-4 space-y-2">
+              {Array(8).fill(0).map((_, i) => (
+                <div key={i} className="h-9 bg-slate-50 rounded animate-pulse" />
               ))}
             </div>
-          </div>
-        </div>
-
-        <div className="lg:col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden flex flex-col">
-          <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
-            <h3 className="font-semibold text-foreground flex items-center gap-2 text-sm">
-              <ClipboardList className="w-4 h-4 text-primary" />
-              {activePond ? `Nhật ký: ${activePond.code}` : 'Danh sách nhật ký (đã lọc)'}
-            </h3>
-            <p className="text-xs text-muted-foreground">{displayLogs.length} dòng</p>
-          </div>
-
-          <div className="overflow-y-auto flex-1" style={{ maxHeight: '560px' }}>
-            {loading ? (
-              <div className="p-4 space-y-2">
-                {Array(5)
-                  .fill(0)
-                  .map((_, i) => (
-                    <div key={i} className="h-10 bg-muted rounded animate-pulse" />
-                  ))}
+          ) : displayLogs.length === 0 ? (
+            <div className="text-center py-20">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-50 mb-3">
+                <Filter className="w-6 h-6 text-slate-200" />
               </div>
-            ) : displayLogs.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground text-sm">Không có nhật ký khớp bộ lọc</div>
-            ) : (
-              <>
-                <div className="sm:hidden divide-y divide-border">
-                  {displayLogs.map((log) => (
-                    <button
-                      key={log.id}
-                      type="button"
-                      onClick={() => setSelectedLog(log)}
-                      className="w-full text-left px-4 py-3 hover:bg-muted/30 transition-colors"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <span className="font-semibold text-primary text-sm">{log.pond_code}</span>
-                          <span className="text-muted-foreground text-xs ml-2">{log.log_date}</span>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              <p className="text-slate-400 text-xs">Không có nhật ký nào khớp với bộ lọc hiện tại</p>
+            </div>
+          ) : (
+            <>
+              {/* Mobile View Card-like List */}
+              <div className="sm:hidden divide-y divide-slate-100">
+                {displayLogs.map((log) => (
+                  <button
+                    key={log.id}
+                    type="button"
+                    onClick={() => setSelectedLog(log)}
+                    className="w-full text-left px-4 py-3 hover:bg-slate-50/50 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="font-bold text-slate-700 text-xs">{log.pond_code}</span>
+                        <span className="text-slate-400 text-[10px] ml-2 font-medium">{log.log_date}</span>
                       </div>
-                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                        {log.ph && <span>pH {log.ph}</span>}
-                        {log.temperature && <span>T° {log.temperature}°C</span>}
-                        {log.dead_fish > 0 && <span className="text-red-500">-{log.dead_fish} con</span>}
-                        {log.feed_amount && <span className="text-blue-600">{log.feed_amount}kg TA</span>}
-                        {log.medicine_used && <span className="text-orange-500">💊 {log.medicine_used}</span>}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                    </div>
+                    <div className="flex gap-2.5 mt-1.5 text-[10px] text-slate-500 font-medium">
+                      {log.ph && <span className="bg-slate-100 px-1.5 py-0.5 rounded">pH {log.ph}</span>}
+                      {log.dead_fish > 0 && <span className="text-red-500 bg-red-50 px-1.5 py-0.5 rounded">-{log.dead_fish}</span>}
+                      {log.feed_amount && <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{log.feed_amount}kg</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
 
-                <table className="hidden sm:table w-full text-sm">
-                  <thead>
-                    <tr className="bg-muted/30 sticky top-0">
-                      <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">Ngày</th>
-                      <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">Mã ao</th>
-                      <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground">Hao hụt</th>
-                      <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground">Thức ăn</th>
-                      <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground">pH</th>
-                      <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground">T°</th>
-                      <th className="px-4 py-2" />
+              {/* Desktop Table View */}
+              <table className="hidden sm:table w-full text-[11px]">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-100 sticky top-0 z-10">
+                    <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider w-24">Ngày</th>
+                    <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider">Mã ao</th>
+                    <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider">Hao hụt</th>
+                    <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider">Thức ăn</th>
+                    <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider w-16">pH</th>
+                    <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider w-16">T°</th>
+                    <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider">Ghi chú / Thuốc</th>
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {displayLogs.map((log) => (
+                    <tr
+                      key={log.id}
+                      className="hover:bg-slate-50/80 cursor-pointer group transition-colors"
+                      onClick={() => setSelectedLog(log)}
+                    >
+                      <td className="px-4 py-2.5 text-slate-400 font-medium">{log.log_date}</td>
+                      <td className="px-4 py-2.5 font-bold text-slate-700">{log.pond_code}</td>
+                      <td className="px-4 py-2.5 text-right font-bold text-red-500">
+                        {log.dead_fish > 0 ? `-${log.dead_fish}` : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-bold text-blue-600">
+                        {log.feed_amount ? `${log.feed_amount}kg` : '—'}
+                      </td>
+                      <td className={`px-4 py-2.5 text-right font-medium ${log.ph && (log.ph < 6.5 || log.ph > 8.5) ? 'text-red-600' : 'text-slate-600'}`}>
+                        {log.ph || '—'}
+                      </td>
+                      <td className={`px-4 py-2.5 text-right font-medium ${log.temperature && (log.temperature < 25 || log.temperature > 32) ? 'text-red-600' : 'text-slate-600'}`}>
+                        {log.temperature || '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-500 truncate max-w-[200px]">
+                        {log.medicine_used ? `💊 ${log.medicine_used}` : log.notes || '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ChevronRight className="w-3 h-3 text-slate-400" />
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {displayLogs.map((log) => (
-                      <tr
-                        key={log.id}
-                        className="hover:bg-muted/20 cursor-pointer"
-                        onClick={() => setSelectedLog(log)}
-                      >
-                        <td className="px-4 py-2 text-muted-foreground text-xs">{log.log_date}</td>
-                        <td className="px-4 py-2 font-medium text-primary">{log.pond_code}</td>
-                        <td className="px-4 py-2 text-right text-red-500">{log.dead_fish > 0 ? `-${log.dead_fish}` : '—'}</td>
-                        <td className="px-4 py-2 text-right text-blue-600">{log.feed_amount ? `${log.feed_amount}kg` : '—'}</td>
-                        <td
-                          className={`px-4 py-2 text-right text-xs ${log.ph && (log.ph < 6.5 || log.ph > 8.5) ? 'text-red-500 font-bold' : ''}`}
-                        >
-                          {log.ph || '—'}
-                        </td>
-                        <td
-                          className={`px-4 py-2 text-right text-xs ${log.temperature && (log.temperature < 25 || log.temperature > 32) ? 'text-red-500 font-bold' : ''}`}
-                        >
-                          {log.temperature || '—'}
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground inline" />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
       </div>
 
       {showCamera && <QRScanner onScan={handleQrScan} onClose={() => setShowCamera(false)} />}
-
       {selectedLog && <LogDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} />}
     </div>
   );
