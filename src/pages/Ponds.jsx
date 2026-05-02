@@ -611,13 +611,26 @@ export default function Ponds() {
                         )}
                         {visibleCols.fcr && (
                           <td className="px-4 py-3 text-center">
-                            {r.fcr != null ? (
-                              <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${r.fcr <= 1.3 ? 'bg-green-100 text-green-700' : r.fcr <= 1.6 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                                {r.fcr}
-                              </span>
-                            ) : (
-                              '—'
-                            )}
+                            {(() => {
+                              // Ưu tiên FCR đã lưu trong DB
+                              if (r.fcr != null) {
+                                return (
+                                  <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${r.fcr <= 1.3 ? 'bg-green-100 text-green-700' : r.fcr <= 1.6 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                    {r.fcr}
+                                  </span>
+                                );
+                              }
+                              // Nếu chưa có (đang nuôi), tính tạm: Tổng thức ăn / Sản lượng dự kiến
+                              if (r.total_feed_used > 0 && r.expected_yield > 0) {
+                                const tempFcr = Math.round((r.total_feed_used / r.expected_yield) * 100) / 100;
+                                return (
+                                  <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-500">
+                                    {tempFcr}
+                                  </span>
+                                );
+                              }
+                              return '—';
+                            })()}
                           </td>
                         )}
                         {visibleCols.alerts && (

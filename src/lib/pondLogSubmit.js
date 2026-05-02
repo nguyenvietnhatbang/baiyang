@@ -52,29 +52,9 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
   if (totalActualYield > 0) {
     // FCR chốt sau thu hoạch
     fcr = Math.round((totalFeed / totalActualYield) * 100) / 100;
-  } else if (newCurrentFish > 0) {
-    // FCR tạm tính (Running FCR)
-    let latestAvgWeight = Number(form.avg_weight) || 0;
-    
-    // Nếu log hiện tại không có TL TB, tìm log gần nhất có TL TB
-    if (latestAvgWeight <= 0) {
-      const recentLogs = await base44.entities.PondLog.filter(
-        { pond_cycle_id: cycle.id }, 
-        '-log_date', 
-        20
-      );
-      const logWithWeight = recentLogs.find(l => Number(l.avg_weight) > 0);
-      if (logWithWeight) {
-        latestAvgWeight = Number(logWithWeight.avg_weight);
-      }
-    }
-
-    if (latestAvgWeight > 0) {
-      const estimatedBiomass = (newCurrentFish * latestAvgWeight) / 1000;
-      if (estimatedBiomass > 0) {
-        fcr = Math.round((totalFeed / estimatedBiomass) * 100) / 100;
-      }
-    }
+  } else if (newExpectedYield > 0) {
+    // FCR tạm tính dựa trên sản lượng dự kiến (như khách yêu cầu)
+    fcr = Math.round((totalFeed / newExpectedYield) * 100) / 100;
   }
 
   await base44.entities.PondCycle.update(cycle.id, {
