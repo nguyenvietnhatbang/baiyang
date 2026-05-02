@@ -241,7 +241,9 @@ export default function Logs() {
              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <Select value={activePond?.id || 'all'} onValueChange={(v) => setActivePond(v === 'all' ? null : ponds.find(p => p.id === v))}>
                   <SelectTrigger className="h-8 text-[11px]">
-                    <SelectValue placeholder="Chọn ao nuôi" />
+                    <SelectValue placeholder="Chọn ao nuôi">
+                      {activePond ? `${activePond.code} — ${activePond.owner_name}` : 'Tất cả các ao'}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
                     {pondFilterItems.map((it) => (
@@ -252,7 +254,9 @@ export default function Logs() {
 
                 <Select value={agencyFilter} onValueChange={setAgencyFilter}>
                   <SelectTrigger className="h-8 text-[11px]">
-                    <SelectValue placeholder="Đại lý" />
+                    <SelectValue placeholder="Đại lý">
+                      {agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {agencyFilterItems.map((it) => (
@@ -263,7 +267,9 @@ export default function Logs() {
 
                 <Select value={cycleFilter} onValueChange={setCycleFilter}>
                   <SelectTrigger className="h-8 text-[11px]">
-                    <SelectValue placeholder="Chu kỳ" />
+                    <SelectValue placeholder="Chu kỳ">
+                      {cycleFilter === 'all' ? 'Tất cả chu kỳ' : cycleFilterItems.find((x) => x.value === cycleFilter)?.label}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="max-h-64">
                     {cycleFilterItems.map((it) => (
