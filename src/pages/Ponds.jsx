@@ -424,8 +424,7 @@ export default function Ponds() {
         await base44.entities.PondCycle.update(cycleId, { 
           harvest_done: true, 
           status: 'CT', 
-          current_fish: 0,
-          expected_yield: 0
+          current_fish: 0
         });
       })
     );
@@ -602,7 +601,13 @@ export default function Ponds() {
                               : '—'}
                           </td>
                         )}
-                        {visibleCols.expected_yield && <td className="px-4 py-3 text-right font-bold text-slate-800">{r.expected_yield != null ? `${Number(r.expected_yield).toLocaleString()} kg` : '—'}</td>}
+                        {visibleCols.expected_yield && (
+                          <td className="px-4 py-3 text-right font-bold text-slate-800">
+                            {r.expected_yield != null && (r.current_fish > 0 || r.status === 'CC')
+                              ? `${Number(r.expected_yield).toLocaleString()} kg` 
+                              : '—'}
+                          </td>
+                        )}
                         {visibleCols.expected_harvest_date && <td className={`px-4 py-3 text-xs ${isUrgent ? 'font-bold text-red-600' : 'text-slate-600'}`}>{r.expected_harvest_date || '—'}{isOverdue && <span className="text-red-500 ml-1">(QH)</span>}</td>}
                         {visibleCols.total_feed_used && (
                           <td className="px-4 py-3 text-right text-blue-600 font-medium whitespace-nowrap">

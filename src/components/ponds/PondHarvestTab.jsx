@@ -115,15 +115,17 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
     // Tính FCR nếu có total_feed_used
     let fcr = null;
     if (cycle.total_feed_used && totalActualYield > 0) {
-      fcr = Math.round((cycle.total_feed_used / totalActualYield) * 10000) / 10000;
+      fcr = Math.round((cycle.total_feed_used / totalActualYield) * 100) / 100;
     }
 
     // Cập nhật PondCycle với actual_yield tổng và FCR
+    const isHarvested = totalActualYield > 0;
     await base44.entities.PondCycle.update(cycle.id, {
       actual_yield: totalActualYield,
-      harvest_done: totalActualYield > 0,
-      status: totalActualYield > 0 ? 'CT' : cycle.status,
+      harvest_done: isHarvested,
+      status: isHarvested ? 'CT' : cycle.status,
       fcr: fcr,
+      ...(isHarvested ? { current_fish: 0 } : {}),
     });
 
     base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id }, '-harvest_date', 500).then(setRecords);

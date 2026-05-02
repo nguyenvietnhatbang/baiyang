@@ -28,8 +28,8 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
     const planned = p.expected_yield || 0;
     const hStatus = classifyHarvestStatus(p, totalActual, harvestAlertDays);
     
-    // Nếu đã thu hoạch (CT) thì còn tồn phải là 0, bất kể có phiếu thu hay chưa
-    const isHarvested = p.status === 'CT' || hStatus === 'harvested';
+    // Chỉ đánh dấu là đã thu hoạch khi có cờ harvest_done hoặc hStatus trả về harvested
+    const isHarvested = p.harvest_done || hStatus === 'harvested';
     const remaining = isHarvested ? 0 : (planned > 0 ? Math.max(0, planned - totalActual) : null);
     
     const diff = planned > 0 && totalActual > 0 ? totalActual - planned : null;

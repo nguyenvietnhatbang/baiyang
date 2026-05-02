@@ -20,8 +20,9 @@ export function classifyHarvestStatus(pond, totalHarvestedKg, alertDays) {
   // Ưu tiên sử dụng actual_yield từ PondCycle
   const actualYield = pond.actual_yield || totalHarvestedKg;
 
-  // ✅ SỬA: Kiểm tra nếu đã thu hoạch (bao gồm cả status = 'CT')
-  if (pond.harvest_done || pond.status === 'CT' || (actualYield > 0 && planned > 0 && actualYield >= planned)) {
+  // Kiểm tra nếu đã thu hoạch. Chú ý: Trạng thái 'CT' có thể là "Chưa thả" hoặc "Đã thu".
+  // Chỉ coi là đã thu khi harvest_done = true hoặc đã có phiếu thu hoạch thực tế.
+  if (pond.harvest_done || (actualYield > 0 && planned > 0 && actualYield >= planned)) {
     return 'harvested';
   }
   if (!plannedHarvestDate) {
