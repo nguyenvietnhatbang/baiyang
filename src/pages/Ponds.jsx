@@ -52,7 +52,7 @@ const CYCLE_COLUMNS = [
   { key: 'stock_date', label: 'NGÀY THẢ' },
   { key: 'current_fish', label: 'SỐ CÁ' },
   { key: 'expected_yield', label: 'SL DỰ KIẾN' },
-  { key: 'expected_harvest_date', label: 'THU HOẠCH DK' },
+  { key: 'total_feed_used', label: 'TỔNG THỨC ĂN' },
   { key: 'fcr', label: 'FCR' },
   { key: 'alerts', label: 'CẢNH BÁO' },
   { key: 'actions', label: '' },
@@ -68,6 +68,7 @@ const DEFAULT_VISIBLE_COLUMNS = {
   current_fish: true,
   expected_yield: true,
   expected_harvest_date: true,
+  total_feed_used: true,
   fcr: true,
   alerts: true,
   actions: true,
@@ -347,6 +348,7 @@ export default function Ponds() {
           stock_date: null,
           withdrawal_end_date: null,
           fcr: null,
+          total_feed_used: 0,
           raw: p,
         });
       } else {
@@ -369,6 +371,7 @@ export default function Ponds() {
             stock_date: c.stock_date,
             withdrawal_end_date: c.withdrawal_end_date,
             fcr: c.fcr,
+            total_feed_used: c.total_feed_used ?? 0,
             raw: p,
           });
         });
@@ -600,6 +603,11 @@ export default function Ponds() {
                         )}
                         {visibleCols.expected_yield && <td className="px-4 py-3 text-right font-bold text-slate-800">{r.expected_yield != null ? `${Number(r.expected_yield).toLocaleString()} kg` : '—'}</td>}
                         {visibleCols.expected_harvest_date && <td className={`px-4 py-3 text-xs ${isUrgent ? 'font-bold text-red-600' : 'text-slate-600'}`}>{r.expected_harvest_date || '—'}{isOverdue && <span className="text-red-500 ml-1">(QH)</span>}</td>}
+                        {visibleCols.total_feed_used && (
+                          <td className="px-4 py-3 text-right text-blue-600 font-medium">
+                            {r.total_feed_used > 0 ? `${Number(r.total_feed_used).toLocaleString()} kg` : '—'}
+                          </td>
+                        )}
                         {visibleCols.fcr && (
                           <td className="px-4 py-3 text-center">
                             {r.fcr != null ? <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${r.fcr <= 1.3 ? 'bg-green-100 text-green-700' : r.fcr <= 1.6 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{r.fcr}</span> : '—'}
