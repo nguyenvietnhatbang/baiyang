@@ -7,10 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CheckSquare, Square, Save, AlertTriangle, ShieldCheck, Package } from 'lucide-react';
 import { format } from 'date-fns';
+import { latestActualHarvestDate } from '@/lib/reportPondDedupe';
 function CheckItem({ label, checked, onChange }) {
   return (
     <button onClick={() => onChange(!checked)} className="flex items-center gap-2 w-full text-left p-2 rounded hover:bg-muted transition-colors">
-      {checked 
+      {checked
         ? <CheckSquare className="w-4 h-4 text-green-500 flex-shrink-0" />
         : <Square className="w-4 h-4 text-muted-foreground flex-shrink-0" />
       }
@@ -53,11 +54,18 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
       setRecords([]);
       return;
     }
-    base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id }, '-harvest_date', 10).then(setRecords);
+    base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id }, '-harvest_date', 500).then(setRecords);
   }, [pond.id, cycle?.id]);
 
+  const lastHarvestSummary = records.length > 0
+    ? {
+        lastDate: latestActualHarvestDate(records),
+        totalKg: records.reduce((s, h) => s + (Number(h.actual_yield) || 0), 0),
+      }
+    : null;
+
   const lotCode = `LOT-${pond.code}-${form.harvest_date?.replace(/-/g, '')}`;
-  const totalValue = form.actual_yield && form.price_per_kg 
+  const totalValue = form.actual_yield && form.price_per_kg
     ? (Number(form.actual_yield) * Number(form.price_per_kg)).toLocaleString()
     : null;
 
@@ -71,12 +79,14 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
 
   const suggestedAction = failedChecks ? 'reject_load'
     : qualityIssues.length >= 2 ? 'deduct_price'
-    : qualityIssues.length === 1 ? 'deduct_weight'
-    : 'approved';
+      : qualityIssues.length === 1 ? 'deduct_weight'
+        : 'approved';
 
   const handleSave = async () => {
     if (isWithdrawal || !cycle?.id) return;
     setSaving(true);
+
+    // Tạo HarvestRecord
     await base44.entities.HarvestRecord.create({
       ...form,
       pond_id: pond.id,
@@ -98,12 +108,25 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
       lot_code: lotCode,
     });
 
+    // Tính tổng actual_yield từ tất cả harvest records của chu kỳ này
+    const allHarvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id });
+    const totalActualYield = allHarvests.reduce((sum, h) => sum + (h.actual_yield || 0), 0);
+
+    // Tính FCR nếu có total_feed_used
+    let fcr = null;
+    if (cycle.total_feed_used && totalActualYield > 0) {
+      fcr = Math.round((cycle.total_feed_used / totalActualYield) * 10000) / 10000;
+    }
+
+    // Cập nhật PondCycle với actual_yield tổng và FCR
     await base44.entities.PondCycle.update(cycle.id, {
-      actual_yield: (cycle.actual_yield || 0) + Number(form.actual_yield),
-      harvest_done: true,
-      status: 'CT',
+      actual_yield: totalActualYield,
+      harvest_done: totalActualYield > 0,
+      status: totalActualYield > 0 ? 'CT' : cycle.status,
+      fcr: fcr,
     });
 
+    base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id }, '-harvest_date', 500).then(setRecords);
     onUpdate();
     setSaving(false);
   };
@@ -114,6 +137,20 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
         <div className="bg-orange-50 border border-orange-300 rounded-lg p-3 flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0" />
           <p className="text-sm text-orange-700 font-semibold">Không thể thu hoạch — Đang trong thời gian ngưng thuốc!</p>
+        </div>
+      )}
+
+      {lastHarvestSummary?.lastDate && (
+        <div className="bg-slate-50 border border-border rounded-lg p-3 text-xs space-y-0.5">
+          <p className="font-semibold text-muted-foreground uppercase tracking-wide">Theo các phiếu đã nhập trong chu kỳ</p>
+          <p>
+            <span className="text-muted-foreground">Ngày thu TT gần nhất:</span>{' '}
+            <strong className="text-foreground">{lastHarvestSummary.lastDate}</strong>
+          </p>
+          <p>
+            <span className="text-muted-foreground">Tổng lũy kế thực thu:</span>{' '}
+            <strong className="text-foreground">{lastHarvestSummary.totalKg.toLocaleString()} kg</strong>
+          </p>
         </div>
       )}
 
@@ -129,43 +166,43 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày thu hoạch</Label>
-          <Input type="date" value={form.harvest_date} onChange={e => setForm({...form, harvest_date: e.target.value})} className="mt-1" />
+          <Input type="date" value={form.harvest_date} onChange={e => setForm({ ...form, harvest_date: e.target.value })} className="mt-1" />
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sản lượng thực thu (kg)</Label>
-          <Input type="number" value={form.actual_yield} onChange={e => setForm({...form, actual_yield: e.target.value})} className="mt-1" />
+          <Input type="number" value={form.actual_yield} onChange={e => setForm({ ...form, actual_yield: e.target.value })} className="mt-1" />
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Số cá thu (con)</Label>
-          <Input type="number" value={form.fish_count_harvested} onChange={e => setForm({...form, fish_count_harvested: e.target.value})} className="mt-1" />
+          <Input type="number" value={form.fish_count_harvested} onChange={e => setForm({ ...form, fish_count_harvested: e.target.value })} className="mt-1" />
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL TB lúc thu (g)</Label>
-          <Input type="number" value={form.avg_weight_harvest} onChange={e => setForm({...form, avg_weight_harvest: e.target.value})} className="mt-1" />
+          <Input type="number" value={form.avg_weight_harvest} onChange={e => setForm({ ...form, avg_weight_harvest: e.target.value })} className="mt-1" />
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá chết (kg)</Label>
-          <Input type="number" value={form.dead_fish_count} onChange={e => setForm({...form, dead_fish_count: e.target.value})} className="mt-1" />
+          <Input type="number" value={form.dead_fish_count} onChange={e => setForm({ ...form, dead_fish_count: e.target.value })} className="mt-1" />
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá phế phẩm (kg)</Label>
-          <Input type="number" value={form.reject_fish_count} onChange={e => setForm({...form, reject_fish_count: e.target.value})} className="mt-1" />
+          <Input type="number" value={form.reject_fish_count} onChange={e => setForm({ ...form, reject_fish_count: e.target.value })} className="mt-1" />
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá vàng thịt/bệnh (kg)</Label>
-          <Input type="number" value={form.sick_yellow_fish} onChange={e => setForm({...form, sick_yellow_fish: e.target.value})} className="mt-1" />
+          <Input type="number" value={form.sick_yellow_fish} onChange={e => setForm({ ...form, sick_yellow_fish: e.target.value })} className="mt-1" />
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá gầy &lt;42% phi-lê (kg)</Label>
-          <Input type="number" value={form.thin_fish} onChange={e => setForm({...form, thin_fish: e.target.value})} className="mt-1" />
+          <Input type="number" value={form.thin_fish} onChange={e => setForm({ ...form, thin_fish: e.target.value })} className="mt-1" />
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tỷ lệ dạ dày (%)</Label>
-          <Input type="number" value={form.stomach_ratio} onChange={e => setForm({...form, stomach_ratio: e.target.value})} className="mt-1" />
+          <Input type="number" value={form.stomach_ratio} onChange={e => setForm({ ...form, stomach_ratio: e.target.value })} className="mt-1" />
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Giá thu mua (đ/kg)</Label>
-          <Input type="number" value={form.price_per_kg} onChange={e => setForm({...form, price_per_kg: e.target.value})} className="mt-1" />
+          <Input type="number" value={form.price_per_kg} onChange={e => setForm({ ...form, price_per_kg: e.target.value })} className="mt-1" />
         </div>
       </div>
 
@@ -183,10 +220,10 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
           <p className="text-xs font-semibold text-primary uppercase tracking-wide">Kiểm tra chất lượng</p>
         </div>
         <div className="space-y-1">
-          <CheckItem label="Chất lượng nước/bùn đạt tiêu chuẩn" checked={form.water_quality_ok} onChange={v => setForm({...form, water_quality_ok: v})} />
-          <CheckItem label="Dư lượng kháng sinh trong ngưỡng cho phép" checked={form.antibiotic_residue_ok} onChange={v => setForm({...form, antibiotic_residue_ok: v})} />
-          <CheckItem label="Kim loại nặng không phát hiện" checked={form.heavy_metal_ok} onChange={v => setForm({...form, heavy_metal_ok: v})} />
-          <CheckItem label="Thuốc trừ sâu không phát hiện" checked={form.pesticide_ok} onChange={v => setForm({...form, pesticide_ok: v})} />
+          <CheckItem label="Chất lượng nước/bùn đạt tiêu chuẩn" checked={form.water_quality_ok} onChange={v => setForm({ ...form, water_quality_ok: v })} />
+          <CheckItem label="Dư lượng kháng sinh trong ngưỡng cho phép" checked={form.antibiotic_residue_ok} onChange={v => setForm({ ...form, antibiotic_residue_ok: v })} />
+          <CheckItem label="Kim loại nặng không phát hiện" checked={form.heavy_metal_ok} onChange={v => setForm({ ...form, heavy_metal_ok: v })} />
+          <CheckItem label="Thuốc trừ sâu không phát hiện" checked={form.pesticide_ok} onChange={v => setForm({ ...form, pesticide_ok: v })} />
         </div>
       </div>
 
@@ -200,7 +237,7 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
           <div className="flex items-center justify-between gap-2 pt-1">
             <p className="text-xs text-amber-600">Đề xuất xử lý:</p>
             <button
-              onClick={() => setForm({...form, action_taken: suggestedAction})}
+              onClick={() => setForm({ ...form, action_taken: suggestedAction })}
               className="text-xs font-semibold px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded transition-colors"
             >
               Áp dụng: {suggestedAction === 'deduct_weight' ? '⚖️ Trừ KL' : suggestedAction === 'deduct_price' ? '💸 Trừ giá' : '❌ Từ chối'}
@@ -217,7 +254,7 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
       {/* Action */}
       <div>
         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Phương án xử lý</Label>
-        <Select value={form.action_taken} onValueChange={v => setForm({...form, action_taken: v})} items={HARVEST_ACTION_ITEMS}>
+        <Select value={form.action_taken} onValueChange={v => setForm({ ...form, action_taken: v })} items={HARVEST_ACTION_ITEMS}>
           <SelectTrigger className="mt-1">
             <SelectValue />
           </SelectTrigger>
@@ -231,10 +268,10 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
         </Select>
       </div>
 
-      <Textarea 
+      <Textarea
         placeholder="Ghi chú..."
         value={form.notes}
-        onChange={e => setForm({...form, notes: e.target.value})}
+        onChange={e => setForm({ ...form, notes: e.target.value })}
         className="h-16 text-sm"
       />
 

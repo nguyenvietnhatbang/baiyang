@@ -7,6 +7,12 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { classifyHarvestStatus, harvestStatusLabel } from '@/lib/harvestAlerts';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import {
+  harvestRecordsForCycleRow,
+  latestActualHarvestDate,
+  uniquePhysicalPondCount,
+  uniquePhysicalPondTotalArea,
+} from '@/lib/reportPondDedupe';
 
 export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 }) {
   const [collapsed, setCollapsed] = useState({});
@@ -17,14 +23,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
     .sort((a, b) => a.localeCompare(b));
 
   const getHarvestData = (p) => {
-    const pondHarvests = harvests.filter((h) => {
-      if (p.pond_cycle_id) {
-        if (h.pond_cycle_id) return h.pond_cycle_id === p.pond_cycle_id;
-        // Fallback only for legacy records without pond_cycle_id
-        return h.pond_id === p.pond_id || h.pond_code === p.pond_code;
-      }
-      return h.pond_code === p.code || h.pond_id === p.id;
-    });
+    const pondHarvests = harvestRecordsForCycleRow(p, harvests);
     const totalActual = pondHarvests.reduce((s, h) => s + (h.actual_yield || 0), 0);
     const planned = p.expected_yield || 0;
     const remaining = planned > 0 ? Math.max(0, planned - totalActual) : null;
@@ -32,7 +31,18 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
     const pct = planned > 0 && totalActual > 0 ? Math.round(((totalActual - planned) / planned) * 100) : null;
     const lotCodes = pondHarvests.map(h => h.lot_code).filter(Boolean).join(', ');
     const hStatus = classifyHarvestStatus(p, totalActual, harvestAlertDays);
-    return { totalActual, planned, remaining, diff, pct, lotCodes, harvestCount: pondHarvests.length, hStatus };
+    const actualHarvestDate = latestActualHarvestDate(pondHarvests);
+    return {
+      totalActual,
+      planned,
+      remaining,
+      diff,
+      pct,
+      lotCodes,
+      harvestCount: pondHarvests.length,
+      hStatus,
+      actualHarvestDate,
+    };
   };
 
   const toggleAgency = (agency) => {
@@ -40,8 +50,10 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
   };
 
   const grandPlanned = activePonds.reduce((s, p) => s + (p.expected_yield || 0), 0);
-  const grandActual = harvests.reduce((s, h) => s + (h.actual_yield || 0), 0);
+  const grandActual = activePonds.reduce((s, p) => s + getHarvestData(p).totalActual, 0);
   const grandRemaining = Math.max(0, grandPlanned - grandActual);
+
+  const physicalPondTotal = uniquePhysicalPondCount(activePonds);
 
   const headers = [
     { label: 'Mã ao', className: 'text-left' },
@@ -50,6 +62,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
     { label: 'Trạng thái', className: 'text-center' },
     { label: 'Thu hoạch', className: 'text-center' },
     { label: 'Ngày thu DK', className: 'text-center' },
+    { label: 'Ngày thu TT', className: 'text-center' },
     { label: 'KH thu (kg)', className: 'text-right' },
     { label: 'Đã thu (kg)', className: 'text-right' },
     { label: 'Còn tồn (kg)', className: 'text-right' },
@@ -75,7 +88,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
         </thead>
         <tbody className="divide-y divide-border">
           {activePonds.length === 0 ? (
-            <tr><td colSpan={12} className="text-center py-10 text-muted-foreground">Chưa có dữ liệu ao nuôi</td></tr>
+            <tr><td colSpan={13} className="text-center py-10 text-muted-foreground">Chưa có dữ liệu ao nuôi</td></tr>
           ) : agencies.map(agency => {
             const agencyPonds = activePonds.filter(p => (p.agency_code || '(Chưa phân)') === agency);
             const isOpen = collapsed[agency] === true;
@@ -86,7 +99,8 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
             }, 0);
             const agRemaining = Math.max(0, agPlanned - agActual);
             const agPct = agPlanned > 0 && agActual > 0 ? Math.round(((agActual - agPlanned) / agPlanned) * 100) : null;
-            const agArea = agencyPonds.reduce((s, p) => s + (Number(p.area) || 0), 0);
+            const agArea = uniquePhysicalPondTotalArea(agencyPonds);
+            const agPhysical = uniquePhysicalPondCount(agencyPonds);
 
             return [
               <tr
@@ -94,23 +108,18 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                 className="bg-muted/40 cursor-pointer hover:bg-muted/60 border-t border-border"
                 onClick={() => toggleAgency(agency)}
               >
-                <td className="px-4 py-2.5" colSpan={2}>
-                  <div className="flex items-center gap-2">
-                    {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
+                <td className="px-4 py-2.5" colSpan={7}>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
                     <span className="font-bold text-primary text-sm">{agency}</span>
-                    <span className="text-muted-foreground font-normal">({agencyPonds.length} ao)</span>
+                    <span className="text-muted-foreground font-normal text-xs">
+                      ({agPhysical} ao · {agencyPonds.length} chu kỳ · Σ {agArea ? `${agArea.toLocaleString()} m²` : '—'})
+                    </span>
+                    <span className="text-blue-600 font-semibold text-xs">{agencyPonds.filter(p => p.status === 'CC').length} CC</span>
+                    <span className="text-muted-foreground text-xs">/</span>
+                    <span className="text-muted-foreground text-xs">{agencyPonds.filter(p => p.status === 'CT').length} CT</span>
                   </div>
                 </td>
-                <td className="px-4 py-2.5 text-right text-muted-foreground text-[10px] whitespace-nowrap">
-                  Σ {agArea ? `${agArea.toLocaleString()} m²` : '—'}
-                </td>
-                <td className="px-4 py-2.5 text-center">
-                  <span className="text-blue-600 font-semibold">{agencyPonds.filter(p=>p.status==='CC').length} CC</span>
-                  <span className="text-muted-foreground mx-1">/</span>
-                  <span className="text-muted-foreground">{agencyPonds.filter(p=>p.status==='CT').length} CT</span>
-                </td>
-                <td />
-                <td />
                 <td className="px-4 py-2.5 text-right font-semibold text-foreground">{agPlanned > 0 ? agPlanned.toLocaleString() : '—'}</td>
                 <td className="px-4 py-2.5 text-right font-bold text-green-700">{agActual > 0 ? agActual.toLocaleString() : '—'}</td>
                 <td className={`px-4 py-2.5 text-right font-semibold ${agRemaining > 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
@@ -128,12 +137,12 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
               </tr>,
 
               ...(isOpen ? agencyPonds.map(p => {
-                const { totalActual, planned, remaining, diff, pct, lotCodes, hStatus } = getHarvestData(p);
+                const { totalActual, planned, remaining, pct, lotCodes, hStatus, actualHarvestDate } = getHarvestData(p);
                 const stLabel = harvestStatusLabel(hStatus);
                 const stClass =
                   hStatus === 'harvested' ? 'bg-green-100 text-green-800' :
-                  hStatus === 'upcoming' ? 'bg-amber-100 text-amber-800' :
-                  'bg-slate-100 text-slate-600';
+                    hStatus === 'upcoming' ? 'bg-amber-100 text-amber-800' :
+                      'bg-slate-100 text-slate-600';
                 return (
                   <tr key={p.id} className="hover:bg-muted/20">
                     <td className="px-4 py-2.5 pl-10 font-semibold text-primary whitespace-nowrap">{p.code}</td>
@@ -149,6 +158,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                       <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${stClass}`}>{stLabel}</span>
                     </td>
                     <td className="px-4 py-2.5 text-center whitespace-nowrap text-muted-foreground">{plannedHarvestDateForDisplay(p) || '—'}</td>
+                    <td className="px-4 py-2.5 text-center whitespace-nowrap text-muted-foreground">{actualHarvestDate || '—'}</td>
                     <td className="px-4 py-2.5 text-right font-medium">{planned > 0 ? planned.toLocaleString() : '—'}</td>
                     <td className="px-4 py-2.5 text-right font-bold text-green-700">
                       {totalActual > 0 ? totalActual.toLocaleString() : <span className="text-muted-foreground font-normal">Chưa thu</span>}
@@ -158,11 +168,10 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       {p.fcr ? (
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                          p.fcr <= 1.3 ? 'bg-green-100 text-green-700' :
-                          p.fcr <= 1.6 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
-                        }`}>{p.fcr}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${p.fcr <= 1.3 ? 'bg-green-100 text-green-700' :
+                            p.fcr <= 1.6 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'
+                          }`}>{p.fcr}</span>
                       ) : '—'}
                     </td>
                     <td className="px-4 py-2.5 text-center">
@@ -180,7 +189,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
           })}
 
           <tr className="bg-primary/5 border-t-2 border-primary/20 font-bold text-sm">
-            <td className="px-4 py-3 text-foreground font-bold" colSpan={6}>TỔNG CỘNG — {activePonds.length} ao</td>
+            <td className="px-4 py-3 text-foreground font-bold" colSpan={7}>TỔNG CỘNG — {physicalPondTotal} ao · {activePonds.length} chu kỳ</td>
             <td className="px-4 py-3 text-right text-foreground">{grandPlanned > 0 ? grandPlanned.toLocaleString() : '—'}</td>
             <td className="px-4 py-3 text-right text-green-700">{grandActual > 0 ? grandActual.toLocaleString() : '—'}</td>
             <td className={`px-4 py-3 text-right ${grandRemaining > 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>

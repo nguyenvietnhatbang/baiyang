@@ -6,6 +6,13 @@
 import ExcelJS from 'exceljs';
 import { originalHarvestDateForReport, plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { classifyHarvestStatus, harvestStatusLabel } from '@/lib/harvestAlerts';
+import {
+  harvestRecordsForCycleRow,
+  latestActualHarvestDate,
+  totalActualYieldForCycleRow,
+  uniquePhysicalPondCount,
+  uniquePhysicalPondTotalArea,
+} from '@/lib/reportPondDedupe';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `T${i + 1}`);
 
@@ -26,9 +33,7 @@ function calcOriginalYield(p) {
 }
 
 function pondActualYield(p, harvests) {
-  return harvests
-    .filter((h) => h.pond_code === p.code || h.pond_id === p.id)
-    .reduce((s, h) => s + (h.actual_yield || 0), 0);
+  return totalActualYieldForCycleRow(p, harvests);
 }
 
 function diffPct(original, adjusted) {
@@ -160,7 +165,7 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
         }, 0);
         return vcc + vct;
       });
-      const row = sheet.addRow([agency, cc.length, ct.length, ap.length, totalCC, totalCT, totalAll, ...monthVals]);
+      const row = sheet.addRow([agency, cc.length, ct.length, uniquePhysicalPondCount(ap), totalCC, totalCT, totalAll, ...monthVals]);
       applyNumberFormats(row, numFmt);
       styleBodyRow(row, { zebra: idx % 2 === 1 });
     });
@@ -175,7 +180,7 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
         return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
       }, 0)
     );
-    const totalRow = sheet.addRow(['TỔNG CỘNG', grandCC, grandCT, ponds.length, gCCkg, gCTkg, gAll, ...gMonths]);
+    const totalRow = sheet.addRow(['TỔNG CỘNG', grandCC, grandCT, uniquePhysicalPondCount(ponds), gCCkg, gCTkg, gAll, ...gMonths]);
     applyNumberFormats(totalRow, numFmt);
     styleBodyRow(totalRow, { isTotal: true });
     setColumnWidths(sheet, [22, 10, 10, 10, 14, 14, 14, ...monthLabels.map(() => 11)]);
@@ -242,7 +247,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
       const ap = ponds.filter((p) => p.agency_code === agency);
       const cc = ap.filter((p) => p.status === 'CC');
       const ct = ap.filter((p) => p.status === 'CT');
-      const totalArea = ap.reduce((s, p) => s + (Number(p.area) || 0), 0);
+      const totalArea = uniquePhysicalPondTotalArea(ap);
       const monthCC = monthIdx.map((i) =>
         cc.reduce((s, p) => s + (adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0), 0)
       );
@@ -256,7 +261,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
       const monthTriplets = monthIdx.flatMap((_, i) => [monthCC[i] || null, monthCT[i] || null, monthTH[i] || null]);
       const row = sheet.addRow([
         agency,
-        ap.length || null,
+        uniquePhysicalPondCount(ap) || null,
         totalArea || null,
         ...monthTriplets,
         totalCC || null,
@@ -266,7 +271,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
       applyNumberFormats(row, numFmt);
       styleBodyRow(row, { zebra: idx % 2 === 1 });
     });
-    const grandArea = ponds.reduce((s, p) => s + (Number(p.area) || 0), 0);
+    const grandArea = uniquePhysicalPondTotalArea(ponds);
     const grandMonthCC = monthIdx.map((i) =>
       ponds.reduce((s, p) => s + (p.status === 'CC' && adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0), 0)
     );
@@ -280,7 +285,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
     const grandTriplets = monthIdx.flatMap((_, i) => [grandMonthCC[i] || null, grandMonthCT[i] || null, grandMonthTH[i] || null]);
     const totalRow = sheet.addRow([
       'TỔNG CỘNG',
-      ponds.length || null,
+      uniquePhysicalPondCount(ponds) || null,
       grandArea || null,
       ...grandTriplets,
       grandTotalCC || null,
@@ -348,21 +353,18 @@ function buildHarvest(sheet, { granularity, ponds, harvests, harvestAlertDays, f
     codes.forEach((agency, idx) => {
       const ap = active.filter((p) => (p.agency_code || '(Chưa phân)') === agency);
       const planned = ap.reduce((s, p) => s + (p.expected_yield || 0), 0);
-      const actual = ap.reduce((s, p) => {
-        const v = pondActualYield(p, harvests);
-        return s + v;
-      }, 0);
+      const actual = ap.reduce((s, p) => s + totalActualYieldForCycleRow(p, harvests), 0);
       const remaining = planned > 0 ? Math.max(0, planned - actual) : null;
       const fcrs = ap.map((p) => p.fcr).filter((f) => f != null && !Number.isNaN(f));
       const avgFcr = fcrs.length ? fcrs.reduce((a, b) => a + b, 0) / fcrs.length : null;
-      const row = sheet.addRow([agency, ap.length, planned || null, actual || null, remaining, avgFcr]);
+      const row = sheet.addRow([agency, uniquePhysicalPondCount(ap), planned || null, actual || null, remaining, avgFcr]);
       applyNumberFormats(row, ['', '', '#,##0', '#,##0', '#,##0', '0.00']);
       styleBodyRow(row, { zebra: idx % 2 === 1 });
     });
     const totalPlanned = active.reduce((s, p) => s + (p.expected_yield || 0), 0);
-    const totalActual = active.reduce((s, p) => s + pondActualYield(p, harvests), 0);
+    const totalActual = active.reduce((s, p) => s + totalActualYieldForCycleRow(p, harvests), 0);
     const totalRem = totalPlanned > 0 ? Math.max(0, totalPlanned - totalActual) : null;
-    const totalRow = sheet.addRow(['TỔNG CỘNG', active.length, totalPlanned, totalActual, totalRem, null]);
+    const totalRow = sheet.addRow(['TỔNG CỘNG', uniquePhysicalPondCount(active), totalPlanned, totalActual, totalRem, null]);
     applyNumberFormats(totalRow, ['', '', '#,##0', '#,##0', '#,##0', '0.00']);
     styleBodyRow(totalRow, { isTotal: true });
     setColumnWidths(sheet, [22, 10, 18, 16, 16, 14]);
@@ -375,6 +377,7 @@ function buildHarvest(sheet, { granularity, ponds, harvests, harvestAlertDays, f
       'Trạng thái ao',
       'Nhóm thu hoạch',
       'Ngày thu DK',
+      'Ngày thu TT',
       'KH thu (kg)',
       'Đã thu (kg)',
       'Còn tồn (kg)',
@@ -388,13 +391,14 @@ function buildHarvest(sheet, { granularity, ponds, harvests, harvestAlertDays, f
       if (ac !== bc) return ac.localeCompare(bc);
       return String(a.code).localeCompare(String(b.code));
     });
-    const numFmt = ['', '', '', '0.00', '', '', 'yyyy-mm-dd', '#,##0', '#,##0', '#,##0', '0.00', ''];
+    const numFmt = ['', '', '', '0.00', '', '', 'yyyy-mm-dd', 'yyyy-mm-dd', '#,##0', '#,##0', '#,##0', '0.00', ''];
     sorted.forEach((p, idx) => {
-      const pondHarvests = harvests.filter((h) => h.pond_code === p.code || h.pond_id === p.id);
+      const pondHarvests = harvestRecordsForCycleRow(p, harvests);
       const totalAct = pondHarvests.reduce((s, h) => s + (h.actual_yield || 0), 0);
       const planned = p.expected_yield || 0;
       const remaining = planned > 0 ? Math.max(0, planned - totalAct) : null;
       const hStatus = classifyHarvestStatus(p, totalAct, harvestAlertDays);
+      const ttRaw = latestActualHarvestDate(pondHarvests);
       const lots = pondHarvests
         .map((h) => h.lot_code)
         .filter(Boolean)
@@ -407,6 +411,7 @@ function buildHarvest(sheet, { granularity, ponds, harvests, harvestAlertDays, f
         p.status || '',
         harvestStatusLabel(hStatus),
         plannedHarvestDateForDisplay(p) ? new Date(plannedHarvestDateForDisplay(p)) : null,
+        ttRaw ? new Date(ttRaw) : null,
         planned || null,
         totalAct || null,
         remaining,
@@ -416,7 +421,7 @@ function buildHarvest(sheet, { granularity, ponds, harvests, harvestAlertDays, f
       applyNumberFormats(row, numFmt);
       styleBodyRow(row, { zebra: idx % 2 === 1 });
     });
-    setColumnWidths(sheet, [14, 12, 20, 11, 8, 18, 12, 14, 14, 14, 8, 20]);
+    setColumnWidths(sheet, [14, 12, 20, 11, 8, 18, 12, 12, 14, 14, 14, 8, 20]);
   }
   finalizeSheetView(sheet, 4);
 }
@@ -449,7 +454,7 @@ function buildSummary(sheet, { granularity, ponds, harvests, agencies, filterLin
       const avgFcr = fcrArr.length ? fcrArr.reduce((s, f) => s + f, 0) / fcrArr.length : null;
       const row = sheet.addRow([
         agency,
-        ap.length,
+        uniquePhysicalPondCount(ap),
         ap.filter((p) => p.status === 'CC').length,
         ap.filter((p) => p.status === 'CT').length,
         origYield || null,
@@ -467,7 +472,7 @@ function buildSummary(sheet, { granularity, ponds, harvests, agencies, filterLin
     const totalRem = Math.max(0, totalAdj - totalAct);
     const totalRow = sheet.addRow([
       'TỔNG CỘNG',
-      ponds.length,
+      uniquePhysicalPondCount(ponds),
       ponds.filter((p) => p.status === 'CC').length,
       ponds.filter((p) => p.status === 'CT').length,
       totalOrig,

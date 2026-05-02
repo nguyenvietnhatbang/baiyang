@@ -43,10 +43,23 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
       ? Math.round((newCurrentFish * (cycle.survival_rate / 100) * cycle.target_weight) / 1000)
       : cycle.expected_yield;
 
+  // Lấy tổng actual_yield từ harvest records
+  const allHarvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id });
+  const totalActualYield = allHarvests.reduce((sum, h) => sum + (h.actual_yield || 0), 0);
+  
+  // Tính FCR nếu có total_feed_used và actual_yield
+  let fcr = cycle.fcr;
+  if (totalFeed > 0 && totalActualYield > 0) {
+    fcr = Math.round((totalFeed / totalActualYield) * 10000) / 10000;
+  }
+
   await base44.entities.PondCycle.update(cycle.id, {
     current_fish: newCurrentFish,
     total_feed_used: totalFeed,
     expected_yield: newExpectedYield,
+    actual_yield: totalActualYield,
+    harvest_done: totalActualYield > 0,
+    fcr: fcr,
     last_medicine_date: form.medicine_used ? form.log_date : cycle.last_medicine_date,
     withdrawal_days: form.withdrawal_days ? Number(form.withdrawal_days) : cycle.withdrawal_days,
     withdrawal_end_date: withdrawalEndDate,

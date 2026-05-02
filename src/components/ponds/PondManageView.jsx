@@ -94,7 +94,11 @@ export default function PondManageView({
     ? differenceInDays(parseISO(selectedHarvestDate), today)
     : null;
 
-  const isUrgent = harvestDiff !== null && harvestDiff <= harvestAlertDays;
+  // Kiểm tra xem đã thu hoạch chưa (actual_yield > 0 hoặc harvest_done = true)
+  const isHarvested = selectedCycle?.actual_yield > 0 || selectedCycle?.harvest_done;
+  
+  // Chỉ cảnh báo ưu tiên thu nếu chưa thu hoạch và sắp đến ngày thu
+  const isUrgent = !isHarvested && harvestDiff !== null && harvestDiff <= harvestAlertDays;
 
   const handleLocalUpdate = async () => {
     await loadCycles();

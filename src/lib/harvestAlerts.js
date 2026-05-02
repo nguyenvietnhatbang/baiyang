@@ -8,15 +8,20 @@ export function getHarvestAlertDays(settings) {
 }
 
 /**
- * @param {object} pond
- * @param {number} totalHarvestedKg — sum(actual_yield) for pond
+ * @param {object} pond - PondCycle object với actual_yield và harvest_done
+ * @param {number} totalHarvestedKg — sum(actual_yield) for pond (fallback)
  * @param {number} alertDays
  * @returns {'harvested'|'upcoming'|'not_ready'}
  */
 export function classifyHarvestStatus(pond, totalHarvestedKg, alertDays) {
   const planned = pond.expected_yield || 0;
   const plannedHarvestDate = plannedHarvestDateForDisplay(pond);
-  if (pond.harvest_done || (totalHarvestedKg > 0 && planned > 0 && totalHarvestedKg >= planned)) {
+
+  // Ưu tiên sử dụng actual_yield từ PondCycle
+  const actualYield = pond.actual_yield || totalHarvestedKg;
+
+  // ✅ SỬA: Kiểm tra nếu đã thu hoạch (bao gồm cả status = 'CT')
+  if (pond.harvest_done || pond.status === 'CT' || (actualYield > 0 && planned > 0 && actualYield >= planned)) {
     return 'harvested';
   }
   if (!plannedHarvestDate) {

@@ -5,6 +5,7 @@
  */
 import { Fragment } from 'react';
 import { originalHarvestDateForReport, plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { uniquePhysicalPondCount, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
 
 const MONTHS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
 
@@ -30,13 +31,17 @@ export default function ReportAdjusted({ ponds, agencies }) {
   const visibleMonthIdx = monthIdx.length > 0 ? monthIdx : [new Date().getMonth()];
 
   const rows = agencies.map((agency) => {
-    const ap = ponds.filter((p) => p.agency_code === agency);
-    const cc = ap.filter((p) => p.status === 'CC');
-    const ct = ap.filter((p) => p.status === 'CT');
+    const agencyPonds = ponds.filter((p) => p.agency_code === agency);
+    
+    const pondCount = uniquePhysicalPondCount(agencyPonds);
+    const totalArea = uniquePhysicalPondTotalArea(agencyPonds);
+
+    // Đếm theo chu kỳ (mỗi chu kỳ = 1 dòng dữ liệu kế hoạch)
+    const cc = agencyPonds.filter((p) => p.status === 'CC');
+    const ct = agencyPonds.filter((p) => p.status === 'CT');
     const totalCC = cc.reduce((s, p) => s + (p.expected_yield || 0), 0);
     const totalCT = ct.reduce((s, p) => s + (p.expected_yield || 0), 0);
     const totalTH = totalCC + totalCT;
-    const totalArea = ap.reduce((s, p) => s + (Number(p.area) || 0), 0);
 
     const monthCC = visibleMonthIdx.map((i) =>
       cc.reduce((s, p) => {
@@ -52,9 +57,10 @@ export default function ReportAdjusted({ ponds, agencies }) {
     );
     const monthTH = monthCC.map((v, i) => v + monthCT[i]);
 
-    return { agency, ap, totalArea, totalCC, totalCT, totalTH, monthCC, monthCT, monthTH };
+    return { agency, ponds: agencyPonds, pondCount, totalArea, totalCC, totalCT, totalTH, monthCC, monthCT, monthTH };
   });
 
+  const grandTotalPonds = rows.reduce((s, r) => s + r.pondCount, 0);
   const grandTotalArea = rows.reduce((s, r) => s + r.totalArea, 0);
   const grandTotalCC = rows.reduce((s, r) => s + r.totalCC, 0);
   const grandTotalCT = rows.reduce((s, r) => s + r.totalCT, 0);
@@ -122,7 +128,7 @@ export default function ReportAdjusted({ ponds, agencies }) {
               rows.map((r) => (
                 <tr key={r.agency} className="hover:bg-muted/20">
                   <td className="sticky left-0 bg-card px-4 py-2.5 font-semibold text-primary border-r border-border whitespace-nowrap">{r.agency}</td>
-                  <td className="px-3 py-2.5 text-center">{r.ap.length > 0 ? r.ap.length : ''}</td>
+                  <td className="px-3 py-2.5 text-center">{r.pondCount > 0 ? r.pondCount : ''}</td>
                   <td className="px-3 py-2.5 text-right border-r border-border">{r.totalArea > 0 ? r.totalArea.toLocaleString() : ''}</td>
                   {visibleMonthIdx.map((mi, i) => (
                     <Fragment key={mi}>
@@ -142,7 +148,7 @@ export default function ReportAdjusted({ ponds, agencies }) {
 
             <tr className="bg-primary/5 font-bold border-t-2 border-primary/20">
               <td className="sticky left-0 bg-primary/5 px-4 py-3 font-bold text-foreground border-r border-border">TỔNG CỘNG</td>
-              <td className="px-3 py-3 text-center">{ponds.length > 0 ? ponds.length : ''}</td>
+              <td className="px-3 py-3 text-center">{grandTotalPonds}</td>
               <td className="px-3 py-3 text-right border-r border-border">{grandTotalArea > 0 ? grandTotalArea.toLocaleString() : ''}</td>
               {visibleMonthIdx.map((mi, i) => (
                 <Fragment key={mi}>

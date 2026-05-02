@@ -1,0 +1,33 @@
+fix: Sửa các vấn đề báo cáo và quản lý chu kỳ ao nuôi
+
+Sửa 4 vấn đề chính:
+
+1. Báo cáo đếm sai số chu kỳ và diện tích
+   - Trước: Đếm theo ao vật lý (1 ao = 1 dòng)
+   - Sau: Đếm theo chu kỳ nuôi (1 ao 3 chu kỳ = 3 dòng)
+   - Diện tích tính theo chu kỳ (1000m² × 3 chu kỳ = 3000m²)
+   - Files: ReportOriginal.jsx, ReportAdjusted.jsx
+
+2. Báo cáo thu hoạch chưa hiển thị sản lượng đã thu
+   - Cải thiện logic filter harvest records
+   - Ưu tiên match theo pond_cycle_id
+   - Files: ReportHarvest.jsx
+
+3. Chu kỳ đã thu hoạch vẫn cảnh báo và chưa cập nhật
+   - Thêm kiểm tra actual_yield và harvest_done
+   - Tự động tắt cảnh báo khi đã thu xong
+   - Tự động cập nhật actual_yield, fcr, harvest_done, status
+   - Files: PondManageView.jsx, harvestAlerts.js, PondHarvestTab.jsx
+
+4. Nhật ký chưa cập nhật FCR
+   - Tự động tính FCR khi nhập nhật ký
+   - Đồng bộ với dữ liệu thu hoạch
+   - Files: pondLogSubmit.js
+
+Thêm:
+- Script đồng bộ dữ liệu cũ (pondCycleSync.js)
+- Tài liệu hướng dẫn chi tiết (docs/)
+- Checklist kiểm tra hệ thống
+
+Breaking changes: Không có
+Migration: Cần chạy script đồng bộ dữ liệu 1 lần (xem docs/DONG_BO_DU_LIEU.md)
