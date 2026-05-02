@@ -26,11 +26,15 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
     const pondHarvests = harvestRecordsForCycleRow(p, harvests);
     const totalActual = pondHarvests.reduce((s, h) => s + (h.actual_yield || 0), 0);
     const planned = p.expected_yield || 0;
-    const remaining = planned > 0 ? Math.max(0, planned - totalActual) : null;
+    const hStatus = classifyHarvestStatus(p, totalActual, harvestAlertDays);
+    
+    // Nếu đã thu hoạch (CT) thì còn tồn phải là 0, bất kể có phiếu thu hay chưa
+    const isHarvested = p.status === 'CT' || hStatus === 'harvested';
+    const remaining = isHarvested ? 0 : (planned > 0 ? Math.max(0, planned - totalActual) : null);
+    
     const diff = planned > 0 && totalActual > 0 ? totalActual - planned : null;
     const pct = planned > 0 && totalActual > 0 ? Math.round(((totalActual - planned) / planned) * 100) : null;
     const lotCodes = pondHarvests.map(h => h.lot_code).filter(Boolean).join(', ');
-    const hStatus = classifyHarvestStatus(p, totalActual, harvestAlertDays);
     const actualHarvestDate = latestActualHarvestDate(pondHarvests);
     return {
       totalActual,
@@ -167,12 +171,19 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                       {remaining !== null ? remaining.toLocaleString() : '—'}
                     </td>
                     <td className="px-4 py-2.5 text-center">
-                      {p.fcr ? (
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${p.fcr <= 1.3 ? 'bg-green-100 text-green-700' :
-                            p.fcr <= 1.6 ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-red-100 text-red-700'
-                          }`}>{p.fcr}</span>
-                      ) : '—'}
+                      {(() => {
+                        let f = p.fcr;
+                        if (f == null && p.total_feed_used > 0) {
+                          const denom = totalActual > 0 ? totalActual : (planned > 0 ? planned : 0);
+                          if (denom > 0) f = Math.round((p.total_feed_used / denom) * 100) / 100;
+                        }
+                        return f ? (
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${f <= 1.3 ? 'bg-green-100 text-green-700' :
+                              f <= 1.6 ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-red-100 text-red-700'
+                            }`}>{f}</span>
+                        ) : '—';
+                      })()}
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       {pct !== null ? (
