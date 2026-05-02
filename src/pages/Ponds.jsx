@@ -593,11 +593,11 @@ export default function Ponds() {
                               : '—'}
                           </td>
                         )}
-                        {visibleCols.expected_yield && <td className="px-4 py-3 text-right font-bold text-slate-800">{r.expected_yield ? `${Number(r.expected_yield).toLocaleString()} kg` : '—'}</td>}
+                        {visibleCols.expected_yield && <td className="px-4 py-3 text-right font-bold text-slate-800">{r.expected_yield != null ? `${Number(r.expected_yield).toLocaleString()} kg` : '—'}</td>}
                         {visibleCols.expected_harvest_date && <td className={`px-4 py-3 text-xs ${isUrgent ? 'font-bold text-red-600' : 'text-slate-600'}`}>{r.expected_harvest_date || '—'}{isOverdue && <span className="text-red-500 ml-1">(QH)</span>}</td>}
                         {visibleCols.fcr && (
                           <td className="px-4 py-3 text-center">
-                            {r.fcr ? <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${r.fcr <= 1.3 ? 'bg-green-100 text-green-700' : r.fcr <= 1.6 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{r.fcr}</span> : '—'}
+                            {r.fcr != null ? <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${r.fcr <= 1.3 ? 'bg-green-100 text-green-700' : r.fcr <= 1.6 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{r.fcr}</span> : '—'}
                           </td>
                         )}
                         {visibleCols.alerts && (

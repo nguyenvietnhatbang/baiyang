@@ -51,7 +51,7 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
         </div>
         <div className="bg-muted/50 rounded-lg p-2 text-center">
           <p className="text-muted-foreground">SL dự kiến</p>
-          <p className="font-semibold mt-0.5">{pond.expected_yield ? `${pond.expected_yield.toLocaleString()}kg` : '—'}</p>
+          <p className="font-semibold mt-0.5">{pond.expected_yield != null ? `${Number(pond.expected_yield).toLocaleString()}kg` : '—'}</p>
         </div>
       </div>
 
@@ -63,7 +63,7 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
             {isOverdue && ' (QH)'}
           </span>
         )}
-        {pond.fcr && (
+        {pond.fcr != null && (
           <span className={`px-1.5 py-0.5 rounded font-semibold ${
             pond.fcr <= 1.3 ? 'bg-green-100 text-green-700' :
             pond.fcr <= 1.6 ? 'bg-yellow-100 text-yellow-700' :
