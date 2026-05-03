@@ -14,7 +14,7 @@ function pickCameraDeviceId(devices) {
 }
 
 /** BarcodeDetector trên một số trình duyệt desktop (Chrome/Win) hay “câm” — chỉ bật trên mobile. */
-function useBarCodeDetectorIfSupported() {
+function barCodeDetectorSupportedOnThisDevice() {
   return /Android|iPhone|iPad|iPod/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '');
 }
 
@@ -36,7 +36,7 @@ export default function QRScanner({ onScan, onClose }) {
     const html5Qrcode = new Html5Qrcode(scannerDivId, {
       verbose: false,
       experimentalFeatures: {
-        useBarCodeDetectorIfSupported: useBarCodeDetectorIfSupported(),
+        useBarCodeDetectorIfSupported: barCodeDetectorSupportedOnThisDevice(),
       },
     });
     scannerRef.current = html5Qrcode;

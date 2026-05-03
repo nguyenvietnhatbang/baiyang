@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import QRScanner from '@/components/scanner/QRScanner';
-import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
+import { parsePondCodeFromQr } from '@/lib/fieldAuthHelpers';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 

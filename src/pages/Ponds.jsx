@@ -36,6 +36,9 @@ import { pondQrPayload } from '@/lib/fieldAuthHelpers';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HouseholdsPanel } from '@/components/households/HouseholdsPanel';
+import PondViewDialog from '@/components/ponds/PondViewDialog';
+import CycleViewDialog from '@/components/ponds/CycleViewDialog';
+import CycleEditDialog from '@/components/ponds/CycleEditDialog';
 
 const POND_STATUS_FILTER_ITEMS = [
   { value: 'all', label: 'Tất cả trạng thái' },
@@ -295,6 +298,7 @@ export default function Ponds() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mainTab = searchParams.get('tab') === 'households' ? 'households' : 'ponds';
+  const pondsSubTab = searchParams.get('subtab') === 'ponds' ? 'ponds' : 'cycles';
 
   const [ponds, setPonds] = useState([]);
   const [agencies, setAgencies] = useState([]);
@@ -311,6 +315,12 @@ export default function Ponds() {
   const [deleting, setDeleting] = useState(false);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE_COLUMNS);
+  const [viewPondId, setViewPondId] = useState(null);
+  const [viewCycleId, setViewCycleId] = useState(null);
+  const [editCycleId, setEditCycleId] = useState(null);
+  const [deleteCycleId, setDeleteCycleId] = useState(null);
+  const [deleteCycleLabel, setDeleteCycleLabel] = useState('');
+  const [deletingCycle, setDeletingCycle] = useState(false);
 
   const loadPonds = async () => {
     const [data, agencyData] = await Promise.all([
@@ -325,6 +335,18 @@ export default function Ponds() {
   useEffect(() => {
     void loadPonds();
   }, []);
+
+  const pondRows = useMemo(() => {
+    const q = search.toLowerCase();
+    const rows = (ponds || []).filter((p) => {
+      const matchSearch = !q || [p.code, p.owner_name, p.agency_code].filter(Boolean).some((x) => String(x).toLowerCase().includes(q));
+      const status = p.active_cycle?.status || 'CT';
+      const matchStatus = statusFilter === 'all' || status === statusFilter;
+      const matchAgency = agencyFilter === 'all' || p.agency_code === agencyFilter;
+      return matchSearch && matchStatus && matchAgency;
+    });
+    return rows.sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')));
+  }, [ponds, search, statusFilter, agencyFilter]);
 
   const cycleRows = useMemo(() => {
     const rows = [];
@@ -447,6 +469,27 @@ export default function Ponds() {
     setDeleting(false);
   };
 
+  const handleDeleteCycle = async () => {
+    if (!deleteCycleId) return;
+    setDeletingCycle(true);
+    try {
+      await base44.entities.PondCycle.delete(deleteCycleId);
+      await loadPonds();
+      setDeleteCycleId(null);
+      setDeleteCycleLabel('');
+    } catch (e) {
+      alert(formatSupabaseError(e));
+    }
+    setDeletingCycle(false);
+  };
+
+  const setSubTab = (v) => {
+    const next = new URLSearchParams(searchParams);
+    if (v === 'cycles') next.delete('subtab');
+    else next.set('subtab', v);
+    setSearchParams(next, { replace: true });
+  };
+
   return (
     <div className="p-3 sm:p-6 max-w-7xl mx-auto">
       <Tabs
@@ -465,10 +508,14 @@ export default function Ponds() {
         <div className="mt-3 flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl sm:text-2xl font-bold text-foreground sm:whitespace-nowrap">
-              {mainTab === 'households' ? 'Hộ nuôi' : 'Quản lý chu kỳ ao nuôi'}
+              {mainTab === 'households' ? 'Hộ nuôi' : pondsSubTab === 'ponds' ? 'Quản lý ao nuôi' : 'Quản lý chu kỳ ao nuôi'}
             </h1>
             <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
-              {mainTab === 'households' ? 'Mã hộ nằm trong mã ao (khu vực–đại lý–hộ–STT).' : `${cycleRows.length} chu kỳ • ${cycleRows.filter((r) => r.status === 'CC').length} đang CC`}
+              {mainTab === 'households'
+                ? 'Mã hộ nằm trong mã ao (khu vực–đại lý–hộ–STT).'
+                : pondsSubTab === 'ponds'
+                  ? `${pondRows.length} ao • ${pondRows.filter((p) => (p.active_cycle?.status || 'CT') === 'CC').length} ao đang CC`
+                  : `${cycleRows.length} chu kỳ • ${cycleRows.filter((r) => r.status === 'CC').length} đang CC`}
             </p>
           </div>
           {mainTab === 'ponds' && (
@@ -487,6 +534,142 @@ export default function Ponds() {
         </div>
 
         <TabsContent value="ponds" className="mt-3 sm:mt-4 space-y-4 sm:space-y-5 outline-none">
+          <Tabs value={pondsSubTab} onValueChange={setSubTab} className="w-full">
+            <TabsList className="inline-flex h-7 w-fit shrink-0 items-center gap-0 rounded-md border border-border bg-muted/50 p-0.5 shadow-none">
+              <TabsTrigger value="ponds" className="h-6 rounded-sm px-2.5 py-0 text-[11px] font-medium leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Ao cá</TabsTrigger>
+              <TabsTrigger value="cycles" className="h-6 rounded-sm px-2.5 py-0 text-[11px] font-medium leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kỳ</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="ponds" className="mt-3 space-y-4 outline-none">
+              <div className="flex w-full min-w-0 flex-wrap gap-2 sm:gap-3 items-center">
+                <div className="relative min-w-[12rem] flex-1 basis-[min(100%,24rem)]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input placeholder="Tìm mã ao, tên chủ hộ, đại lý..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter} items={POND_STATUS_FILTER_ITEMS}>
+                  <SelectTrigger className="w-36"><SelectValue>{POND_STATUS_FILTER_ITEMS.find((x) => x.value === statusFilter)?.label}</SelectValue></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                    <SelectItem value="CC">CC - Có cá</SelectItem>
+                    <SelectItem value="CT">CT - Chưa thả</SelectItem>
+                  </SelectContent>
+                </Select>
+                {agencyCodes.length > 0 && (
+                  <Select value={agencyFilter} onValueChange={setAgencyFilter} items={agencyFilterItems}>
+                    <SelectTrigger className="w-36"><SelectValue>{agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}</SelectValue></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tất cả đại lý</SelectItem>
+                      {agencyCodes.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <div className="sm:hidden space-y-3">
+                {loading ? (
+                  Array(4).fill(0).map((_, i) => <div key={i} className="h-32 bg-muted rounded-xl animate-pulse" />)
+                ) : pondRows.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground text-sm">Không tìm thấy ao nào</div>
+                ) : pondRows.map((p) => (
+                  <PondMobileCard
+                    key={p.id}
+                    pond={{
+                      code: p.code,
+                      owner_name: p.owner_name,
+                      status: p.active_cycle?.status || 'CT',
+                      area: p.area,
+                      current_fish: p.active_cycle?.current_fish ?? p.active_cycle?.total_fish ?? null,
+                      expected_yield: p.active_cycle?.expected_yield ?? null,
+                      expected_harvest_date: plannedHarvestDateForDisplay(p.active_cycle),
+                      withdrawal_end_date: p.active_cycle?.withdrawal_end_date ?? null,
+                      fcr: p.active_cycle?.fcr ?? null,
+                      agency_code: p.agency_code,
+                    }}
+                    checked={false}
+                    onCheck={() => {}}
+                    onClick={() => setViewPondId(p.id)}
+                    harvestAlertDays={harvestAlertDays}
+                  />
+                ))}
+              </div>
+
+              <div className="hidden sm:block bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/30 border-b border-border">
+                        <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">MÃ AO</th>
+                        <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">CHỦ HỘ</th>
+                        <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">ĐẠI LÝ</th>
+                        <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">TRẠNG THÁI</th>
+                        <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">NGÀY THẢ</th>
+                        <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THU HOẠCH DK</th>
+                        <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">SỐ CÁ</th>
+                        <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">SL DỰ KIẾN</th>
+                        <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {loading ? (
+                        Array(6).fill(0).map((_, i) => (
+                          <tr key={i}><td className="px-4 py-3" colSpan={9}><div className="h-4 bg-muted rounded animate-pulse w-32" /></td></tr>
+                        ))
+                      ) : pondRows.length === 0 ? (
+                        <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">Không tìm thấy ao nào</td></tr>
+                      ) : pondRows.map((p) => {
+                        const status = p.active_cycle?.status || 'CT';
+                        const currentFish = p.active_cycle?.current_fish ?? p.active_cycle?.total_fish ?? null;
+                        const expectedYield = p.active_cycle?.expected_yield ?? null;
+                        const expectedHarvestDate = plannedHarvestDateForDisplay(p.active_cycle);
+                        return (
+                          <tr
+                            key={p.id}
+                            onClick={() => setViewPondId(p.id)}
+                            className="hover:bg-primary/5 cursor-pointer transition-colors"
+                          >
+                            <td className="px-4 py-3 font-bold text-slate-700">{p.code}</td>
+                            <td className="px-4 py-3 text-slate-600">{p.owner_name || '—'}</td>
+                            <td className="px-4 py-3 text-muted-foreground text-xs">{p.agency_code || '—'}</td>
+                            <td className="px-4 py-3"><PondStatusBadge status={status} /></td>
+                            <td className="px-4 py-3 text-slate-500 text-xs">{p.active_cycle?.stock_date || '—'}</td>
+                            <td className="px-4 py-3 text-slate-600 text-xs">{expectedHarvestDate || '—'}</td>
+                            <td className="px-4 py-3 text-right font-medium text-slate-700">
+                              {currentFish != null && !Number.isNaN(Number(currentFish)) ? Number(currentFish).toLocaleString() : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-slate-800">
+                              {expectedYield != null && (Number(currentFish) > 0 || status === 'CC') ? `${Number(expectedYield).toLocaleString()} kg` : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-32">
+                                  <DropdownMenuItem onClick={() => setViewPondId(p.id)}>
+                                    <Eye className="w-4 h-4 mr-2" /> Xem
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => { setSelectedPond({ id: p.id, code: p.code, area: p.area, depth: p.depth, location: p.location }); setShowEditDialog(true); }}>
+                                    <Edit className="w-4 h-4 mr-2" /> Sửa
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => { setSelectedPond({ id: p.id, code: p.code }); setShowDeleteConfirm(true); }}>
+                                    <Trash2 className="w-4 h-4 mr-2" /> Xoá
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="cycles" className="mt-3 space-y-4 outline-none">
           {checkedHarvest.size > 0 && (
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
               <p className="text-sm text-green-700 font-medium">Đã chọn <strong>{checkedHarvest.size}</strong> chu kỳ để chốt thu hoạch</p>
@@ -545,7 +728,7 @@ export default function Ponds() {
                 }}
                 checked={r.cycle_id ? checkedHarvest.has(r.cycle_id) : false}
                 onCheck={(e) => toggleHarvestCheck(r.cycle_id, e)}
-                onClick={() => navigate(`/ponds/${r.pond_id}`)}
+                onClick={() => (r.cycle_id ? setViewCycleId(r.cycle_id) : setViewPondId(r.pond_id))}
                 harvestAlertDays={harvestAlertDays}
               />
             ))}
@@ -578,7 +761,11 @@ export default function Ponds() {
                     const isWithdrawal = r.withdrawal_end_date && differenceInDays(parseISO(r.withdrawal_end_date), today) >= 0;
 
                     return (
-                      <tr key={r.row_id} onClick={() => navigate(`/ponds/${r.pond_id}`)} className={`hover:bg-primary/5 cursor-pointer transition-colors ${isNewGroup ? 'border-t-2 border-t-muted/40' : ''} ${isOverdue ? 'bg-red-50/40' : isUrgent ? 'bg-yellow-50/40' : ''}`}>
+                      <tr
+                        key={r.row_id}
+                        onClick={() => (r.cycle_id ? setViewCycleId(r.cycle_id) : setViewPondId(r.pond_id))}
+                        className={`hover:bg-primary/5 cursor-pointer transition-colors ${isNewGroup ? 'border-t-2 border-t-muted/40' : ''} ${isOverdue ? 'bg-red-50/40' : isUrgent ? 'bg-yellow-50/40' : ''}`}
+                      >
                         <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                           {(isUrgent && r.status === 'CC' && r.cycle_id) && (
                             <input type="checkbox" checked={checkedHarvest.has(r.cycle_id)} onChange={(e) => toggleHarvestCheck(r.cycle_id, e)} className="w-4 h-4 accent-green-600 cursor-pointer" />
@@ -655,16 +842,35 @@ export default function Ponds() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-32">
-                                <DropdownMenuItem onClick={() => navigate(`/ponds/${r.pond_id}`)}>
+                                <DropdownMenuItem onClick={() => (r.cycle_id ? setViewCycleId(r.cycle_id) : setViewPondId(r.pond_id))}>
                                   <Eye className="w-4 h-4 mr-2" /> Xem
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setSelectedPond({ id: r.pond_id, code: r.pond_code, area: r.area, depth: r.depth, location: r.location }); setShowEditDialog(true); }}>
+                                <DropdownMenuItem onClick={() => {
+                                  if (r.cycle_id) {
+                                    setEditCycleId(r.cycle_id);
+                                  } else {
+                                    setSelectedPond({ id: r.pond_id, code: r.pond_code, area: r.area, depth: r.depth, location: r.location });
+                                    setShowEditDialog(true);
+                                  }
+                                }}>
                                   <Edit className="w-4 h-4 mr-2" /> Sửa
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => { setSelectedPond({ id: r.pond_id, code: r.pond_code }); setShowDeleteConfirm(true); }}>
-                                  <Trash2 className="w-4 h-4 mr-2" /> Xoá
-                                </DropdownMenuItem>
+                                {r.cycle_id ? (
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-600"
+                                    onClick={() => {
+                                      setDeleteCycleId(r.cycle_id);
+                                      setDeleteCycleLabel(`${r.pond_code} · ${r.cycle_name}`);
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" /> Xoá
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => { setSelectedPond({ id: r.pond_id, code: r.pond_code }); setShowDeleteConfirm(true); }}>
+                                    <Trash2 className="w-4 h-4 mr-2" /> Xoá
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </td>
@@ -676,6 +882,8 @@ export default function Ponds() {
               </table>
             </div>
           </div>
+            </TabsContent>
+          </Tabs>
 
           <NewPondDialog open={showNewDialog} onClose={() => setShowNewDialog(false)} onCreated={loadPonds} agencies={agencies} appSettings={appSettings} />
           <EditPondDialog open={showEditDialog} onClose={() => { setShowEditDialog(false); setSelectedPond(null); }} pond={selectedPond} onUpdated={loadPonds} />
@@ -694,6 +902,25 @@ export default function Ponds() {
                 <AlertDialogCancel onClick={() => setSelectedPond(null)}>Huỷ</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDeletePond} disabled={deleting} className="bg-red-600 hover:bg-red-700 text-white">
                   {deleting ? 'Đang xoá...' : 'Xác nhận xoá'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog open={Boolean(deleteCycleId)} onOpenChange={(open) => { if (!open) { setDeleteCycleId(null); setDeleteCycleLabel(''); } }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+                  <AlertCircle className="w-5 h-5" /> Xác nhận xoá chu kỳ
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Bạn có chắc chắn muốn xoá chu kỳ <strong>{deleteCycleLabel || 'đang chọn'}</strong>? Nhật ký và phiếu thu hoạch liên quan sẽ bị xoá theo. Thao tác này không thể hoàn tác.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => { setDeleteCycleId(null); setDeleteCycleLabel(''); }}>Huỷ</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteCycle} disabled={deletingCycle} className="bg-red-600 hover:bg-red-700 text-white">
+                  {deletingCycle ? 'Đang xoá...' : 'Xác nhận xoá'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -729,6 +956,37 @@ export default function Ponds() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PondViewDialog
+        open={Boolean(viewPondId)}
+        pondId={viewPondId}
+        onClose={() => setViewPondId(null)}
+        onEdit={(pond) => {
+          setViewPondId(null);
+          if (!pond) return;
+          setSelectedPond({ id: pond.id, code: pond.code, area: pond.area, depth: pond.depth, location: pond.location });
+          setShowEditDialog(true);
+        }}
+      />
+      <CycleViewDialog
+        open={Boolean(viewCycleId)}
+        cycleId={viewCycleId}
+        onClose={() => setViewCycleId(null)}
+        onEdit={(cycle) => {
+          setViewCycleId(null);
+          if (!cycle?.id) return;
+          setEditCycleId(cycle.id);
+        }}
+      />
+      <CycleEditDialog
+        open={Boolean(editCycleId)}
+        cycleId={editCycleId}
+        onClose={() => setEditCycleId(null)}
+        onSaved={async () => {
+          setEditCycleId(null);
+          await loadPonds();
+        }}
+      />
     </div>
   );
 }
