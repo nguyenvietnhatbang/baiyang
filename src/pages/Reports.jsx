@@ -357,8 +357,8 @@ export default function Reports() {
 
       {/* Modal mở rộng báo cáo */}
       <Dialog open={!!expandedReport} onOpenChange={(open) => !open && setExpandedReport(null)}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[98vh] h-[98vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="px-6 py-4 border-b border-border flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Maximize2 className="w-5 h-5 text-primary" />
               {expandedReport && reportMeta[expandedReport]?.label}
@@ -367,7 +367,7 @@ export default function Reports() {
               {expandedReport && reportMeta[expandedReport]?.desc} — Năm {yearFilter} • {agencyFilterLabel} • {cycleFilterLabel}
             </p>
           </DialogHeader>
-          <div className="mt-2">
+          <div className="flex-1 overflow-y-auto px-6 py-4">
             {expandedReport === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} />}
             {expandedReport === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} />}
             {expandedReport === 'harvest' && <ReportHarvest ponds={scopedCycleRows} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}

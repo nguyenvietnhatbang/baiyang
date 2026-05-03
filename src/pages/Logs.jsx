@@ -225,7 +225,7 @@ export default function Logs() {
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
         <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Chọn ao để ghi nhật ký</Label>
         <div className="flex gap-2">
-          <div className="flex-1">
+          <div className="w-80">
             <Select 
               value={activePond?.id || 'none'} 
               onValueChange={(v) => {
@@ -237,7 +237,7 @@ export default function Logs() {
                 }
               }}
             >
-              <SelectTrigger className="h-10">
+              <SelectTrigger className="h-9">
                 <SelectValue placeholder="Chọn ao nuôi...">
                   {activePond ? `${activePond.code} — ${activePond.owner_name}` : 'Chọn ao nuôi...'}
                 </SelectValue>
@@ -255,7 +255,7 @@ export default function Logs() {
           <Button 
             onClick={() => setShowCamera(true)} 
             variant="outline"
-            className="h-10 px-4" 
+            className="h-9 px-3" 
             size="sm"
           >
             <Camera className="w-4 h-4 mr-2" />
@@ -264,7 +264,7 @@ export default function Logs() {
           {activePond && pickActiveCycle(activePond.pond_cycles) && (
             <Button 
               onClick={() => handleCreateLog(activePond)} 
-              className="bg-emerald-600 text-white h-10 px-4 shadow-sm hover:bg-emerald-700" 
+              className="bg-emerald-600 text-white h-9 px-4 shadow-sm hover:bg-emerald-700" 
               size="sm"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -279,95 +279,77 @@ export default function Logs() {
         )}
       </div>
 
-      {/* Bộ lọc & Thống kê — Bố trí gọn đồng nhất */}
+      {/* Bộ lọc & Thống kê - Gộp chung */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
         {/* Bộ lọc */}
-        <div className="space-y-3">
-          <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Bộ lọc</Label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Từ ngày</Label>
-              <Input
-                type="date"
-                className="h-9"
-                value={logDateFrom}
-                onChange={(e) => { setLogDateFrom(e.target.value); setMonthFilter('all'); }}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Đến ngày</Label>
-              <Input
-                type="date"
-                className="h-9"
-                value={logDateTo}
-                onChange={(e) => { setLogDateTo(e.target.value); setMonthFilter('all'); }}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Tháng</Label>
-              <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); setLogDateFrom(''); setLogDateTo(''); }}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Chọn tháng" />
-                </SelectTrigger>
-                <SelectContent>
-                  {monthFilterItems.map((it) => (
-                    <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Đại lý</Label>
-              <Select value={agencyFilter} onValueChange={setAgencyFilter}>
-                <SelectTrigger className="h-9">
-                  <SelectValue>{agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {agencyFilterItems.map((it) => (
-                    <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <div>
+          <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Bộ lọc</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <Input
+              type="date"
+              className="h-9 text-xs"
+              placeholder="Từ ngày"
+              value={logDateFrom}
+              onChange={(e) => { setLogDateFrom(e.target.value); setMonthFilter('all'); }}
+            />
+            <Input
+              type="date"
+              className="h-9 text-xs"
+              placeholder="Đến ngày"
+              value={logDateTo}
+              onChange={(e) => { setLogDateTo(e.target.value); setMonthFilter('all'); }}
+            />
+            <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); setLogDateFrom(''); setLogDateTo(''); }}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Tháng" />
+              </SelectTrigger>
+              <SelectContent>
+                {monthFilterItems.map((it) => (
+                  <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={agencyFilter} onValueChange={setAgencyFilter}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue>{agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {agencyFilterItems.map((it) => (
+                  <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={activePond?.id || 'all'} onValueChange={(v) => {
+              const pond = v === 'all' ? null : ponds.find(p => p.id === v);
+              setActivePond(pond);
+            }}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Ao">
+                  {activePond ? `${activePond.code}` : 'Tất cả ao'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="max-h-80">
+                {pondFilterItems.map((it) => (
+                  <SelectItem key={it.value} value={it.value} className="text-xs">
+                    {it.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={cycleFilter} onValueChange={setCycleFilter}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue placeholder="Chu kỳ">
+                  {cycleFilter === 'all' ? 'Tất cả chu kỳ' : cycleFilterItems.find((x) => x.value === cycleFilter)?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="max-h-64">
+                {cycleFilterItems.map((it) => (
+                  <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Ao nuôi</Label>
-              <Select value={activePond?.id || 'all'} onValueChange={(v) => {
-                const pond = v === 'all' ? null : ponds.find(p => p.id === v);
-                setActivePond(pond);
-              }}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Chọn ao nuôi">
-                    {activePond ? `${activePond.code} — ${activePond.owner_name}` : 'Tất cả các ao'}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="max-h-80">
-                  {pondFilterItems.map((it) => (
-                    <SelectItem key={it.value} value={it.value}>
-                      {it.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Chu kỳ</Label>
-              <Select value={cycleFilter} onValueChange={setCycleFilter}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Chu kỳ">
-                    {cycleFilter === 'all' ? 'Tất cả chu kỳ' : cycleFilterItems.find((x) => x.value === cycleFilter)?.label}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {cycleFilterItems.map((it) => (
-                    <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 mt-2">
             <div className="relative flex-1">
               <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
@@ -375,7 +357,7 @@ export default function Logs() {
                 value={qrInput}
                 onChange={(e) => setQrInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleQrScan()}
-                className="pl-9 h-9 bg-slate-50 border-dashed"
+                className="pl-9 h-9 text-xs bg-slate-50 border-dashed"
               />
             </div>
             {(logDateFrom || logDateTo || monthFilter !== 'all' || activePond || agencyFilter !== 'all' || cycleFilter !== 'all') && (
@@ -394,34 +376,33 @@ export default function Logs() {
         </div>
 
         {/* Thống kê nhanh */}
-        <div className="border-t border-slate-100 pt-4">
-          <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3 block">Thống kê</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <div className="rounded-lg border border-slate-200 p-3 bg-slate-50/50">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Số bản ghi</p>
-              <p className="text-lg font-bold text-slate-800 mt-1">{summary.nLogs.toLocaleString()}</p>
+        <div className="border-t border-slate-100 pt-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <div className="rounded-lg border border-slate-200 p-2 bg-slate-50/50">
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Số bản ghi</p>
+              <p className="text-base font-bold text-slate-800 mt-0.5">{summary.nLogs.toLocaleString()}</p>
             </div>
-            <div className="rounded-lg border border-blue-200 p-3 bg-blue-50/50">
-              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wide">Thức ăn</p>
-              <p className="text-lg font-bold text-blue-700 mt-1">
+            <div className="rounded-lg border border-blue-200 p-2 bg-blue-50/50">
+              <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wide">Thức ăn</p>
+              <p className="text-base font-bold text-blue-700 mt-0.5">
                 {summary.sumFeedKg > 0 ? `${summary.sumFeedKg.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : '—'}
               </p>
             </div>
-            <div className="rounded-lg border border-emerald-200 p-3 bg-emerald-50/50">
-              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide">Thu hoạch</p>
-              <p className="text-lg font-bold text-emerald-700 mt-1">
+            <div className="rounded-lg border border-emerald-200 p-2 bg-emerald-50/50">
+              <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Thu hoạch</p>
+              <p className="text-base font-bold text-emerald-700 mt-0.5">
                 {summary.sumHarvestKg > 0 ? `${summary.sumHarvestKg.toLocaleString(undefined, { maximumFractionDigits: 0 })} kg` : '—'}
               </p>
             </div>
-            <div className="rounded-lg border border-amber-200 p-3 bg-amber-50/50">
-              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">Hao hụt</p>
-              <p className="text-lg font-bold text-amber-700 mt-1">
+            <div className="rounded-lg border border-amber-200 p-2 bg-amber-50/50">
+              <p className="text-[9px] font-bold text-amber-600 uppercase tracking-wide">Hao hụt</p>
+              <p className="text-base font-bold text-amber-700 mt-0.5">
                 {summary.sumDead.toLocaleString()} con
               </p>
             </div>
-            <div className="rounded-lg border border-violet-200 p-3 bg-violet-50/50 col-span-2 sm:col-span-1">
-              <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wide">FCR Kỳ lọc</p>
-              <p className="text-lg font-bold text-violet-700 mt-1">
+            <div className="rounded-lg border border-violet-200 p-2 bg-violet-50/50 col-span-2 sm:col-span-1">
+              <p className="text-[9px] font-bold text-violet-600 uppercase tracking-wide">FCR Kỳ lọc</p>
+              <p className="text-base font-bold text-violet-700 mt-0.5">
                 {summary.fcrPeriod != null ? summary.fcrPeriod.toLocaleString() : '—'}
               </p>
             </div>
@@ -432,11 +413,11 @@ export default function Logs() {
       {/* Danh sách — Full width */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm">
-            <ClipboardList className="w-4 h-4 text-primary" />
+          <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm whitespace-nowrap">
+            <ClipboardList className="w-4 h-4 text-primary flex-shrink-0" />
             DANH SÁCH NHẬT KÝ {activePond ? `— ${activePond.code}` : ''}
           </h3>
-          <span className="text-xs font-medium text-slate-500 bg-white px-2.5 py-1 rounded-full border border-slate-200">{displayLogs.length} dòng</span>
+          <span className="text-xs font-medium text-slate-500 bg-white px-2.5 py-1 rounded-full border border-slate-200 whitespace-nowrap">{displayLogs.length} dòng</span>
         </div>
         <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h3 className="font-bold text-slate-700 flex items-center gap-2 text-xs">
