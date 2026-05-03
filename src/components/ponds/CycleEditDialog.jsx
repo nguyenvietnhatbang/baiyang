@@ -143,7 +143,7 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? onClose?.() : null)}>
-      <DialogContent className="sm:max-w-6xl">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Sửa chu kỳ — {title || cycleId || ''}</DialogTitle>
         </DialogHeader>

@@ -55,7 +55,7 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? onClose?.() : null)}>
-      <DialogContent className="sm:max-w-6xl">
+      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 pr-10">
             <Eye className="w-4 h-4 text-muted-foreground" />
