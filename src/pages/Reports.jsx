@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { Download } from 'lucide-react';
+import { Download, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
@@ -64,6 +65,7 @@ export default function Reports() {
   const [cycleSearch, setCycleSearch] = useState('');
   const [exportGranularity, setExportGranularity] = useState('agency');
   const [exporting, setExporting] = useState(false);
+  const [expandedReport, setExpandedReport] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -332,15 +334,46 @@ export default function Reports() {
 
       {reportType !== 'summary' && (
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border">
-            <h3 className="font-semibold text-foreground">{reportMeta[reportType]?.label}</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">{reportMeta[reportType]?.desc} — Năm {yearFilter}</p>
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-foreground">{reportMeta[reportType]?.label}</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">{reportMeta[reportType]?.desc} — Năm {yearFilter}</p>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-2"
+              onClick={() => setExpandedReport(reportType)}
+            >
+              <Maximize2 className="w-4 h-4" />
+              Mở rộng
+            </Button>
           </div>
           {reportType === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} />}
           {reportType === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} />}
           {reportType === 'harvest' && <ReportHarvest ponds={scopedCycleRows} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
         </div>
       )}
+
+      {/* Modal mở rộng báo cáo */}
+      <Dialog open={!!expandedReport} onOpenChange={(open) => !open && setExpandedReport(null)}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Maximize2 className="w-5 h-5 text-primary" />
+              {expandedReport && reportMeta[expandedReport]?.label}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              {expandedReport && reportMeta[expandedReport]?.desc} — Năm {yearFilter} • {agencyFilterLabel} • {cycleFilterLabel}
+            </p>
+          </DialogHeader>
+          <div className="mt-2">
+            {expandedReport === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} />}
+            {expandedReport === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} />}
+            {expandedReport === 'harvest' && <ReportHarvest ponds={scopedCycleRows} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

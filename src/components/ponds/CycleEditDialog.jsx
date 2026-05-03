@@ -10,8 +10,8 @@ import { base44 } from '@/api/base44Client';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 
 const STATUS_ITEMS = [
-  { value: 'CC', label: 'CC — Có cá / đang nuôi' },
-  { value: 'CT', label: 'CT — Chưa thả / quay vòng' },
+  { value: 'CC', label: 'CC — Có cá' },
+  { value: 'CT', label: 'CT — Chưa thả' },
 ];
 
 export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
