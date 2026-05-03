@@ -225,7 +225,7 @@ export default function Logs() {
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
         <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Chọn ao để ghi nhật ký</Label>
         <div className="flex gap-2">
-          <div className="w-80">
+          <div className="flex-1">
             <Select 
               value={activePond?.id || 'none'} 
               onValueChange={(v) => {
@@ -284,7 +284,7 @@ export default function Logs() {
         {/* Bộ lọc */}
         <div>
           <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Bộ lọc</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             <Input
               type="date"
               className="h-9 text-xs"
@@ -319,23 +319,6 @@ export default function Logs() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={activePond?.id || 'all'} onValueChange={(v) => {
-              const pond = v === 'all' ? null : ponds.find(p => p.id === v);
-              setActivePond(pond);
-            }}>
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Ao">
-                  {activePond ? `${activePond.code}` : 'Tất cả ao'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-80">
-                {pondFilterItems.map((it) => (
-                  <SelectItem key={it.value} value={it.value} className="text-xs">
-                    {it.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Select value={cycleFilter} onValueChange={setCycleFilter}>
               <SelectTrigger className="h-9 text-xs">
                 <SelectValue placeholder="Chu kỳ">
@@ -350,16 +333,6 @@ export default function Logs() {
             </Select>
           </div>
           <div className="flex gap-2 mt-2">
-            <div className="relative flex-1">
-              <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                placeholder="Quét hoặc nhập mã ao nhanh..."
-                value={qrInput}
-                onChange={(e) => setQrInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleQrScan()}
-                className="pl-9 h-9 text-xs bg-slate-50 border-dashed"
-              />
-            </div>
             {(logDateFrom || logDateTo || monthFilter !== 'all' || activePond || agencyFilter !== 'all' || cycleFilter !== 'all') && (
               <Button variant="outline" size="sm" className="h-9 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => { 
                 setLogDateFrom(''); 
@@ -418,13 +391,6 @@ export default function Logs() {
             DANH SÁCH NHẬT KÝ {activePond ? `— ${activePond.code}` : ''}
           </h3>
           <span className="text-xs font-medium text-slate-500 bg-white px-2.5 py-1 rounded-full border border-slate-200 whitespace-nowrap">{displayLogs.length} dòng</span>
-        </div>
-        <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <h3 className="font-bold text-slate-700 flex items-center gap-2 text-xs">
-            <ClipboardList className="w-3.5 h-3.5 text-primary" />
-            DANH SÁCH NHẬT KÝ {activePond ? `— ${activePond.code}` : ''}
-          </h3>
-          <span className="text-[10px] font-medium text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">{displayLogs.length} dòng</span>
         </div>
 
         <div className="overflow-x-auto min-h-[400px]">

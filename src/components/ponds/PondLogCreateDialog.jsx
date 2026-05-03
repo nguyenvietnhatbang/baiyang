@@ -87,6 +87,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, cycle, onSave
     try {
       await base44.entities.PondLog.create({
         pond_id: pond.id,
+        pond_code: pond.code,
         pond_cycle_id: cycle.id,
         log_date: form.log_date,
         ph: toNumOrNull(form.ph),
