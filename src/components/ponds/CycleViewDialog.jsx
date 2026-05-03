@@ -144,32 +144,42 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
 
               <TabsContent value="detail" className="mt-3 outline-none">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-                  <div className="lg:col-span-5 rounded-xl border border-border bg-card p-4 space-y-2">
+                  <div className="lg:col-span-6 rounded-xl border border-border bg-card p-4 space-y-3">
                     <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Thông tin chu kỳ</p>
-                    <div className="text-sm grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <div className="rounded-lg border border-border p-2">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tên</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tên chu kỳ</p>
                         <p className="font-semibold text-foreground mt-0.5">{cycle.name || '—'}</p>
                       </div>
                       <div className="rounded-lg border border-border p-2">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Trạng thái</p>
-                        <p className="font-semibold text-foreground mt-0.5">{cycle.status || '—'}</p>
+                        <p className="font-semibold text-foreground mt-0.5">
+                          {cycle.status === 'CC' ? '🟢 Có cá / Đang nuôi' : cycle.status === 'CT' ? '⚪ Chưa thả / Quay vòng' : cycle.status || '—'}
+                        </p>
                       </div>
                       <div className="rounded-lg border border-border p-2">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Thu DK (gốc)</p>
-                        <p className="font-semibold text-foreground mt-0.5">{cycle.initial_expected_harvest_date || '—'}</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Ngày thả</p>
+                        <p className="font-semibold text-foreground mt-0.5">{cycle.stock_date || '—'}</p>
                       </div>
                       <div className="rounded-lg border border-border p-2">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Thu DK (điều chỉnh)</p>
-                        <p className="font-semibold text-foreground mt-0.5">{cycle.expected_harvest_date || '—'}</p>
-                      </div>
-                      <div className="rounded-lg border border-border p-2">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tổng thả</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tổng cá thả</p>
                         <p className="font-semibold text-foreground mt-0.5">{fmtNumber(cycle.total_fish)}</p>
                       </div>
                       <div className="rounded-lg border border-border p-2">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Hết ngưng thuốc</p>
-                        <p className="font-semibold text-foreground mt-0.5">{cycle.withdrawal_end_date || '—'}</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Size giống</p>
+                        <p className="font-semibold text-foreground mt-0.5">{cycle.seed_size != null ? `${cycle.seed_size} cm` : '—'}</p>
+                      </div>
+                      <div className="rounded-lg border border-border p-2">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">TL giống</p>
+                        <p className="font-semibold text-foreground mt-0.5">{cycle.seed_weight != null ? `${cycle.seed_weight} g` : '—'}</p>
+                      </div>
+                      <div className="rounded-lg border border-border p-2">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Mật độ thả</p>
+                        <p className="font-semibold text-foreground mt-0.5">{cycle.density != null ? `${cycle.density} con/m²` : '—'}</p>
+                      </div>
+                      <div className="rounded-lg border border-border p-2">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Số cá hiện tại</p>
+                        <p className="font-semibold text-foreground mt-0.5">{fmtNumber(cycle.current_fish ?? cycle.total_fish)}</p>
                       </div>
                       <div className="rounded-lg border border-border p-2">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tỷ lệ sống</p>
@@ -179,38 +189,113 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">TL thu kỳ vọng</p>
                         <p className="font-semibold text-foreground mt-0.5">{cycle.target_weight != null ? `${cycle.target_weight} g` : '—'}</p>
                       </div>
+                      <div className="rounded-lg border border-border p-2">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">SL dự kiến</p>
+                        <p className="font-semibold text-foreground mt-0.5">{cycle.expected_yield != null ? `${fmtNumber(cycle.expected_yield)} kg` : '—'}</p>
+                      </div>
                     </div>
-                    {cycle.notes ? (
+
+                    <div className="border-t border-border pt-3 space-y-2">
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Mốc thời gian</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-border p-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Thu DK (gốc)</p>
+                          <p className="font-semibold text-foreground mt-0.5">{cycle.initial_expected_harvest_date || '—'}</p>
+                        </div>
+                        <div className="rounded-lg border border-border p-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Thu DK (điều chỉnh)</p>
+                          <p className="font-semibold text-foreground mt-0.5">{cycle.expected_harvest_date || '—'}</p>
+                        </div>
+                        <div className="rounded-lg border border-border p-2 col-span-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Hết ngưng thuốc</p>
+                          <p className="font-semibold text-foreground mt-0.5">{cycle.withdrawal_end_date || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {cycle.notes && (
                       <div className="rounded-lg border border-border p-2">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Ghi chú</p>
                         <p className="text-sm text-foreground mt-0.5 whitespace-pre-wrap">{cycle.notes}</p>
                       </div>
-                    ) : null}
+                    )}
                   </div>
 
-                  <div className="lg:col-span-7 rounded-xl border border-border bg-card p-4 space-y-2">
-                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Theo ao</p>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="rounded-lg border border-border p-2">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Mã ao</p>
-                        <p className="font-mono font-bold text-foreground mt-0.5">{pond?.code || cycle.pond_code || '—'}</p>
-                      </div>
-                      <div className="rounded-lg border border-border p-2">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Chủ hộ</p>
-                        <p className="font-semibold text-foreground mt-0.5">{pond?.owner_name || '—'}</p>
-                      </div>
-                      <div className="rounded-lg border border-border p-2">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Đại lý</p>
-                        <p className="font-semibold text-foreground mt-0.5">{pond?.agency_code || '—'}</p>
-                      </div>
-                      <div className="rounded-lg border border-border p-2">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Mã lô gợi ý</p>
-                        <p className="font-mono text-xs text-foreground mt-0.5">{pond?.code ? `LOT-${pond.code}-${String(new Date().toISOString().slice(0, 10)).replace(/-/g, '')}` : '—'}</p>
+                  <div className="lg:col-span-6 space-y-3">
+                    {/* Thông tin ao */}
+                    <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Thông tin ao</p>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-lg border border-border p-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Mã ao</p>
+                          <p className="font-mono font-bold text-foreground mt-0.5">{pond?.code || cycle.pond_code || '—'}</p>
+                        </div>
+                        <div className="rounded-lg border border-border p-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Chủ hộ</p>
+                          <p className="font-semibold text-foreground mt-0.5">{pond?.owner_name || '—'}</p>
+                        </div>
+                        <div className="rounded-lg border border-border p-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Đại lý</p>
+                          <p className="font-semibold text-foreground mt-0.5">{pond?.agency_code || '—'}</p>
+                        </div>
+                        <div className="rounded-lg border border-border p-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Diện tích</p>
+                          <p className="font-semibold text-foreground mt-0.5">{pond?.area ? `${pond.area} m²` : '—'}</p>
+                        </div>
                       </div>
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Ghi thu hoạch: vào tab <strong>Thu hoạch</strong> và bấm <strong>Ghi thu hoạch</strong>.
-                    </p>
+
+                    {/* Thống kê thức ăn & FCR */}
+                    <div className="rounded-xl border border-border bg-blue-50/30 p-4 space-y-2">
+                      <p className="text-[11px] font-bold text-blue-900/90 uppercase tracking-wider">Thức ăn & FCR</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-blue-200 bg-white p-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tổng thức ăn</p>
+                          <p className="font-bold text-blue-700 mt-0.5">{cycle.total_feed_used != null ? `${fmtNumber(cycle.total_feed_used)} kg` : '—'}</p>
+                        </div>
+                        <div className="rounded-lg border border-blue-200 bg-white p-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">FCR</p>
+                          <p className="font-bold text-blue-700 mt-0.5">
+                            {cycle.fcr != null ? (
+                              <span className={cycle.fcr <= 1.3 ? 'text-green-600' : cycle.fcr <= 1.6 ? 'text-yellow-600' : 'text-red-600'}>
+                                {cycle.fcr}
+                              </span>
+                            ) : '—'}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-blue-700/70">FCR = Tổng thức ăn ÷ Sản lượng thực thu</p>
+                    </div>
+
+                    {/* Kết quả thu hoạch */}
+                    <div className="rounded-xl border border-border bg-green-50/30 p-4 space-y-2">
+                      <p className="text-[11px] font-bold text-green-900/90 uppercase tracking-wider">Kết quả thu hoạch</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-green-200 bg-white p-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Thực thu</p>
+                          <p className="font-bold text-green-700 mt-0.5">{cycle.actual_yield != null ? `${fmtNumber(cycle.actual_yield)} kg` : '—'}</p>
+                        </div>
+                        <div className="rounded-lg border border-green-200 bg-white p-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Đã thu hoạch</p>
+                          <p className="font-bold text-green-700 mt-0.5">{cycle.harvest_done ? '✅ Đã chốt' : '⏳ Chưa'}</p>
+                        </div>
+                        <div className="rounded-lg border border-green-200 bg-white p-2 col-span-2">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Đạt kế hoạch</p>
+                          <p className="font-bold text-green-700 mt-0.5">
+                            {cycle.actual_yield != null && cycle.expected_yield != null ? (
+                              `${Math.round((cycle.actual_yield / cycle.expected_yield) * 100)}%`
+                            ) : '—'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mã lô truy xuất */}
+                    <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+                      <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">Mã lô truy xuất gợi ý</p>
+                      <p className="font-mono text-sm font-bold text-primary">{pond?.code ? `LOT-${pond.code}-${String(new Date().toISOString().slice(0, 10)).replace(/-/g, '')}` : '—'}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Dùng khi ghi phiếu thu hoạch</p>
+                    </div>
                   </div>
                 </div>
               </TabsContent>

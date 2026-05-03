@@ -21,6 +21,9 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
     status: 'CT',
     stock_date: '',
     total_fish: '',
+    seed_size: '',
+    seed_weight: '',
+    density: '',
     survival_rate: 90,
     target_weight: 800,
     initial_expected_harvest_date: '',
@@ -66,6 +69,9 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
             status: c?.status || 'CT',
             stock_date: c?.stock_date || '',
             total_fish: c?.total_fish ?? '',
+            seed_size: c?.seed_size ?? '',
+            seed_weight: c?.seed_weight ?? '',
+            density: c?.density ?? '',
             survival_rate: c?.survival_rate ?? 90,
             target_weight: c?.target_weight ?? 800,
             initial_expected_harvest_date: c?.initial_expected_harvest_date || '',
@@ -108,6 +114,9 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
         status: form.status || 'CT',
         stock_date: form.stock_date || null,
         total_fish: form.total_fish === '' ? null : Number(form.total_fish),
+        seed_size: form.seed_size === '' ? null : Number(form.seed_size),
+        seed_weight: form.seed_weight === '' ? null : Number(form.seed_weight),
+        density: form.density === '' ? null : Number(form.density),
         survival_rate: form.survival_rate === '' ? null : Number(form.survival_rate),
         target_weight: form.target_weight === '' ? null : Number(form.target_weight),
         initial_expected_harvest_date: form.initial_expected_harvest_date || null,
@@ -202,11 +211,23 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
                         <Input className="mt-1" type="date" {...f('initial_expected_harvest_date')} />
                       </div>
                       <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Size giống (cm)</Label>
+                        <Input className="mt-1" type="number" step="0.1" {...f('seed_size')} />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL giống (g)</Label>
+                        <Input className="mt-1" type="number" step="0.1" {...f('seed_weight')} />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mật độ thả (con/m²)</Label>
+                        <Input className="mt-1" type="number" step="0.1" {...f('density')} />
+                      </div>
+                      <div>
                         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tỷ lệ sống (%)</Label>
                         <Input className="mt-1" type="number" {...f('survival_rate')} />
                       </div>
                       <div>
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL kỳ vọng (g)</Label>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL kỳ vọng lúc thu (g)</Label>
                         <Input className="mt-1" type="number" {...f('target_weight')} />
                       </div>
                     </div>
