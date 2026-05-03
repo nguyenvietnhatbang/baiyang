@@ -279,146 +279,165 @@ export default function Logs() {
         )}
       </div>
 
-      {/* Bộ lọc — Thu gọn và chuyên nghiệp hơn */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          
-          {/* Nhóm 1: Thời gian (4 cols) */}
-          <div className="lg:col-span-4 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Thời gian</Label>
-              <button onClick={clearDateMonth} className="text-[10px] text-primary hover:underline">Xóa mốc</button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
+      {/* Bộ lọc & Thống kê — Bố trí gọn đồng nhất */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
+        {/* Bộ lọc */}
+        <div className="space-y-3">
+          <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Bộ lọc</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Từ ngày</Label>
               <Input
                 type="date"
-                className="h-8 text-[11px] px-2"
+                className="h-9"
                 value={logDateFrom}
                 onChange={(e) => { setLogDateFrom(e.target.value); setMonthFilter('all'); }}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Đến ngày</Label>
               <Input
                 type="date"
-                className="h-8 text-[11px] px-2"
+                className="h-9"
                 value={logDateTo}
                 onChange={(e) => { setLogDateTo(e.target.value); setMonthFilter('all'); }}
               />
             </div>
-            <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); setLogDateFrom(''); setLogDateTo(''); }}>
-              <SelectTrigger className="h-8 text-[11px]">
-                <SelectValue placeholder="Chọn tháng" />
-              </SelectTrigger>
-              <SelectContent>
-                {monthFilterItems.map((it) => (
-                  <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Tháng</Label>
+              <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); setLogDateFrom(''); setLogDateTo(''); }}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Chọn tháng" />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthFilterItems.map((it) => (
+                    <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Đại lý</Label>
+              <Select value={agencyFilter} onValueChange={setAgencyFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue>{agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {agencyFilterItems.map((it) => (
+                    <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-
-          {/* Nhóm 2: Đối tượng (8 cols) */}
-          <div className="lg:col-span-8 space-y-2.5">
-             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Đối tượng lọc</Label>
-             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Select value={activePond?.id || 'all'} onValueChange={(v) => {
-                  const pond = v === 'all' ? null : ponds.find(p => p.id === v);
-                  setActivePond(pond);
-                }}>
-                  <SelectTrigger className="h-8 text-[11px]">
-                    <SelectValue placeholder="Chọn ao nuôi">
-                      {activePond ? `${activePond.code} — ${activePond.owner_name}` : 'Tất cả các ao'}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="max-h-80">
-                    {pondFilterItems.map((it) => (
-                      <SelectItem key={it.value} value={it.value} className="text-xs">
-                        {it.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={agencyFilter} onValueChange={setAgencyFilter}>
-                  <SelectTrigger className="h-8 text-[11px]">
-                    <SelectValue placeholder="Đại lý">
-                      {agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {agencyFilterItems.map((it) => (
-                      <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={cycleFilter} onValueChange={setCycleFilter}>
-                  <SelectTrigger className="h-8 text-[11px]">
-                    <SelectValue placeholder="Chu kỳ">
-                      {cycleFilter === 'all' ? 'Tất cả chu kỳ' : cycleFilterItems.find((x) => x.value === cycleFilter)?.label}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="max-h-64">
-                    {cycleFilterItems.map((it) => (
-                      <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-             </div>
-
-             <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <QrCode className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                  <Input
-                    placeholder="Quét hoặc nhập mã ao nhanh..."
-                    value={qrInput}
-                    onChange={(e) => setQrInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleQrScan()}
-                    className="pl-8 h-8 text-[11px] bg-slate-50 border-dashed"
-                  />
-                </div>
-                {(activePond || agencyFilter !== 'all' || cycleFilter !== 'all') && (
-                  <Button variant="ghost" size="sm" className="h-8 text-[10px] text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => { setActivePond(null); setAgencyFilter('all'); setCycleFilter('all'); }}>
-                    Xóa tất cả lọc
-                  </Button>
-                )}
-             </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Ao nuôi</Label>
+              <Select value={activePond?.id || 'all'} onValueChange={(v) => {
+                const pond = v === 'all' ? null : ponds.find(p => p.id === v);
+                setActivePond(pond);
+              }}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Chọn ao nuôi">
+                    {activePond ? `${activePond.code} — ${activePond.owner_name}` : 'Tất cả các ao'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {pondFilterItems.map((it) => (
+                    <SelectItem key={it.value} value={it.value}>
+                      {it.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-slate-500 uppercase tracking-wide">Chu kỳ</Label>
+              <Select value={cycleFilter} onValueChange={setCycleFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Chu kỳ">
+                    {cycleFilter === 'all' ? 'Tất cả chu kỳ' : cycleFilterItems.find((x) => x.value === cycleFilter)?.label}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {cycleFilterItems.map((it) => (
+                    <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Quét hoặc nhập mã ao nhanh..."
+                value={qrInput}
+                onChange={(e) => setQrInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleQrScan()}
+                className="pl-9 h-9 bg-slate-50 border-dashed"
+              />
+            </div>
+            {(logDateFrom || logDateTo || monthFilter !== 'all' || activePond || agencyFilter !== 'all' || cycleFilter !== 'all') && (
+              <Button variant="outline" size="sm" className="h-9 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => { 
+                setLogDateFrom(''); 
+                setLogDateTo(''); 
+                setMonthFilter('all'); 
+                setActivePond(null); 
+                setAgencyFilter('all'); 
+                setCycleFilter('all'); 
+              }}>
+                Xóa bộ lọc
+              </Button>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* Thống kê nhanh — Nhỏ gọn hơn */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 px-0.5">
-        <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm">
-          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Số bản ghi</p>
-          <p className="text-sm font-bold text-slate-700 mt-0.5">{summary.nLogs.toLocaleString()}</p>
-        </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm border-l-4 border-l-blue-500">
-          <p className="text-[9px] font-bold text-blue-500 uppercase tracking-tight">Thức ăn</p>
-          <p className="text-sm font-bold text-slate-700 mt-0.5">
-            {summary.sumFeedKg > 0 ? `${summary.sumFeedKg.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : '—'}
-          </p>
-        </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm border-l-4 border-l-emerald-500">
-          <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-tight">Thu hoạch</p>
-          <p className="text-sm font-bold text-slate-700 mt-0.5">
-            {summary.sumHarvestKg > 0 ? `${summary.sumHarvestKg.toLocaleString(undefined, { maximumFractionDigits: 0 })} kg` : '—'}
-          </p>
-        </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm border-l-4 border-l-amber-500">
-          <p className="text-[9px] font-bold text-amber-500 uppercase tracking-tight">Hao hụt</p>
-          <p className="text-sm font-bold text-slate-700 mt-0.5">
-            {summary.sumDead.toLocaleString()} con
-          </p>
-        </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm border-l-4 border-l-violet-500 col-span-2 sm:col-span-1">
-          <p className="text-[9px] font-bold text-violet-500 uppercase tracking-tight">FCR Kỳ lọc</p>
-          <p className="text-sm font-bold text-slate-700 mt-0.5">
-            {summary.fcrPeriod != null ? summary.fcrPeriod.toLocaleString() : '—'}
-          </p>
+        {/* Thống kê nhanh */}
+        <div className="border-t border-slate-100 pt-4">
+          <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3 block">Thống kê</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="rounded-lg border border-slate-200 p-3 bg-slate-50/50">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Số bản ghi</p>
+              <p className="text-lg font-bold text-slate-800 mt-1">{summary.nLogs.toLocaleString()}</p>
+            </div>
+            <div className="rounded-lg border border-blue-200 p-3 bg-blue-50/50">
+              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wide">Thức ăn</p>
+              <p className="text-lg font-bold text-blue-700 mt-1">
+                {summary.sumFeedKg > 0 ? `${summary.sumFeedKg.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : '—'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-emerald-200 p-3 bg-emerald-50/50">
+              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide">Thu hoạch</p>
+              <p className="text-lg font-bold text-emerald-700 mt-1">
+                {summary.sumHarvestKg > 0 ? `${summary.sumHarvestKg.toLocaleString(undefined, { maximumFractionDigits: 0 })} kg` : '—'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-amber-200 p-3 bg-amber-50/50">
+              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">Hao hụt</p>
+              <p className="text-lg font-bold text-amber-700 mt-1">
+                {summary.sumDead.toLocaleString()} con
+              </p>
+            </div>
+            <div className="rounded-lg border border-violet-200 p-3 bg-violet-50/50 col-span-2 sm:col-span-1">
+              <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wide">FCR Kỳ lọc</p>
+              <p className="text-lg font-bold text-violet-700 mt-1">
+                {summary.fcrPeriod != null ? summary.fcrPeriod.toLocaleString() : '—'}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Danh sách — Full width */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm">
+            <ClipboardList className="w-4 h-4 text-primary" />
+            DANH SÁCH NHẬT KÝ {activePond ? `— ${activePond.code}` : ''}
+          </h3>
+          <span className="text-xs font-medium text-slate-500 bg-white px-2.5 py-1 rounded-full border border-slate-200">{displayLogs.length} dòng</span>
+        </div>
         <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h3 className="font-bold text-slate-700 flex items-center gap-2 text-xs">
             <ClipboardList className="w-3.5 h-3.5 text-primary" />
@@ -470,49 +489,49 @@ export default function Logs() {
 
               {/* Desktop Table View - Scrollable */}
               <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full text-[11px] min-w-[800px]">
+                <table className="w-full text-sm min-w-[800px]">
                   <thead>
-                    <tr className="bg-slate-50/80 border-b border-slate-100 sticky top-0 z-10">
-                      <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Ngày</th>
-                      <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Mã ao</th>
-                      <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Hao hụt</th>
-                      <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Thức ăn</th>
-                      <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">pH</th>
-                      <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">T°</th>
-                      <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Ghi chú / Thuốc</th>
-                      <th className="px-4 py-2.5 whitespace-nowrap" />
+                    <tr className="bg-muted/30 border-b border-border">
+                      <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">NGÀY</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">MÃ AO</th>
+                      <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">HAO HỤT</th>
+                      <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THỨC ĂN</th>
+                      <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">pH</th>
+                      <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">T°</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">GHI CHÚ / THUỐC</th>
+                      <th className="px-4 py-3 whitespace-nowrap" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-50">
+                  <tbody className="divide-y divide-border/60">
                     {displayLogs.map((log) => (
                       <tr
                         key={log.id}
-                        className="hover:bg-slate-50/80 cursor-pointer group transition-colors"
+                        className="hover:bg-primary/5 cursor-pointer group transition-colors"
                         onClick={() => {
                           setSelectedLog(log);
                           setShowLogDialog(false);
                         }}
                       >
-                        <td className="px-4 py-2.5 text-slate-400 font-medium whitespace-nowrap">{log.log_date}</td>
-                        <td className="px-4 py-2.5 font-bold text-slate-700 whitespace-nowrap">{log.pond_code}</td>
-                        <td className="px-4 py-2.5 text-right font-bold text-red-500 whitespace-nowrap">
+                        <td className="px-4 py-3 text-slate-500 font-medium whitespace-nowrap">{log.log_date}</td>
+                        <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{log.pond_code}</td>
+                        <td className="px-4 py-3 text-right font-bold text-red-600 whitespace-nowrap">
                           {log.dead_fish > 0 ? `-${log.dead_fish}` : '—'}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-bold text-blue-600 whitespace-nowrap">
+                        <td className="px-4 py-3 text-right font-bold text-blue-600 whitespace-nowrap">
                           {log.feed_amount ? `${log.feed_amount}kg` : '—'}
                         </td>
-                        <td className={`px-4 py-2.5 text-right font-medium whitespace-nowrap ${log.ph && (log.ph < 6.5 || log.ph > 8.5) ? 'text-red-600' : 'text-slate-600'}`}>
+                        <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${log.ph && (log.ph < 6.5 || log.ph > 8.5) ? 'text-red-600' : 'text-slate-600'}`}>
                           {log.ph || '—'}
                         </td>
-                        <td className={`px-4 py-2.5 text-right font-medium whitespace-nowrap ${log.temperature && (log.temperature < 25 || log.temperature > 32) ? 'text-red-600' : 'text-slate-600'}`}>
+                        <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${log.temperature && (log.temperature < 25 || log.temperature > 32) ? 'text-red-600' : 'text-slate-600'}`}>
                           {log.temperature || '—'}
                         </td>
-                        <td className="px-4 py-2.5 text-slate-500 max-w-[250px]">
+                        <td className="px-4 py-3 text-slate-600 max-w-[250px]">
                           <div className="truncate">
                             {log.medicine_used ? `💊 ${log.medicine_used}` : log.notes || '—'}
                           </div>
                         </td>
-                        <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={(e) => {
@@ -520,13 +539,13 @@ export default function Logs() {
                                 setSelectedLog(log);
                                 setShowLogDialog(true);
                               }}
-                              className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-100"
+                              className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-200"
                               title="Sửa nhật ký"
                             >
-                              <Edit className="w-3 h-3 text-slate-600" />
+                              <Edit className="w-3.5 h-3.5 text-slate-600" />
                             </button>
-                            <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <ChevronRight className="w-3 h-3 text-slate-400" />
+                            <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                             </div>
                           </div>
                         </td>

@@ -164,9 +164,11 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
             {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
 
             {!confirmDelete ? (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 py-1">
-                <div className="lg:col-span-4 space-y-4">
+              <div className="space-y-4 py-1">
+                {/* Row 1: Thông tin cơ bản */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   <div className="rounded-lg border border-border p-3 space-y-3">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Thông tin cơ bản</p>
                     <div>
                       <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tên chu kỳ</Label>
                       <Input className="mt-1" placeholder="Ví dụ: Thả T3/2026" {...f('name')} />
@@ -192,13 +194,6 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
                     </div>
                   </div>
 
-                  <div>
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ghi chú</Label>
-                    <Textarea className="mt-1 h-32 text-sm" placeholder="Ghi chú..." {...f('notes')} />
-                  </div>
-                </div>
-
-                <div className="lg:col-span-4 space-y-4">
                   <div className="rounded-lg border border-border p-3 space-y-3">
                     <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Kế hoạch ban đầu</p>
                     <div className="grid grid-cols-2 gap-3">
@@ -218,23 +213,9 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
                         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL giống (g)</Label>
                         <Input className="mt-1" type="number" step="0.1" {...f('seed_weight')} />
                       </div>
-                      <div>
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mật độ thả (con/m²)</Label>
-                        <Input className="mt-1" type="number" step="0.1" {...f('density')} />
-                      </div>
-                      <div>
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tỷ lệ sống (%)</Label>
-                        <Input className="mt-1" type="number" {...f('survival_rate')} />
-                      </div>
-                      <div>
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL kỳ vọng lúc thu (g)</Label>
-                        <Input className="mt-1" type="number" {...f('target_weight')} />
-                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="lg:col-span-4 space-y-4">
                   <div className="rounded-lg border border-border p-3 space-y-3 bg-amber-50/30">
                     <p className="text-[11px] font-bold text-amber-900/90 uppercase tracking-wider">Kế hoạch điều chỉnh</p>
                     <div className="grid grid-cols-2 gap-3">
@@ -243,16 +224,37 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
                         <Input className="mt-1" type="number" {...f('current_fish')} />
                       </div>
                       <div>
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">SL mục tiêu (tự tính)</Label>
-                        <Input className="mt-1 bg-muted/40" readOnly value={computedExpectedYield != null ? computedExpectedYield : ''} placeholder="—" />
-                        <p className="text-[10px] text-muted-foreground mt-1">= số cá hiện tại × tỷ lệ sống × TL thu ÷ 1.000</p>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">SL mục tiêu (kg)</Label>
+                        <Input className="mt-1 bg-muted/40 font-bold" readOnly value={computedExpectedYield != null ? computedExpectedYield : ''} placeholder="—" />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-amber-700 bg-amber-100/50 rounded px-2 py-1">= số cá × tỷ lệ sống × TL thu ÷ 1.000</p>
+                  </div>
+                </div>
+
+                {/* Row 2: Thông số kỹ thuật */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="rounded-lg border border-border p-3 space-y-3">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Thông số kỹ thuật</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mật độ (con/m²)</Label>
+                        <Input className="mt-1" type="number" step="0.1" {...f('density')} />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tỷ lệ sống (%)</Label>
+                        <Input className="mt-1" type="number" {...f('survival_rate')} />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL kỳ vọng lúc thu (g)</Label>
+                        <Input className="mt-1" type="number" {...f('target_weight')} />
                       </div>
                     </div>
                   </div>
 
                   <div className="rounded-lg border border-border p-3 space-y-3">
                     <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Mốc vận hành</p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-3">
                       <div>
                         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Thu hoạch dự kiến</Label>
                         <Input className="mt-1" type="date" {...f('expected_harvest_date')} />
@@ -264,23 +266,29 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
                     </div>
                   </div>
 
-                  <DialogFooter className="gap-2 sm:gap-0">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="border-red-200 text-red-600 hover:bg-red-50"
-                      onClick={() => setConfirmDelete(true)}
-                      disabled={saving || deleting}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Xóa chu kỳ
-                    </Button>
-                    <Button type="button" onClick={handleSave} disabled={saving || deleting} className="bg-primary text-white">
-                      <Save className="w-4 h-4 mr-2" />
-                      {saving ? 'Đang lưu...' : 'Lưu'}
-                    </Button>
-                  </DialogFooter>
+                  <div>
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ghi chú</Label>
+                    <Textarea className="mt-1 h-[calc(100%-1.5rem)] text-sm" placeholder="Ghi chú..." {...f('notes')} />
+                  </div>
                 </div>
+
+                {/* Footer buttons */}
+                <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-red-200 text-red-600 hover:bg-red-50"
+                    onClick={() => setConfirmDelete(true)}
+                    disabled={saving || deleting}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Xóa chu kỳ
+                  </Button>
+                  <Button type="button" onClick={handleSave} disabled={saving || deleting} className="bg-primary text-white">
+                    <Save className="w-4 h-4 mr-2" />
+                    {saving ? 'Đang lưu...' : 'Lưu'}
+                  </Button>
+                </DialogFooter>
               </div>
             ) : (
               <div className="py-4 space-y-4">
