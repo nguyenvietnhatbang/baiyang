@@ -67,7 +67,6 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
   };
 
   const handleSave = async () => {
-    if (!log?.id) return;
     if (!form.log_date) {
       setError('Chọn ngày ghi');
       return;
@@ -75,7 +74,7 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      await base44.entities.PondLog.update(log.id, {
+      const payload = {
         log_date: form.log_date,
         ph: toNumOrNull(form.ph),
         temperature: toNumOrNull(form.temperature),
@@ -93,7 +92,24 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
         withdrawal_days: toNumOrNull(form.withdrawal_days),
         disease_notes: form.disease_notes?.trim() || null,
         notes: form.notes?.trim() || null,
-      });
+      };
+
+      if (log?.id) {
+        // Sửa nhật ký đã có
+        await base44.entities.PondLog.update(log.id, payload);
+      } else {
+        // Tạo nhật ký mới
+        if (!log?.pond_id || !log?.pond_cycle_id) {
+          setError('Thiếu thông tin ao hoặc chu kỳ');
+          return;
+        }
+        await base44.entities.PondLog.create({
+          ...payload,
+          pond_id: log.pond_id,
+          pond_cycle_id: log.pond_cycle_id,
+        });
+      }
+      
       await onSaved?.();
       onClose?.();
     } catch (e) {
@@ -106,7 +122,9 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
     <Dialog open={open} onOpenChange={(v) => (!v ? onClose?.() : null)}>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Sửa nhật ký — {log?.pond_code || ''} {log?.log_date ? `· ${log.log_date}` : ''}</DialogTitle>
+          <DialogTitle>
+            {log?.id ? `Sửa nhật ký — ${log?.pond_code || ''} ${log?.log_date ? `· ${log.log_date}` : ''}` : `Ghi nhật ký mới — ${log?.pond_code || ''}`}
+          </DialogTitle>
         </DialogHeader>
 
         {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
@@ -211,7 +229,7 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
         <DialogFooter>
           <Button type="button" onClick={handleSave} disabled={saving} className="bg-primary text-white">
             <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Đang lưu...' : 'Lưu'}
+            {saving ? 'Đang lưu...' : log?.id ? 'Lưu' : 'Tạo nhật ký'}
           </Button>
         </DialogFooter>
       </DialogContent>

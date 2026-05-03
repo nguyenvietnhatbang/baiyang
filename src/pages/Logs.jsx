@@ -3,13 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { QrCode, ClipboardList, Camera, ChevronRight, Filter } from 'lucide-react';
+import { QrCode, ClipboardList, Camera, ChevronRight, Filter, Plus, Edit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import QRScanner from '@/components/scanner/QRScanner';
 import LogDetailModal from '@/components/ponds/LogDetailModal';
+import PondLogEditDialog from '@/components/ponds/PondLogEditDialog';
 import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
+import { format } from 'date-fns';
+import { submitPondLogEntry } from '@/lib/pondLogSubmit';
 
 function inDateScope(logDate, logDateFrom, logDateTo, monthFilter) {
   if (!logDate) return false;
@@ -32,6 +35,8 @@ export default function Logs() {
   const [loading, setLoading] = useState(true);
   const [showCamera, setShowCamera] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
+  const [showLogDialog, setShowLogDialog] = useState(false);
+  const [selectedPondForLog, setSelectedPondForLog] = useState(null);
   const [monthFilter, setMonthFilter] = useState('all');
   const [logDateFrom, setLogDateFrom] = useState('');
   const [logDateTo, setLogDateTo] = useState('');
@@ -91,7 +96,13 @@ export default function Logs() {
     const items = [{ value: 'all', label: 'Tất cả các ao' }];
     const sorted = [...ponds].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
     sorted.forEach(p => {
-      items.push({ value: p.id, label: `${p.code} — ${p.owner_name}` });
+      const cycle = pickActiveCycle(p.pond_cycles);
+      const hasActiveCycle = !!cycle;
+      items.push({ 
+        value: p.id, 
+        label: `${p.code} — ${p.owner_name}${hasActiveCycle ? ' ✓' : ''}`,
+        hasActiveCycle 
+      });
     });
     return items;
   }, [ponds]);
@@ -184,6 +195,22 @@ export default function Logs() {
     setMonthFilter('all');
   };
 
+  const handleCreateLog = (pond) => {
+    const cycle = pickActiveCycle(pond.pond_cycles);
+    if (!cycle) {
+      alert('Ao này chưa có chu kỳ hoạt động. Vui lòng tạo chu kỳ trước.');
+      return;
+    }
+    setSelectedPondForLog(pond);
+    setShowLogDialog(true);
+  };
+
+  const handleLogSaved = async () => {
+    await loadData();
+    setShowLogDialog(false);
+    setSelectedPondForLog(null);
+  };
+
   return (
     <div className="p-2 sm:p-4 space-y-3 max-w-7xl mx-auto bg-slate-50/50 min-h-screen">
       <div className="flex items-center justify-between px-1">
@@ -196,6 +223,16 @@ export default function Logs() {
             <Camera className="w-3.5 h-3.5 mr-1.5" />
             Quét QR
           </Button>
+          {activePond && pickActiveCycle(activePond.pond_cycles) && (
+            <Button 
+              onClick={() => handleCreateLog(activePond)} 
+              className="bg-emerald-600 text-white h-8 text-xs shadow-sm hover:bg-emerald-700" 
+              size="sm"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Ghi nhật ký
+            </Button>
+          )}
         </div>
       </div>
 
@@ -239,7 +276,10 @@ export default function Logs() {
           <div className="lg:col-span-8 space-y-2.5">
              <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Đối tượng lọc</Label>
              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Select value={activePond?.id || 'all'} onValueChange={(v) => setActivePond(v === 'all' ? null : ponds.find(p => p.id === v))}>
+                <Select value={activePond?.id || 'all'} onValueChange={(v) => {
+                  const pond = v === 'all' ? null : ponds.find(p => p.id === v);
+                  setActivePond(pond);
+                }}>
                   <SelectTrigger className="h-8 text-[11px]">
                     <SelectValue placeholder="Chọn ao nuôi">
                       {activePond ? `${activePond.code} — ${activePond.owner_name}` : 'Tất cả các ao'}
@@ -247,7 +287,9 @@ export default function Logs() {
                   </SelectTrigger>
                   <SelectContent className="max-h-80">
                     {pondFilterItems.map((it) => (
-                      <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                      <SelectItem key={it.value} value={it.value} className="text-xs">
+                        {it.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -402,7 +444,10 @@ export default function Logs() {
                     <tr
                       key={log.id}
                       className="hover:bg-slate-50/80 cursor-pointer group transition-colors"
-                      onClick={() => setSelectedLog(log)}
+                      onClick={() => {
+                        setSelectedLog(log);
+                        setShowLogDialog(false);
+                      }}
                     >
                       <td className="px-4 py-2.5 text-slate-400 font-medium">{log.log_date}</td>
                       <td className="px-4 py-2.5 font-bold text-slate-700">{log.pond_code}</td>
@@ -422,8 +467,21 @@ export default function Logs() {
                         {log.medicine_used ? `💊 ${log.medicine_used}` : log.notes || '—'}
                       </td>
                       <td className="px-4 py-2.5 text-right">
-                        <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <ChevronRight className="w-3 h-3 text-slate-400" />
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedLog(log);
+                              setShowLogDialog(true);
+                            }}
+                            className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-100"
+                            title="Sửa nhật ký"
+                          >
+                            <Edit className="w-3 h-3 text-slate-600" />
+                          </button>
+                          <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <ChevronRight className="w-3 h-3 text-slate-400" />
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -436,7 +494,49 @@ export default function Logs() {
       </div>
 
       {showCamera && <QRScanner onScan={handleQrScan} onClose={() => setShowCamera(false)} />}
-      {selectedLog && <LogDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} />}
+      
+      {/* Modal xem chi tiết nhật ký (read-only) */}
+      {selectedLog && !showLogDialog && (
+        <LogDetailModal 
+          log={selectedLog} 
+          onClose={() => setSelectedLog(null)} 
+        />
+      )}
+      
+      {/* Dialog ghi nhật ký mới cho ao đã chọn */}
+      {showLogDialog && selectedPondForLog && !selectedLog && (
+        <PondLogEditDialog
+          open={showLogDialog}
+          onClose={() => {
+            setShowLogDialog(false);
+            setSelectedPondForLog(null);
+          }}
+          log={{
+            pond_id: selectedPondForLog.id,
+            pond_code: selectedPondForLog.code,
+            pond_cycle_id: pickActiveCycle(selectedPondForLog.pond_cycles)?.id,
+            log_date: format(new Date(), 'yyyy-MM-dd'),
+          }}
+          onSaved={handleLogSaved}
+        />
+      )}
+      
+      {/* Dialog sửa nhật ký đã có */}
+      {showLogDialog && selectedLog && (
+        <PondLogEditDialog
+          open={showLogDialog}
+          onClose={() => {
+            setShowLogDialog(false);
+            setSelectedLog(null);
+          }}
+          log={selectedLog}
+          onSaved={async () => {
+            await loadData();
+            setShowLogDialog(false);
+            setSelectedLog(null);
+          }}
+        />
+      )}
     </div>
   );
 }
