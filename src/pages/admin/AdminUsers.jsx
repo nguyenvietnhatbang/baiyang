@@ -255,23 +255,23 @@ export default function AdminUsers() {
           <h2 className="text-sm font-semibold text-foreground">Đã cấp quyền ({rows.length})</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[700px]">
             <thead>
               <tr className="bg-muted/50 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                <th className="px-4 py-3">SĐT</th>
-                <th className="px-4 py-3">Mật khẩu (lưu thô)</th>
-                <th className="px-4 py-3">Vai trò</th>
-                <th className="px-4 py-3">Đại lý / Hộ</th>
-                <th className="px-4 py-3">Ngày tạo</th>
+                <th className="px-4 py-3 whitespace-nowrap">SĐT</th>
+                <th className="px-4 py-3 whitespace-nowrap">Mật khẩu (lưu thô)</th>
+                <th className="px-4 py-3 whitespace-nowrap">Vai trò</th>
+                <th className="px-4 py-3 whitespace-nowrap">Đại lý / Hộ</th>
+                <th className="px-4 py-3 whitespace-nowrap">Ngày tạo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {rows.map((r) => (
                 <tr key={r.id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-foreground">{r.phone || '—'}</td>
-                  <td className="px-4 py-3 font-mono text-foreground">{r.password_plaintext ?? '—'}</td>
-                  <td className="px-4 py-3">{r.role === 'agency' ? 'Đại lý' : 'Chủ hộ'}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
+                  <td className="px-4 py-3 font-mono text-foreground whitespace-nowrap">{r.phone || '—'}</td>
+                  <td className="px-4 py-3 font-mono text-foreground whitespace-nowrap">{r.password_plaintext ?? '—'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{r.role === 'agency' ? 'Đại lý' : 'Chủ hộ'}</td>
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                     {r.role === 'agency'
                       ? agMap[r.agency_id]?.code || '—'
                       : hhMap[r.household_id]?.name || '—'}

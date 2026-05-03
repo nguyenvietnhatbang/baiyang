@@ -440,11 +440,11 @@ export function HouseholdsPanel({ embedded = false }) {
 
       <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[700px]">
             <thead>
               <tr className="bg-muted/50 border-b border-border">
                 {['Tên hộ', 'Mã hộ', 'Khu vực', 'Đại lý', 'Địa chỉ', 'Thao tác'].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -456,12 +456,14 @@ export function HouseholdsPanel({ embedded = false }) {
               ) : (
                 rows.map((x) => (
                   <tr key={x.id} className="hover:bg-muted/20">
-                    <td className="px-4 py-3 font-medium">{x.name}</td>
-                    <td className="px-4 py-3 font-mono text-primary">{x.household_segment}</td>
-                    <td className="px-4 py-3">{x.region_code}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{agencyMap[x.agency_id]?.code || '—'}</td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-[200px] truncate">{x.address || '—'}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 font-medium whitespace-nowrap">{x.name}</td>
+                    <td className="px-4 py-3 font-mono text-primary whitespace-nowrap">{x.household_segment}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{x.region_code}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{agencyMap[x.agency_id]?.code || '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-[250px]">
+                      <div className="truncate">{x.address || '—'}</div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">

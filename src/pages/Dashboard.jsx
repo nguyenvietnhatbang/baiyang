@@ -186,15 +186,15 @@ export default function Dashboard() {
           <h3 className="font-semibold text-foreground">Tình trạng ao đang nuôi</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[600px]">
             <thead>
               <tr className="bg-muted/50">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mã ao</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chủ hộ</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Số cá</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">SL Dự kiến</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">FCR</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày thu DK</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Mã ao</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Chủ hộ</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Số cá</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">SL Dự kiến</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">FCR</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">Ngày thu DK</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -202,11 +202,11 @@ export default function Dashboard() {
                 const diff = p.expected_harvest_date ? differenceInDays(parseISO(p.expected_harvest_date), today) : null;
                 return (
                   <tr key={p.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-medium text-primary">{p.code}</td>
-                    <td className="px-4 py-3 text-foreground">{p.owner_name}</td>
-                    <td className="px-4 py-3 text-right text-foreground">{(p.current_fish || 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right font-medium">{(p.expected_yield || 0).toLocaleString()} kg</td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-3 font-medium text-primary whitespace-nowrap">{p.code}</td>
+                    <td className="px-4 py-3 text-foreground whitespace-nowrap">{p.owner_name}</td>
+                    <td className="px-4 py-3 text-right text-foreground whitespace-nowrap">{(p.current_fish || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-medium whitespace-nowrap">{(p.expected_yield || 0).toLocaleString()} kg</td>
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
                       {p.fcr ? (
                         <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                           p.fcr <= 1.3 ? 'bg-green-100 text-green-700' : 

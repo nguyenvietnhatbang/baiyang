@@ -424,69 +424,73 @@ export default function Logs() {
                 ))}
               </div>
 
-              {/* Desktop Table View */}
-              <table className="hidden sm:table w-full text-[11px]">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-100 sticky top-0 z-10">
-                    <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider w-24">Ngày</th>
-                    <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider">Mã ao</th>
-                    <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider">Hao hụt</th>
-                    <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider">Thức ăn</th>
-                    <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider w-16">pH</th>
-                    <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider w-16">T°</th>
-                    <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider">Ghi chú / Thuốc</th>
-                    <th className="px-4 py-2.5" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {displayLogs.map((log) => (
-                    <tr
-                      key={log.id}
-                      className="hover:bg-slate-50/80 cursor-pointer group transition-colors"
-                      onClick={() => {
-                        setSelectedLog(log);
-                        setShowLogDialog(false);
-                      }}
-                    >
-                      <td className="px-4 py-2.5 text-slate-400 font-medium">{log.log_date}</td>
-                      <td className="px-4 py-2.5 font-bold text-slate-700">{log.pond_code}</td>
-                      <td className="px-4 py-2.5 text-right font-bold text-red-500">
-                        {log.dead_fish > 0 ? `-${log.dead_fish}` : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-bold text-blue-600">
-                        {log.feed_amount ? `${log.feed_amount}kg` : '—'}
-                      </td>
-                      <td className={`px-4 py-2.5 text-right font-medium ${log.ph && (log.ph < 6.5 || log.ph > 8.5) ? 'text-red-600' : 'text-slate-600'}`}>
-                        {log.ph || '—'}
-                      </td>
-                      <td className={`px-4 py-2.5 text-right font-medium ${log.temperature && (log.temperature < 25 || log.temperature > 32) ? 'text-red-600' : 'text-slate-600'}`}>
-                        {log.temperature || '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-500 truncate max-w-[200px]">
-                        {log.medicine_used ? `💊 ${log.medicine_used}` : log.notes || '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedLog(log);
-                              setShowLogDialog(true);
-                            }}
-                            className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-100"
-                            title="Sửa nhật ký"
-                          >
-                            <Edit className="w-3 h-3 text-slate-600" />
-                          </button>
-                          <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <ChevronRight className="w-3 h-3 text-slate-400" />
-                          </div>
-                        </div>
-                      </td>
+              {/* Desktop Table View - Scrollable */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-[11px] min-w-[800px]">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-100 sticky top-0 z-10">
+                      <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Ngày</th>
+                      <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Mã ao</th>
+                      <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Hao hụt</th>
+                      <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Thức ăn</th>
+                      <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">pH</th>
+                      <th className="text-right px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">T°</th>
+                      <th className="text-left px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Ghi chú / Thuốc</th>
+                      <th className="px-4 py-2.5 whitespace-nowrap" />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {displayLogs.map((log) => (
+                      <tr
+                        key={log.id}
+                        className="hover:bg-slate-50/80 cursor-pointer group transition-colors"
+                        onClick={() => {
+                          setSelectedLog(log);
+                          setShowLogDialog(false);
+                        }}
+                      >
+                        <td className="px-4 py-2.5 text-slate-400 font-medium whitespace-nowrap">{log.log_date}</td>
+                        <td className="px-4 py-2.5 font-bold text-slate-700 whitespace-nowrap">{log.pond_code}</td>
+                        <td className="px-4 py-2.5 text-right font-bold text-red-500 whitespace-nowrap">
+                          {log.dead_fish > 0 ? `-${log.dead_fish}` : '—'}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-bold text-blue-600 whitespace-nowrap">
+                          {log.feed_amount ? `${log.feed_amount}kg` : '—'}
+                        </td>
+                        <td className={`px-4 py-2.5 text-right font-medium whitespace-nowrap ${log.ph && (log.ph < 6.5 || log.ph > 8.5) ? 'text-red-600' : 'text-slate-600'}`}>
+                          {log.ph || '—'}
+                        </td>
+                        <td className={`px-4 py-2.5 text-right font-medium whitespace-nowrap ${log.temperature && (log.temperature < 25 || log.temperature > 32) ? 'text-red-600' : 'text-slate-600'}`}>
+                          {log.temperature || '—'}
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-500 max-w-[250px]">
+                          <div className="truncate">
+                            {log.medicine_used ? `💊 ${log.medicine_used}` : log.notes || '—'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLog(log);
+                                setShowLogDialog(true);
+                              }}
+                              className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-100"
+                              title="Sửa nhật ký"
+                            >
+                              <Edit className="w-3 h-3 text-slate-600" />
+                            </button>
+                            <div className="w-6 h-6 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <ChevronRight className="w-3 h-3 text-slate-400" />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
         </div>

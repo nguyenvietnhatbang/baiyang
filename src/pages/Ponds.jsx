@@ -639,7 +639,7 @@ export default function Ponds() {
 
               <div className="hidden sm:block bg-card rounded-xl border border-border shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm min-w-[900px]">
                     <thead>
                       <tr className="bg-muted/30 border-b border-border">
                         <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">MÃ AO</th>
@@ -671,19 +671,19 @@ export default function Ponds() {
                             onClick={() => setViewPondId(p.id)}
                             className="hover:bg-primary/5 cursor-pointer transition-colors"
                           >
-                            <td className="px-4 py-3 font-bold text-slate-700">{p.code}</td>
-                            <td className="px-4 py-3 text-slate-600">{p.owner_name || '—'}</td>
-                            <td className="px-4 py-3 text-muted-foreground text-xs">{p.agency_code || '—'}</td>
-                            <td className="px-4 py-3"><PondStatusBadge status={status} /></td>
-                            <td className="px-4 py-3 text-slate-500 text-xs">{p.active_cycle?.stock_date || '—'}</td>
-                            <td className="px-4 py-3 text-slate-600 text-xs">{expectedHarvestDate || '—'}</td>
-                            <td className="px-4 py-3 text-right font-medium text-slate-700">
+                            <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{p.code}</td>
+                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{p.owner_name || '—'}</td>
+                            <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">{p.agency_code || '—'}</td>
+                            <td className="px-4 py-3 whitespace-nowrap"><PondStatusBadge status={status} /></td>
+                            <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{p.active_cycle?.stock_date || '—'}</td>
+                            <td className="px-4 py-3 text-slate-600 text-xs whitespace-nowrap">{expectedHarvestDate || '—'}</td>
+                            <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
                               {currentFish != null && !Number.isNaN(Number(currentFish)) ? Number(currentFish).toLocaleString() : '—'}
                             </td>
-                            <td className="px-4 py-3 text-right font-bold text-slate-800">
+                            <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
                               {expectedYield != null && (Number(currentFish) > 0 || status === 'CC') ? `${Number(expectedYield).toLocaleString()} kg` : '—'}
                             </td>
-                            <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
@@ -780,10 +780,10 @@ export default function Ponds() {
 
           <div className="hidden sm:block bg-card rounded-xl border border-border shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[1000px]">
                 <thead>
                   <tr className="bg-muted/30 border-b border-border">
-                    <th className="px-4 py-3 w-8" />
+                    <th className="px-4 py-3 w-8 whitespace-nowrap" />
                     {CYCLE_COLUMNS.filter((c) => visibleCols[c.key]).map((h) => (
                       <th key={h.key} className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h.label}</th>
                     ))}
@@ -810,43 +810,43 @@ export default function Ponds() {
                         onClick={() => (r.cycle_id ? setViewCycleId(r.cycle_id) : setViewPondId(r.pond_id))}
                         className={`hover:bg-primary/5 cursor-pointer transition-colors ${isNewGroup ? 'border-t-2 border-t-muted/40' : ''} ${isOverdue ? 'bg-red-50/40' : isUrgent ? 'bg-yellow-50/40' : ''}`}
                       >
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           {(isUrgent && r.status === 'CC' && r.cycle_id) && (
                             <input type="checkbox" checked={checkedHarvest.has(r.cycle_id)} onChange={(e) => toggleHarvestCheck(r.cycle_id, e)} className="w-4 h-4 accent-green-600 cursor-pointer" />
                           )}
                         </td>
                         {visibleCols.pond_code && (
-                          <td className="px-4 py-3 font-bold text-slate-700">
+                          <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">
                             {r.pond_code}
                           </td>
                         )}
-                        {visibleCols.cycle_name && <td className="px-4 py-3 text-slate-600 font-medium">{r.cycle_name}</td>}
-                        {visibleCols.owner_name && <td className="px-4 py-3 text-slate-600">{r.owner_name}</td>}
-                        {visibleCols.agency_code && <td className="px-4 py-3 text-muted-foreground text-xs">{r.agency_code || '—'}</td>}
-                        {visibleCols.status && <td className="px-4 py-3"><PondStatusBadge status={r.status} /></td>}
-                        {visibleCols.stock_date && <td className="px-4 py-3 text-slate-500 text-xs">{r.stock_date || '—'}</td>}
+                        {visibleCols.cycle_name && <td className="px-4 py-3 text-slate-600 font-medium whitespace-nowrap">{r.cycle_name}</td>}
+                        {visibleCols.owner_name && <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{r.owner_name}</td>}
+                        {visibleCols.agency_code && <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">{r.agency_code || '—'}</td>}
+                        {visibleCols.status && <td className="px-4 py-3 whitespace-nowrap"><PondStatusBadge status={r.status} /></td>}
+                        {visibleCols.stock_date && <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{r.stock_date || '—'}</td>}
                         {visibleCols.current_fish && (
-                          <td className="px-4 py-3 text-right font-medium text-slate-700">
+                          <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
                             {r.current_fish != null && !Number.isNaN(Number(r.current_fish))
                               ? Number(r.current_fish).toLocaleString()
                               : '—'}
                           </td>
                         )}
                         {visibleCols.expected_yield && (
-                          <td className="px-4 py-3 text-right font-bold text-slate-800">
+                          <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
                             {r.expected_yield != null && (r.current_fish > 0 || r.status === 'CC')
                               ? `${Number(r.expected_yield).toLocaleString()} kg` 
                               : '—'}
                           </td>
                         )}
-                        {visibleCols.expected_harvest_date && <td className={`px-4 py-3 text-xs ${isUrgent ? 'font-bold text-red-600' : 'text-slate-600'}`}>{r.expected_harvest_date || '—'}{isOverdue && <span className="text-red-500 ml-1">(QH)</span>}</td>}
+                        {visibleCols.expected_harvest_date && <td className={`px-4 py-3 text-xs whitespace-nowrap ${isUrgent ? 'font-bold text-red-600' : 'text-slate-600'}`}>{r.expected_harvest_date || '—'}{isOverdue && <span className="text-red-500 ml-1">(QH)</span>}</td>}
                         {visibleCols.total_feed_used && (
                           <td className="px-4 py-3 text-right text-blue-600 font-medium whitespace-nowrap">
                             {r.total_feed_used > 0 ? `${Number(r.total_feed_used).toLocaleString()} kg` : '—'}
                           </td>
                         )}
                         {visibleCols.fcr && (
-                          <td className="px-4 py-3 text-center">
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
                             {(() => {
                               // Ưu tiên FCR đã lưu trong DB
                               if (r.fcr != null) {
