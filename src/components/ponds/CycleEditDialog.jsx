@@ -143,7 +143,7 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? onClose?.() : null)}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>Sửa chu kỳ — {title || cycleId || ''}</DialogTitle>
         </DialogHeader>
@@ -155,101 +155,111 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
             {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
 
             {!confirmDelete ? (
-              <div className="space-y-4 py-1">
-                <div>
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tên chu kỳ</Label>
-                  <Input className="mt-1" placeholder="Ví dụ: Thả T3/2026" {...f('name')} />
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 py-1">
+                <div className="lg:col-span-4 space-y-4">
+                  <div className="rounded-lg border border-border p-3 space-y-3">
+                    <div>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tên chu kỳ</Label>
+                      <Input className="mt-1" placeholder="Ví dụ: Thả T3/2026" {...f('name')} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trạng thái</Label>
+                        <Select value={form.status} onValueChange={(v) => setForm((p) => ({ ...p, status: v }))} items={STATUS_ITEMS}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUS_ITEMS.map((it) => (
+                              <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày thả</Label>
+                        <Input className="mt-1" type="date" {...f('stock_date')} />
+                      </div>
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trạng thái</Label>
-                    <Select value={form.status} onValueChange={(v) => setForm((p) => ({ ...p, status: v }))} items={STATUS_ITEMS}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {STATUS_ITEMS.map((it) => (
-                          <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày thả</Label>
-                    <Input className="mt-1" type="date" {...f('stock_date')} />
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ghi chú</Label>
+                    <Textarea className="mt-1 h-32 text-sm" placeholder="Ghi chú..." {...f('notes')} />
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-border p-3 space-y-3">
-                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Kế hoạch ban đầu</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tổng số cá thả (con)</Label>
-                      <Input className="mt-1" type="number" {...f('total_fish')} />
-                    </div>
-                    <div>
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Thu hoạch DK (đăng ký gốc)</Label>
-                      <Input className="mt-1" type="date" {...f('initial_expected_harvest_date')} />
-                    </div>
-                    <div>
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tỷ lệ sống (%)</Label>
-                      <Input className="mt-1" type="number" {...f('survival_rate')} />
-                    </div>
-                    <div>
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL kỳ vọng lúc thu (g)</Label>
-                      <Input className="mt-1" type="number" {...f('target_weight')} />
+                <div className="lg:col-span-4 space-y-4">
+                  <div className="rounded-lg border border-border p-3 space-y-3">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Kế hoạch ban đầu</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tổng cá thả (con)</Label>
+                        <Input className="mt-1" type="number" {...f('total_fish')} />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Thu DK (gốc)</Label>
+                        <Input className="mt-1" type="date" {...f('initial_expected_harvest_date')} />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tỷ lệ sống (%)</Label>
+                        <Input className="mt-1" type="number" {...f('survival_rate')} />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL kỳ vọng (g)</Label>
+                        <Input className="mt-1" type="number" {...f('target_weight')} />
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-border p-3 space-y-3 bg-amber-50/30">
-                  <p className="text-[11px] font-bold text-amber-900/90 uppercase tracking-wider">Kế hoạch điều chỉnh</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Số cá hiện tại (con)</Label>
-                      <Input className="mt-1" type="number" {...f('current_fish')} />
+                <div className="lg:col-span-4 space-y-4">
+                  <div className="rounded-lg border border-border p-3 space-y-3 bg-amber-50/30">
+                    <p className="text-[11px] font-bold text-amber-900/90 uppercase tracking-wider">Kế hoạch điều chỉnh</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Số cá hiện tại</Label>
+                        <Input className="mt-1" type="number" {...f('current_fish')} />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">SL mục tiêu (tự tính)</Label>
+                        <Input className="mt-1 bg-muted/40" readOnly value={computedExpectedYield != null ? computedExpectedYield : ''} placeholder="—" />
+                        <p className="text-[10px] text-muted-foreground mt-1">= số cá hiện tại × tỷ lệ sống × TL thu ÷ 1.000</p>
+                      </div>
                     </div>
-                    <div>
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">SL mục tiêu (tự tính)</Label>
-                      <Input className="mt-1 bg-muted/40" readOnly value={computedExpectedYield != null ? computedExpectedYield : ''} placeholder="—" />
-                      <p className="text-[10px] text-muted-foreground mt-1">= số cá hiện tại × tỷ lệ sống × TL thu ÷ 1.000</p>
+                  </div>
+
+                  <div className="rounded-lg border border-border p-3 space-y-3">
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Mốc vận hành</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Thu hoạch dự kiến</Label>
+                        <Input className="mt-1" type="date" {...f('expected_harvest_date')} />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Hết ngưng thuốc</Label>
+                        <Input className="mt-1" type="date" {...f('withdrawal_end_date')} />
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Thu hoạch dự kiến</Label>
-                    <Input className="mt-1" type="date" {...f('expected_harvest_date')} />
-                  </div>
-                  <div>
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Hết ngưng thuốc</Label>
-                    <Input className="mt-1" type="date" {...f('withdrawal_end_date')} />
-                  </div>
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-red-200 text-red-600 hover:bg-red-50"
+                      onClick={() => setConfirmDelete(true)}
+                      disabled={saving || deleting}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Xóa chu kỳ
+                    </Button>
+                    <Button type="button" onClick={handleSave} disabled={saving || deleting} className="bg-primary text-white">
+                      <Save className="w-4 h-4 mr-2" />
+                      {saving ? 'Đang lưu...' : 'Lưu'}
+                    </Button>
+                  </DialogFooter>
                 </div>
-
-                <div>
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ghi chú</Label>
-                  <Textarea className="mt-1 h-20 text-sm" placeholder="Ghi chú..." {...f('notes')} />
-                </div>
-
-                <DialogFooter className="gap-2 sm:gap-0">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="border-red-200 text-red-600 hover:bg-red-50"
-                    onClick={() => setConfirmDelete(true)}
-                    disabled={saving || deleting}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Xóa chu kỳ
-                  </Button>
-                  <Button type="button" onClick={handleSave} disabled={saving || deleting} className="bg-primary text-white">
-                    <Save className="w-4 h-4 mr-2" />
-                    {saving ? 'Đang lưu...' : 'Lưu'}
-                  </Button>
-                </DialogFooter>
               </div>
             ) : (
               <div className="py-4 space-y-4">

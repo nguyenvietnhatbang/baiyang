@@ -12,7 +12,6 @@ import PondLogEditDialog from '@/components/ponds/PondLogEditDialog';
 import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
 import { format } from 'date-fns';
-import { submitPondLogEntry } from '@/lib/pondLogSubmit';
 
 function inDateScope(logDate, logDateFrom, logDateTo, monthFilter) {
   if (!logDate) return false;
