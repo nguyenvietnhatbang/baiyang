@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import HouseholdViewDialog from './HouseholdViewDialog';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import ExcelJS from 'exceljs';
 
@@ -18,7 +19,7 @@ function normalizeSegment(s) {
   return digits.padStart(3, '0').slice(-3);
 }
 
-function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, households = [], viewOnly = false }) {
+function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, households = [] }) {
   const isEdit = !!row;
   const [form, setForm] = useState({
     agency_id: '',
@@ -133,7 +134,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{viewOnly ? `Xem hộ nuôi — ${row.name}` : isEdit ? `Hộ nuôi — ${row.name}` : 'Thêm hộ nuôi'}</DialogTitle>
+          <DialogTitle>{isEdit ? `Sửa hộ nuôi — ${row.name}` : 'Thêm hộ nuôi'}</DialogTitle>
         </DialogHeader>
         {!confirmDelete ? (
           <div className="space-y-4 py-2">
@@ -151,7 +152,6 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
                   });
                 }}
                 items={agencySelectItems}
-                disabled={viewOnly}
               >
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Chọn đại lý" />
@@ -169,7 +169,6 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
                 value={form.region_code}
                 onValueChange={(v) => setForm({ ...form, region_code: v })}
                 items={regionSelectItems}
-                disabled={viewOnly}
               >
                 <SelectTrigger className="mt-1">
                   <SelectValue />
@@ -189,7 +188,6 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
                   onChange={(e) => setForm({ ...form, household_segment: e.target.value })}
                   className="mt-1 font-mono"
                   placeholder="001"
-                  disabled={viewOnly}
                 />
               </div>
               <div>
@@ -198,7 +196,6 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
                   value={form.active ? '1' : '0'}
                   onValueChange={(v) => setForm({ ...form, active: v === '1' })}
                   items={activeSelectItems}
-                  disabled={viewOnly}
                 >
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -210,25 +207,23 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
             </div>
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase">Tên hộ *</Label>
-              <Input {...f('name')} className="mt-1" disabled={viewOnly} />
+              <Input {...f('name')} className="mt-1" />
             </div>
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase">Địa chỉ</Label>
-              <Input {...f('address')} className="mt-1" disabled={viewOnly} />
+              <Input {...f('address')} className="mt-1" />
             </div>
-            {!viewOnly && (
-              <div className="flex gap-2 pt-1">
-                <Button onClick={handleSave} disabled={saving} className="flex-1 bg-primary text-white">
-                  <Save className="w-4 h-4 mr-1.5" />
-                  {saving ? 'Đang lưu...' : isEdit ? 'Lưu' : 'Tạo hộ'}
+            <div className="flex gap-2 pt-1">
+              <Button onClick={handleSave} disabled={saving} className="flex-1 bg-primary text-white">
+                <Save className="w-4 h-4 mr-1.5" />
+                {saving ? 'Đang lưu...' : isEdit ? 'Lưu' : 'Tạo hộ'}
+              </Button>
+              {isEdit && (
+                <Button variant="outline" className="border-red-200 text-red-600" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 className="w-4 h-4" />
                 </Button>
-                {isEdit && (
-                  <Button variant="outline" className="border-red-200 text-red-600" onClick={() => setConfirmDelete(true)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
         ) : (
           <div className="py-4 space-y-4">
@@ -259,8 +254,9 @@ export function HouseholdsPanel({ embedded = false }) {
   const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
-  const [viewOnly, setViewOnly] = useState(false);
+  const [viewRow, setViewRow] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState('');
 
@@ -279,6 +275,7 @@ export function HouseholdsPanel({ embedded = false }) {
   useEffect(() => { load(); }, []);
 
   const agencyMap = Object.fromEntries(agencies.map((a) => [a.id, a]));
+  const regionMap = Object.fromEntries(regions.map((r) => [r.code, r]));
 
   const agencyCodeMap = useMemo(() => {
     const m = new Map();
@@ -416,7 +413,6 @@ export function HouseholdsPanel({ embedded = false }) {
           <Button
             onClick={() => {
               setEditRow(null);
-              setViewOnly(false);
               setDialogOpen(true);
             }}
             className="bg-primary text-white flex items-center gap-2 shrink-0"
@@ -443,9 +439,12 @@ export function HouseholdsPanel({ embedded = false }) {
           <table className="w-full text-sm min-w-[700px]">
             <thead>
               <tr className="bg-muted/50 border-b border-border">
-                {['Tên hộ', 'Mã hộ', 'Khu vực', 'Đại lý', 'Địa chỉ', 'Thao tác'].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">{h}</th>
-                ))}
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Tên hộ</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Mã hộ</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Khu vực</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Đại lý</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Địa chỉ</th>
+                <th className="sticky right-0 bg-muted/50 text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -463,31 +462,33 @@ export function HouseholdsPanel({ embedded = false }) {
                     <td className="px-4 py-3 text-muted-foreground text-xs max-w-[250px]">
                       <div className="truncate">{x.address || '—'}</div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => { setEditRow(x); setViewOnly(true); setDialogOpen(true); }}>
-                            <Eye className="w-4 h-4 mr-2" />
-                            Xem
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setEditRow(x); setViewOnly(false); setDialogOpen(true); }}>
-                            <Pencil className="w-4 h-4 mr-2" />
-                            Sửa
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => { setEditRow(x); setViewOnly(false); setDialogOpen(true); }}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Xóa
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                    <td className="sticky right-0 bg-card px-4 py-3 whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">
+                      <div className="flex items-center justify-center">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => { setViewRow(x); setViewDialogOpen(true); }}>
+                              <Eye className="w-4 h-4 mr-2" />
+                              Xem
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setEditRow(x); setDialogOpen(true); }}>
+                              <Pencil className="w-4 h-4 mr-2" />
+                              Sửa
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => { setEditRow(x); setDialogOpen(true); }}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Xóa
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -499,13 +500,20 @@ export function HouseholdsPanel({ embedded = false }) {
 
       <HouseholdDialog
         open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditRow(null); setViewOnly(false); }}
+        onClose={() => { setDialogOpen(false); setEditRow(null); }}
         onSaved={load}
         row={editRow}
         agencies={agencies}
         regions={regions}
         households={rows}
-        viewOnly={viewOnly}
+      />
+
+      <HouseholdViewDialog
+        open={viewDialogOpen}
+        onClose={() => { setViewDialogOpen(false); setViewRow(null); }}
+        household={viewRow}
+        agency={viewRow ? agencyMap[viewRow.agency_id] : null}
+        region={viewRow ? regionMap[viewRow.region_code] : null}
       />
     </div>
   );

@@ -650,7 +650,7 @@ export default function Ponds() {
                         <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THU HOẠCH DK</th>
                         <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">SỐ CÁ</th>
                         <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">SL DỰ KIẾN</th>
-                        <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap"></th>
+                        <th className="sticky right-0 bg-muted/30 text-center px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">THAO TÁC</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
@@ -683,7 +683,7 @@ export default function Ponds() {
                             <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
                               {expectedYield != null && (Number(currentFish) > 0 || status === 'CC') ? `${Number(expectedYield).toLocaleString()} kg` : '—'}
                             </td>
-                            <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <td className="sticky right-0 bg-card px-4 py-3 text-center whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]" onClick={(e) => e.stopPropagation()}>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
@@ -784,9 +784,12 @@ export default function Ponds() {
                 <thead>
                   <tr className="bg-muted/30 border-b border-border">
                     <th className="px-4 py-3 w-8 whitespace-nowrap" />
-                    {CYCLE_COLUMNS.filter((c) => visibleCols[c.key]).map((h) => (
+                    {CYCLE_COLUMNS.filter((c) => visibleCols[c.key] && c.key !== 'actions').map((h) => (
                       <th key={h.key} className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h.label}</th>
                     ))}
+                    {visibleCols.actions && (
+                      <th className="sticky right-0 bg-muted/30 text-center px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">THAO TÁC</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -803,6 +806,7 @@ export default function Ponds() {
                     const isUrgent = diff !== null && diff <= harvestAlertDays;
                     const isOverdue = diff !== null && diff < 0;
                     const isWithdrawal = r.withdrawal_end_date && differenceInDays(parseISO(r.withdrawal_end_date), today) >= 0;
+                    const rowBgClass = isOverdue ? 'bg-red-50/40' : isUrgent ? 'bg-yellow-50/40' : 'bg-card';
 
                     return (
                       <tr
@@ -878,7 +882,7 @@ export default function Ponds() {
                           </td>
                         )}
                         {visibleCols.actions && (
-                          <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <td className={`sticky right-0 ${rowBgClass} px-4 py-3 text-center whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]`} onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
