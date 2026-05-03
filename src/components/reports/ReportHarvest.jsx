@@ -131,7 +131,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                 </td>
                 <td className="px-4 py-2.5 text-center text-muted-foreground">—</td>
                 <td className="px-4 py-2.5 text-center">
-                  {agPct !== null ? (
+                  {agActual > 0 && agPlanned > 0 ? (
                     <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${agPct >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                       {agPct >= 0 ? '+' : ''}{agPct}%
                     </span>
@@ -186,7 +186,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                       })()}
                     </td>
                     <td className="px-4 py-2.5 text-center">
-                      {pct !== null ? (
+                      {totalActual > 0 && planned > 0 ? (
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pct >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                           {pct >= 0 ? '+' : ''}{pct}%
                         </span>
@@ -208,7 +208,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
             </td>
             <td className="px-4 py-3 text-center">—</td>
             <td className="px-4 py-3 text-center">
-              {grandPlanned > 0 && grandActual > 0 ? (
+              {grandActual > 0 && grandPlanned > 0 ? (
                 <span className={`px-2 py-0.5 rounded text-xs font-bold ${grandActual >= grandPlanned ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {Math.round(((grandActual - grandPlanned) / grandPlanned) * 100) >= 0 ? '+' : ''}
                   {Math.round(((grandActual - grandPlanned) / grandPlanned) * 100)}%

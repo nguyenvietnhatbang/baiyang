@@ -6,13 +6,9 @@
 import { Fragment } from 'react';
 import { originalHarvestDateForReport, plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { uniquePhysicalPondCount, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
+import { calculateYieldFromPond } from '@/lib/calculateYield';
 
 const MONTHS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
-
-function calcOriginalYield(p) {
-  if (!p.total_fish || !p.survival_rate || !p.target_weight) return 0;
-  return Math.round((p.total_fish * (p.survival_rate / 100) * p.target_weight) / 1000);
-}
 
 export default function ReportAdjusted({ ponds, agencies }) {
   const monthIdx = (() => {
@@ -23,7 +19,7 @@ export default function ReportAdjusted({ ponds, agencies }) {
         set.add(new Date(adjustedDate).getMonth());
       }
       const d0 = originalHarvestDateForReport(p);
-      if (d0 && calcOriginalYield(p) > 0) set.add(new Date(d0).getMonth());
+      if (d0 && calculateYieldFromPond(p) > 0) set.add(new Date(d0).getMonth());
     });
     return [...set].sort((a, b) => a - b);
   })();

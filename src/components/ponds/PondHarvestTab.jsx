@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CheckSquare, Square, Save, AlertTriangle, ShieldCheck, Package, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { latestActualHarvestDate } from '@/lib/reportPondDedupe';
+import { createHarvestRecordWithSync, deleteHarvestRecordWithSync } from '@/lib/harvestRecordSync';
 function CheckItem({ label, checked, onChange }) {
   return (
     <button onClick={() => onChange(!checked)} className="flex items-center gap-2 w-full text-left p-2 rounded hover:bg-muted transition-colors">
@@ -72,49 +73,11 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
     if (!confirmed) return;
 
     try {
-      // Xóa HarvestRecord
-      await base44.entities.HarvestRecord.delete(harvestId);
-      
-      // Tính lại tổng actual_yield
-      const allHarvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id });
-      const totalActualYield = allHarvests.reduce((sum, h) => sum + (h.actual_yield || 0), 0);
-      
-      // Tính lại FCR
-      let fcr = null;
-      if (cycle.total_feed_used && totalActualYield > 0) {
-        fcr = Math.round((cycle.total_feed_used / totalActualYield) * 100) / 100;
-      }
-      
-      // Cập nhật PondCycle với retry logic
-      const isHarvested = totalActualYield > 0;
-      let retries = 3;
-      let lastError = null;
-      
-      while (retries > 0) {
-        try {
-          await base44.entities.PondCycle.update(cycle.id, {
-            actual_yield: totalActualYield,
-            harvest_done: isHarvested,
-            status: isHarvested ? 'CT' : 'CC',
-            fcr: fcr,
-            ...(isHarvested ? {} : { current_fish: cycle.total_fish || 0 }),
-          });
-          lastError = null;
-          break;
-        } catch (e) {
-          lastError = e;
-          retries--;
-          if (retries > 0) {
-            await new Promise(r => setTimeout(r, 1000));
-          }
-        }
-      }
-
-      if (lastError) {
-        throw new Error('Không thể cập nhật chu kỳ sau khi xóa.');
-      }
+      // Xóa HarvestRecord với tự động đồng bộ
+      await deleteHarvestRecordWithSync(harvestId, cycle.id);
       
       // Reload dữ liệu
+      const allHarvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id });
       setRecords(allHarvests);
       onUpdate();
       
@@ -157,8 +120,8 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
     setSaving(true);
 
     try {
-      // Tạo HarvestRecord
-      await base44.entities.HarvestRecord.create({
+      // Tạo HarvestRecord với tự động đồng bộ
+      await createHarvestRecordWithSync({
         ...form,
         pond_id: pond.id,
         pond_cycle_id: cycle.id,
@@ -178,46 +141,6 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
         total_value: totalValue ? Number(form.actual_yield) * Number(form.price_per_kg) : null,
         lot_code: lotCode,
       });
-
-      // Tính tổng actual_yield từ tất cả harvest records của chu kỳ này
-      const allHarvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id });
-      const totalActualYield = allHarvests.reduce((sum, h) => sum + (h.actual_yield || 0), 0);
-
-      // Tính FCR nếu có total_feed_used
-      let fcr = null;
-      if (cycle.total_feed_used && totalActualYield > 0) {
-        fcr = Math.round((cycle.total_feed_used / totalActualYield) * 100) / 100;
-      }
-
-      // Bug fix #1: Cập nhật PondCycle với retry logic
-      const isHarvested = totalActualYield > 0;
-      let retries = 3;
-      let lastError = null;
-      
-      while (retries > 0) {
-        try {
-          await base44.entities.PondCycle.update(cycle.id, {
-            actual_yield: totalActualYield,
-            harvest_done: isHarvested,
-            status: isHarvested ? 'CT' : cycle.status,
-            fcr: fcr,
-            ...(isHarvested ? { current_fish: 0 } : {}),
-          });
-          lastError = null;
-          break; // Thành công, thoát vòng lặp
-        } catch (e) {
-          lastError = e;
-          retries--;
-          if (retries > 0) {
-            console.warn(`Lỗi cập nhật PondCycle, thử lại... (còn ${retries} lần)`, e);
-            await new Promise(r => setTimeout(r, 1000)); // Đợi 1 giây trước khi thử lại
-          }
-        }
-      }
-
-      if (lastError) {
-        throw new Error('Không thể cập nhật chu kỳ sau 3 lần thử. Vui lòng kiểm tra lại dữ liệu.');
-      }
 
       // Reload dữ liệu
       const updatedRecords = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id }, '-harvest_date', 500);

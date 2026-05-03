@@ -6,13 +6,9 @@
 import { Fragment } from 'react';
 import { originalHarvestDateForReport } from '@/lib/planReportHelpers';
 import { uniquePhysicalPondCount, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
+import { calculateYieldFromPond } from '@/lib/calculateYield';
 
 const MONTHS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
-
-function calcOriginalYield(p) {
-  if (!p.total_fish || !p.survival_rate || !p.target_weight) return 0;
-  return Math.round((p.total_fish * (p.survival_rate / 100) * p.target_weight) / 1000);
-}
 
 export default function ReportOriginal({ ponds, agencies }) {
   const monthIdx = (() => {
@@ -20,7 +16,7 @@ export default function ReportOriginal({ ponds, agencies }) {
     ponds.forEach((p) => {
       const d = originalHarvestDateForReport(p);
       if (!d) return;
-      const y = calcOriginalYield(p);
+      const y = calculateYieldFromPond(p);
       if (y > 0) set.add(new Date(d).getMonth());
     });
     return [...set].sort((a, b) => a - b);
@@ -37,8 +33,8 @@ export default function ReportOriginal({ ponds, agencies }) {
     // Đếm theo chu kỳ (mỗi chu kỳ = 1 dòng dữ liệu kế hoạch)
     const cc = agencyPonds.filter((p) => p.status === 'CC');
     const ct = agencyPonds.filter((p) => p.status === 'CT');
-    const totalCC = cc.reduce((s, p) => s + calcOriginalYield(p), 0);
-    const totalCT = ct.reduce((s, p) => s + calcOriginalYield(p), 0);
+    const totalCC = cc.reduce((s, p) => s + calculateYieldFromPond(p), 0);
+    const totalCT = ct.reduce((s, p) => s + calculateYieldFromPond(p), 0);
     const totalAll = totalCC + totalCT;
 
     const monthCC = visibleMonthIdx.map((i) =>
@@ -50,7 +46,7 @@ export default function ReportOriginal({ ponds, agencies }) {
     const monthCT = visibleMonthIdx.map((i) =>
       ct.reduce((s, p) => {
         const d = originalHarvestDateForReport(p);
-        return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
+        return s + (d && new Date(d).getMonth() === i ? calculateYieldFromPond(p) : 0);
       }, 0)
     );
 

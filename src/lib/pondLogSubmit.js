@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
+import { calculateCurrentYield } from '@/lib/calculateYield';
 
 /**
  * Tạo nhật ký + cập nhật chu kỳ + ghi PlanAdjustment khi expected_yield đổi.
@@ -38,10 +39,10 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
   });
 
   const prevExpectedYield = cycle.expected_yield;
-  const newExpectedYield =
-    cycle.survival_rate && cycle.target_weight
-      ? Math.round((newCurrentFish * (cycle.survival_rate / 100) * cycle.target_weight) / 1000)
-      : cycle.expected_yield;
+  const newExpectedYield = calculateCurrentYield({
+    ...cycle,
+    current_fish: newCurrentFish
+  });
 
   // Lấy tổng actual_yield từ harvest records
   const allHarvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id });
