@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckSquare, Square, Save, AlertTriangle, ShieldCheck, Package } from 'lucide-react';
+import { CheckSquare, Square, Save, AlertTriangle, ShieldCheck, Package, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { latestActualHarvestDate } from '@/lib/reportPondDedupe';
 function CheckItem({ label, checked, onChange }) {
@@ -64,6 +64,66 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
       }
     : null;
 
+  // Bug fix #3: Thêm hàm xóa HarvestRecord
+  const handleDeleteHarvest = async (harvestId, harvestDate, actualYield) => {
+    const confirmed = window.confirm(
+      `🗑️ Xóa phiếu thu hoạch?\n\nNgày: ${harvestDate}\nSản lượng: ${actualYield}kg\n\n⚠️ Hành động này không thể hoàn tác!`
+    );
+    if (!confirmed) return;
+
+    try {
+      // Xóa HarvestRecord
+      await base44.entities.HarvestRecord.delete(harvestId);
+      
+      // Tính lại tổng actual_yield
+      const allHarvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id });
+      const totalActualYield = allHarvests.reduce((sum, h) => sum + (h.actual_yield || 0), 0);
+      
+      // Tính lại FCR
+      let fcr = null;
+      if (cycle.total_feed_used && totalActualYield > 0) {
+        fcr = Math.round((cycle.total_feed_used / totalActualYield) * 100) / 100;
+      }
+      
+      // Cập nhật PondCycle với retry logic
+      const isHarvested = totalActualYield > 0;
+      let retries = 3;
+      let lastError = null;
+      
+      while (retries > 0) {
+        try {
+          await base44.entities.PondCycle.update(cycle.id, {
+            actual_yield: totalActualYield,
+            harvest_done: isHarvested,
+            status: isHarvested ? 'CT' : 'CC',
+            fcr: fcr,
+            ...(isHarvested ? {} : { current_fish: cycle.total_fish || 0 }),
+          });
+          lastError = null;
+          break;
+        } catch (e) {
+          lastError = e;
+          retries--;
+          if (retries > 0) {
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        }
+      }
+
+      if (lastError) {
+        throw new Error('Không thể cập nhật chu kỳ sau khi xóa.');
+      }
+      
+      // Reload dữ liệu
+      setRecords(allHarvests);
+      onUpdate();
+      
+    } catch (e) {
+      console.error('Lỗi xóa phiếu thu hoạch:', e);
+      alert(`❌ Lỗi: ${e.message || 'Không thể xóa phiếu thu hoạch.'}`);
+    }
+  };
+
   const lotCode = `LOT-${pond.code}-${form.harvest_date?.replace(/-/g, '')}`;
   const totalValue = form.actual_yield && form.price_per_kg
     ? (Number(form.actual_yield) * Number(form.price_per_kg)).toLocaleString()
@@ -84,53 +144,112 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
 
   const handleSave = async () => {
     if (isWithdrawal || !cycle?.id) return;
-    setSaving(true);
-
-    // Tạo HarvestRecord
-    await base44.entities.HarvestRecord.create({
-      ...form,
-      pond_id: pond.id,
-      pond_cycle_id: cycle.id,
-      pond_code: pond.code,
-      owner_name: pond.owner_name,
-      agency_code: pond.agency_code,
-      planned_yield: cycle.expected_yield,
-      actual_yield: Number(form.actual_yield),
-      fish_count_harvested: Number(form.fish_count_harvested),
-      avg_weight_harvest: Number(form.avg_weight_harvest),
-      dead_fish_count: Number(form.dead_fish_count),
-      reject_fish_count: Number(form.reject_fish_count),
-      sick_yellow_fish: Number(form.sick_yellow_fish),
-      thin_fish: Number(form.thin_fish),
-      stomach_ratio: Number(form.stomach_ratio),
-      price_per_kg: Number(form.price_per_kg),
-      total_value: totalValue ? Number(form.actual_yield) * Number(form.price_per_kg) : null,
-      lot_code: lotCode,
-    });
-
-    // Tính tổng actual_yield từ tất cả harvest records của chu kỳ này
-    const allHarvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id });
-    const totalActualYield = allHarvests.reduce((sum, h) => sum + (h.actual_yield || 0), 0);
-
-    // Tính FCR nếu có total_feed_used
-    let fcr = null;
-    if (cycle.total_feed_used && totalActualYield > 0) {
-      fcr = Math.round((cycle.total_feed_used / totalActualYield) * 100) / 100;
+    
+    // Bug fix #6: Kiểm tra trùng lặp ngày thu hoạch
+    const existingRecord = records.find(r => r.harvest_date === form.harvest_date);
+    if (existingRecord) {
+      const confirmed = window.confirm(
+        `⚠️ Đã có phiếu thu hoạch ngày ${form.harvest_date} (${existingRecord.actual_yield}kg).\n\nBạn có muốn thêm phiếu thu hoạch mới cho cùng ngày này không?`
+      );
+      if (!confirmed) return;
     }
 
-    // Cập nhật PondCycle với actual_yield tổng và FCR
-    const isHarvested = totalActualYield > 0;
-    await base44.entities.PondCycle.update(cycle.id, {
-      actual_yield: totalActualYield,
-      harvest_done: isHarvested,
-      status: isHarvested ? 'CT' : cycle.status,
-      fcr: fcr,
-      ...(isHarvested ? { current_fish: 0 } : {}),
-    });
+    setSaving(true);
 
-    base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id }, '-harvest_date', 500).then(setRecords);
-    onUpdate();
-    setSaving(false);
+    try {
+      // Tạo HarvestRecord
+      await base44.entities.HarvestRecord.create({
+        ...form,
+        pond_id: pond.id,
+        pond_cycle_id: cycle.id,
+        pond_code: pond.code,
+        owner_name: pond.owner_name,
+        agency_code: pond.agency_code,
+        planned_yield: cycle.expected_yield,
+        actual_yield: Number(form.actual_yield),
+        fish_count_harvested: Number(form.fish_count_harvested),
+        avg_weight_harvest: Number(form.avg_weight_harvest),
+        dead_fish_count: Number(form.dead_fish_count),
+        reject_fish_count: Number(form.reject_fish_count),
+        sick_yellow_fish: Number(form.sick_yellow_fish),
+        thin_fish: Number(form.thin_fish),
+        stomach_ratio: Number(form.stomach_ratio),
+        price_per_kg: Number(form.price_per_kg),
+        total_value: totalValue ? Number(form.actual_yield) * Number(form.price_per_kg) : null,
+        lot_code: lotCode,
+      });
+
+      // Tính tổng actual_yield từ tất cả harvest records của chu kỳ này
+      const allHarvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id });
+      const totalActualYield = allHarvests.reduce((sum, h) => sum + (h.actual_yield || 0), 0);
+
+      // Tính FCR nếu có total_feed_used
+      let fcr = null;
+      if (cycle.total_feed_used && totalActualYield > 0) {
+        fcr = Math.round((cycle.total_feed_used / totalActualYield) * 100) / 100;
+      }
+
+      // Bug fix #1: Cập nhật PondCycle với retry logic
+      const isHarvested = totalActualYield > 0;
+      let retries = 3;
+      let lastError = null;
+      
+      while (retries > 0) {
+        try {
+          await base44.entities.PondCycle.update(cycle.id, {
+            actual_yield: totalActualYield,
+            harvest_done: isHarvested,
+            status: isHarvested ? 'CT' : cycle.status,
+            fcr: fcr,
+            ...(isHarvested ? { current_fish: 0 } : {}),
+          });
+          lastError = null;
+          break; // Thành công, thoát vòng lặp
+        } catch (e) {
+          lastError = e;
+          retries--;
+          if (retries > 0) {
+            console.warn(`Lỗi cập nhật PondCycle, thử lại... (còn ${retries} lần)`, e);
+            await new Promise(r => setTimeout(r, 1000)); // Đợi 1 giây trước khi thử lại
+          }
+        }
+      }
+
+      if (lastError) {
+        throw new Error('Không thể cập nhật chu kỳ sau 3 lần thử. Vui lòng kiểm tra lại dữ liệu.');
+      }
+
+      // Reload dữ liệu
+      const updatedRecords = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id }, '-harvest_date', 500);
+      setRecords(updatedRecords);
+      onUpdate();
+      
+      // Reset form
+      setForm({
+        harvest_date: format(new Date(), 'yyyy-MM-dd'),
+        actual_yield: '',
+        fish_count_harvested: '',
+        avg_weight_harvest: '',
+        dead_fish_count: '',
+        reject_fish_count: '',
+        sick_yellow_fish: '',
+        thin_fish: '',
+        stomach_ratio: '',
+        water_quality_ok: false,
+        antibiotic_residue_ok: false,
+        heavy_metal_ok: false,
+        pesticide_ok: false,
+        action_taken: 'approved',
+        price_per_kg: '',
+        notes: '',
+      });
+      
+    } catch (e) {
+      console.error('Lỗi ghi thu hoạch:', e);
+      alert(`❌ Lỗi: ${e.message || 'Không thể ghi nhận thu hoạch. Vui lòng thử lại.'}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -287,16 +406,29 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Lịch sử thu hoạch</p>
           {records.map(r => (
             <div key={r.id} className="border border-border rounded-lg p-3 mb-2 text-xs">
-              <div className="flex justify-between">
-                <span className="font-semibold">{r.harvest_date}</span>
-                <span className="text-primary font-bold">{r.actual_yield?.toLocaleString()} kg</span>
-              </div>
-              <div className="text-muted-foreground mt-1 font-mono">{r.lot_code}</div>
-              <div className="flex gap-3 mt-1">
-                {r.planned_yield && <span>KH: {r.planned_yield?.toLocaleString()} kg</span>}
-                <span className={Number(r.actual_yield) >= Number(r.planned_yield) ? 'text-green-600' : 'text-red-500'}>
-                  {r.planned_yield ? `${Math.round((r.actual_yield / r.planned_yield) * 100)}% kế hoạch` : ''}
-                </span>
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex justify-between">
+                    <span className="font-semibold">{r.harvest_date}</span>
+                    <span className="text-primary font-bold">{r.actual_yield?.toLocaleString()} kg</span>
+                  </div>
+                  <div className="text-muted-foreground mt-1 font-mono">{r.lot_code}</div>
+                  <div className="flex gap-3 mt-1">
+                    {r.planned_yield && <span>KH: {r.planned_yield?.toLocaleString()} kg</span>}
+                    <span className={Number(r.actual_yield) >= Number(r.planned_yield) ? 'text-green-600' : 'text-red-500'}>
+                      {r.planned_yield ? `${Math.round((r.actual_yield / r.planned_yield) * 100)}% kế hoạch` : ''}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-2 h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={() => handleDeleteHarvest(r.id, r.harvest_date, r.actual_yield)}
+                  title="Xóa phiếu thu hoạch"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </div>
             </div>
           ))}
