@@ -7,6 +7,10 @@
       "format": "uuid",
       "description": "FK ao v\u1eadt l\u00fd"
     },
+    "pond_code": {
+      "type": "string",
+      "description": "M\u00e3 ao (t\u1ef1 \u0111\u1ed9ng \u0111i\u1ec1n t\u1eeb ponds)"
+    },
     "season_id": { "type": "string", "format": "uuid" },
     "stocking_batch_id": { "type": "string", "format": "uuid" },
     "status": {

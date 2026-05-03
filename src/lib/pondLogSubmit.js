@@ -12,13 +12,45 @@ import { calculateCurrentYield } from '@/lib/calculateYield';
 export async function submitPondLogEntry({ pond, cycle, form }) {
   if (!cycle?.id) throw new Error('Thiếu chu kỳ ao (pond_cycle_id).');
 
+  // Validation: Số cá hao hụt
   const deadFish = Number(form.dead_fish) || 0;
-  const newCurrentFish = Math.max(0, (cycle.current_fish || 0) - deadFish);
-  const totalFeed = (cycle.total_feed_used || 0) + (Number(form.feed_amount) || 0);
+  if (deadFish < 0) {
+    throw new Error('Số cá hao hụt không thể âm');
+  }
+  const currentFish = cycle.current_fish || 0;
+  if (deadFish > currentFish) {
+    throw new Error(`Số cá hao hụt (${deadFish}) không thể vượt quá số cá hiện tại (${currentFish})`);
+  }
 
+  // Validation: Lượng thức ăn
+  const feedAmount = Number(form.feed_amount) || 0;
+  if (feedAmount < 0) {
+    throw new Error('Lượng thức ăn không thể âm');
+  }
+
+  // Validation: Ngày ghi nhật ký
+  const logDate = new Date(form.log_date);
+  const today = new Date();
+  today.setHours(23, 59, 59, 999); // So sánh đến cuối ngày
+  if (logDate > today) {
+    throw new Error('Ngày ghi không thể trong tương lai');
+  }
+  if (cycle.stock_date && logDate < new Date(cycle.stock_date)) {
+    throw new Error('Ngày ghi không thể trước ngày thả');
+  }
+
+  // Validation: Tỷ lệ sống và trọng lượng mục tiêu
+  if (!cycle.survival_rate || !cycle.target_weight) {
+    throw new Error('Chu kỳ chưa có tỷ lệ sống hoặc trọng lượng mục tiêu. Vui lòng cập nhật thông tin chu kỳ trước.');
+  }
+
+  const newCurrentFish = currentFish - deadFish;
+  const totalFeed = (cycle.total_feed_used || 0) + feedAmount;
+
+  // Sửa: Tính withdrawal_end_date từ log_date, không phải TODAY
   const withdrawalEndDate =
     form.medicine_used && form.withdrawal_days
-      ? format(new Date(new Date().getTime() + Number(form.withdrawal_days) * 86400000), 'yyyy-MM-dd')
+      ? format(new Date(new Date(form.log_date).getTime() + Number(form.withdrawal_days) * 86400000), 'yyyy-MM-dd')
       : cycle.withdrawal_end_date;
 
   await base44.entities.PondLog.create({
@@ -50,12 +82,15 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
   
   // Tính FCR
   let fcr = cycle.fcr;
+  let fcrProvisional = false;
   if (totalActualYield > 0) {
-    // FCR chốt sau thu hoạch
+    // FCR chính thức sau thu hoạch
     fcr = Math.round((totalFeed / totalActualYield) * 100) / 100;
+    fcrProvisional = false;
   } else if (newExpectedYield > 0) {
-    // FCR tạm tính dựa trên sản lượng dự kiến (như khách yêu cầu)
+    // FCR tạm tính dựa trên sản lượng dự kiến
     fcr = Math.round((totalFeed / newExpectedYield) * 100) / 100;
+    fcrProvisional = true;
   }
 
   await base44.entities.PondCycle.update(cycle.id, {
@@ -90,5 +125,5 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
     }
   }
 
-  return { newCurrentFish, newExpectedYield };
+  return { newCurrentFish, newExpectedYield, fcrProvisional };
 }
