@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Eye, Pencil, Fish, QrCode } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
@@ -55,29 +55,15 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? onClose?.() : null)}>
-      <DialogContent className="sm:max-w-4xl">
+      <DialogContent className="sm:max-w-6xl">
         <DialogHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <DialogTitle className="flex items-center gap-2">
-                <Eye className="w-4 h-4 text-muted-foreground" />
-                Xem ao {pond?.code || ''}
-              </DialogTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Chế độ chỉ xem — muốn chỉnh sửa hãy bấm <strong>Sửa</strong>.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="shrink-0"
-              onClick={() => onEdit?.(pond)}
-              disabled={!pond}
-            >
-              <Pencil className="w-4 h-4 mr-2" />
-              Sửa
-            </Button>
-          </div>
+          <DialogTitle className="flex items-center gap-2 pr-10">
+            <Eye className="w-4 h-4 text-muted-foreground" />
+            Xem ao {pond?.code || ''}
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Chế độ chỉ xem — muốn chỉnh sửa hãy bấm <strong>Sửa</strong>.
+          </p>
         </DialogHeader>
 
         {loading && <div className="text-sm text-muted-foreground py-6 text-center">Đang tải…</div>}
@@ -186,6 +172,13 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
             </TabsContent>
           </Tabs>
         )}
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onEdit?.(pond)} disabled={!pond}>
+            <Pencil className="w-4 h-4 mr-2" />
+            Sửa
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

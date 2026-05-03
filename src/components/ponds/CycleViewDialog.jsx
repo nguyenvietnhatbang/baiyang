@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, Pencil, ClipboardList, ShoppingCart } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Eye, Pencil, ClipboardList, ShoppingCart, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import PondLogEditDialog from '@/components/ponds/PondLogEditDialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { base44 } from '@/api/base44Client';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 
@@ -19,6 +27,7 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
   const [harvests, setHarvests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [editLog, setEditLog] = useState(null);
 
   useEffect(() => {
     if (!open) return;
@@ -73,29 +82,15 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? onClose?.() : null)}>
-      <DialogContent className="sm:max-w-5xl">
+      <DialogContent className="sm:max-w-6xl">
         <DialogHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <DialogTitle className="flex items-center gap-2">
-                <Eye className="w-4 h-4 text-muted-foreground" />
-                Xem chu kỳ {cycleTitle}
-              </DialogTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Chế độ chỉ xem — muốn chỉnh sửa hãy bấm <strong>Sửa</strong>.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="shrink-0"
-              onClick={() => onEdit?.(cycle)}
-              disabled={!cycle}
-            >
-              <Pencil className="w-4 h-4 mr-2" />
-              Sửa
-            </Button>
-          </div>
+          <DialogTitle className="flex items-center gap-2 pr-10">
+            <Eye className="w-4 h-4 text-muted-foreground" />
+            Xem chu kỳ {cycleTitle}
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Có thể sửa nhật ký ngay tại đây. Muốn chỉnh thông tin chu kỳ hãy bấm <strong>Sửa</strong>.
+          </p>
         </DialogHeader>
 
         {loading && <div className="text-sm text-muted-foreground py-6 text-center">Đang tải…</div>}
@@ -151,11 +146,12 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                           <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">HAO HỤT</th>
                           <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THUỐC</th>
                           <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">GHI CHÚ</th>
+                          <th className="px-4 py-3 w-12" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
                         {logs.length === 0 ? (
-                          <tr><td colSpan={9} className="text-center py-10 text-muted-foreground">Chưa có nhật ký</td></tr>
+                          <tr><td colSpan={10} className="text-center py-10 text-muted-foreground">Chưa có nhật ký</td></tr>
                         ) : logs.map((l) => (
                           <tr key={l.id} className="hover:bg-muted/30 transition-colors">
                             <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">{l.log_date || '—'}</td>
@@ -170,6 +166,36 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                             </td>
                             <td className="px-4 py-3 text-slate-600 max-w-[22rem] truncate" title={l.notes || ''}>
                               {l.notes || l.disease_notes || '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-36">
+                                  <DropdownMenuItem onClick={() => setEditLog(l)}>
+                                    <Pencil className="w-4 h-4 mr-2" /> Sửa nhật ký
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-red-600 focus:text-red-600"
+                                    onClick={async () => {
+                                      if (!window.confirm('Xóa nhật ký này?')) return;
+                                      try {
+                                        await base44.entities.PondLog.delete(l.id);
+                                        const next = await base44.entities.PondLog.filter({ pond_cycle_id: cycleId }, '-log_date', 500);
+                                        setLogs(next || []);
+                                      } catch (e) {
+                                        alert(formatSupabaseError(e));
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" /> Xóa
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </td>
                           </tr>
                         ))}
@@ -218,6 +244,24 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
             </Tabs>
           </>
         )}
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onEdit?.(cycle)} disabled={!cycle}>
+            <Pencil className="w-4 h-4 mr-2" />
+            Sửa chu kỳ
+          </Button>
+        </DialogFooter>
+
+        <PondLogEditDialog
+          open={Boolean(editLog)}
+          log={editLog}
+          onClose={() => setEditLog(null)}
+          onSaved={async () => {
+            setEditLog(null);
+            const next = await base44.entities.PondLog.filter({ pond_cycle_id: cycleId }, '-log_date', 500);
+            setLogs(next || []);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

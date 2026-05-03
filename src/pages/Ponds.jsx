@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Plus, Search, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -295,10 +295,13 @@ function cycleLabel(c, idx) {
 
 export default function Ponds() {
   const { harvestAlertDays, appSettings } = useAuth();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const mainTab = searchParams.get('tab') === 'households' ? 'households' : 'ponds';
-  const pondsSubTab = searchParams.get('subtab') === 'ponds' ? 'ponds' : 'cycles';
+  const mainTab =
+    searchParams.get('tab') === 'households'
+      ? 'households'
+      : searchParams.get('tab') === 'ponds'
+        ? 'ponds'
+        : 'cycles';
 
   const [ponds, setPonds] = useState([]);
   const [agencies, setAgencies] = useState([]);
@@ -318,6 +321,10 @@ export default function Ponds() {
   const [viewPondId, setViewPondId] = useState(null);
   const [viewCycleId, setViewCycleId] = useState(null);
   const [editCycleId, setEditCycleId] = useState(null);
+  const [newCycleOpen, setNewCycleOpen] = useState(false);
+  const [newCycleSaving, setNewCycleSaving] = useState(false);
+  const [newCycleErr, setNewCycleErr] = useState('');
+  const [newCycleForm, setNewCycleForm] = useState({ pond_id: '', name: '' });
   const [deleteCycleId, setDeleteCycleId] = useState(null);
   const [deleteCycleLabel, setDeleteCycleLabel] = useState('');
   const [deletingCycle, setDeletingCycle] = useState(false);
@@ -483,11 +490,38 @@ export default function Ponds() {
     setDeletingCycle(false);
   };
 
-  const setSubTab = (v) => {
+  const setMainTab = (v) => {
     const next = new URLSearchParams(searchParams);
-    if (v === 'cycles') next.delete('subtab');
-    else next.set('subtab', v);
+    if (v === 'cycles') next.delete('tab');
+    else next.set('tab', v);
     setSearchParams(next, { replace: true });
+  };
+
+  const pondSelectItems = useMemo(
+    () => [{ value: '__none__', label: '— Chọn ao —' }, ...(ponds || []).map((p) => ({ value: p.id, label: `${p.code} — ${p.owner_name || '—'}` }))],
+    [ponds]
+  );
+
+  const handleCreateCycle = async () => {
+    if (!newCycleForm.pond_id) {
+      setNewCycleErr('Chọn ao');
+      return;
+    }
+    setNewCycleSaving(true);
+    setNewCycleErr('');
+    try {
+      await base44.entities.PondCycle.create({
+        pond_id: newCycleForm.pond_id,
+        status: 'CT',
+        name: newCycleForm.name?.trim() || null,
+      });
+      setNewCycleOpen(false);
+      setNewCycleForm({ pond_id: '', name: '' });
+      await loadPonds();
+    } catch (e) {
+      setNewCycleErr(formatSupabaseError(e));
+    }
+    setNewCycleSaving(false);
   };
 
   return (
@@ -495,52 +529,62 @@ export default function Ponds() {
       <Tabs
         value={mainTab}
         onValueChange={(v) => {
-          if (v === 'households') setSearchParams({ tab: 'households' });
-          else setSearchParams({});
+          setMainTab(v);
         }}
         className="w-full gap-0"
       >
-        <TabsList className="inline-flex h-7 w-fit shrink-0 items-center gap-0 rounded-md border border-border bg-muted/50 p-0.5 shadow-none">
-          <TabsTrigger value="ponds" className="h-6 rounded-sm px-2.5 py-0 text-[11px] font-medium leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Ao nuôi</TabsTrigger>
-          <TabsTrigger value="households" className="h-6 rounded-sm px-2.5 py-0 text-[11px] font-medium leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Hộ nuôi</TabsTrigger>
+        <TabsList className="inline-flex h-8 w-fit shrink-0 items-center gap-0 rounded-md border border-border bg-muted/50 p-1 shadow-none">
+          <TabsTrigger value="cycles" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kỳ</TabsTrigger>
+          <TabsTrigger value="ponds" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Ao</TabsTrigger>
+          <TabsTrigger value="households" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Hộ nuôi</TabsTrigger>
         </TabsList>
 
         <div className="mt-3 flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl sm:text-2xl font-bold text-foreground sm:whitespace-nowrap">
-              {mainTab === 'households' ? 'Hộ nuôi' : pondsSubTab === 'ponds' ? 'Quản lý ao nuôi' : 'Quản lý chu kỳ ao nuôi'}
+              {mainTab === 'households' ? 'Hộ nuôi' : mainTab === 'ponds' ? 'Quản lý ao nuôi' : 'Quản lý chu kỳ ao nuôi'}
             </h1>
             <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
               {mainTab === 'households'
                 ? 'Mã hộ nằm trong mã ao (khu vực–đại lý–hộ–STT).'
-                : pondsSubTab === 'ponds'
+                : mainTab === 'ponds'
                   ? `${pondRows.length} ao • ${pondRows.filter((p) => (p.active_cycle?.status || 'CT') === 'CC').length} ao đang CC`
                   : `${cycleRows.length} chu kỳ • ${cycleRows.filter((r) => r.status === 'CC').length} đang CC`}
             </p>
           </div>
-          {mainTab === 'ponds' && (
+          {mainTab !== 'households' && (
             <div className="flex items-center gap-2 shrink-0">
               <div className="hidden sm:block"><QRBatchDownload ponds={ponds} /></div>
-              <Button variant="outline" className="gap-2" onClick={() => setShowColumnSettings(true)}>
-                <Settings2 className="w-4 h-4" /> Cài đặt cột
-              </Button>
-              <Button onClick={() => setShowNewDialog(true)} className="bg-primary text-white flex items-center gap-2 text-sm">
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Thêm ao mới</span>
-                <span className="sm:hidden">Thêm</span>
-              </Button>
+              {mainTab === 'cycles' ? (
+                <>
+                  <Button variant="outline" className="gap-2" onClick={() => setShowColumnSettings(true)}>
+                    <Settings2 className="w-4 h-4" /> Cài đặt cột
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setNewCycleErr('');
+                      setNewCycleForm({ pond_id: '', name: '' });
+                      setNewCycleOpen(true);
+                    }}
+                    className="bg-primary text-white flex items-center gap-2 text-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Thêm chu kỳ</span>
+                    <span className="sm:hidden">Chu kỳ</span>
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={() => setShowNewDialog(true)} className="bg-primary text-white flex items-center gap-2 text-sm">
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Thêm ao mới</span>
+                  <span className="sm:hidden">Thêm</span>
+                </Button>
+              )}
             </div>
           )}
         </div>
 
         <TabsContent value="ponds" className="mt-3 sm:mt-4 space-y-4 sm:space-y-5 outline-none">
-          <Tabs value={pondsSubTab} onValueChange={setSubTab} className="w-full">
-            <TabsList className="inline-flex h-7 w-fit shrink-0 items-center gap-0 rounded-md border border-border bg-muted/50 p-0.5 shadow-none">
-              <TabsTrigger value="ponds" className="h-6 rounded-sm px-2.5 py-0 text-[11px] font-medium leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Ao cá</TabsTrigger>
-              <TabsTrigger value="cycles" className="h-6 rounded-sm px-2.5 py-0 text-[11px] font-medium leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kỳ</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="ponds" className="mt-3 space-y-4 outline-none">
               <div className="flex w-full min-w-0 flex-wrap gap-2 sm:gap-3 items-center">
                 <div className="relative min-w-[12rem] flex-1 basis-[min(100%,24rem)]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -667,9 +711,9 @@ export default function Ponds() {
                   </table>
                 </div>
               </div>
-            </TabsContent>
+        </TabsContent>
 
-            <TabsContent value="cycles" className="mt-3 space-y-4 outline-none">
+        <TabsContent value="cycles" className="mt-3 sm:mt-4 space-y-4 sm:space-y-5 outline-none">
           {checkedHarvest.size > 0 && (
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
               <p className="text-sm text-green-700 font-medium">Đã chọn <strong>{checkedHarvest.size}</strong> chu kỳ để chốt thu hoạch</p>
@@ -882,13 +926,12 @@ export default function Ponds() {
               </table>
             </div>
           </div>
-            </TabsContent>
-          </Tabs>
+        </TabsContent>
 
-          <NewPondDialog open={showNewDialog} onClose={() => setShowNewDialog(false)} onCreated={loadPonds} agencies={agencies} appSettings={appSettings} />
-          <EditPondDialog open={showEditDialog} onClose={() => { setShowEditDialog(false); setSelectedPond(null); }} pond={selectedPond} onUpdated={loadPonds} />
+        <NewPondDialog open={showNewDialog} onClose={() => setShowNewDialog(false)} onCreated={loadPonds} agencies={agencies} appSettings={appSettings} />
+        <EditPondDialog open={showEditDialog} onClose={() => { setShowEditDialog(false); setSelectedPond(null); }} pond={selectedPond} onUpdated={loadPonds} />
 
-          <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2 text-red-600">
@@ -925,7 +968,7 @@ export default function Ponds() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </TabsContent>
+        
 
         <TabsContent value="households" className="mt-3 sm:mt-4 outline-none">
           <HouseholdsPanel embedded />
@@ -987,6 +1030,49 @@ export default function Ponds() {
           await loadPonds();
         }}
       />
+
+      <Dialog open={newCycleOpen} onOpenChange={setNewCycleOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tạo chu kỳ mới</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            {newCycleErr && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{newCycleErr}</p>}
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chọn ao *</Label>
+              <Select
+                value={newCycleForm.pond_id || '__none__'}
+                onValueChange={(v) => setNewCycleForm((p) => ({ ...p, pond_id: v === '__none__' ? '' : v }))}
+                items={pondSelectItems}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Chọn ao..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  <SelectItem value="__none__">— Chọn ao —</SelectItem>
+                  {(ponds || []).map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.code} — {p.owner_name || '—'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tên chu kỳ (tuỳ chọn)</Label>
+              <Input className="mt-1" value={newCycleForm.name} onChange={(e) => setNewCycleForm((p) => ({ ...p, name: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setNewCycleOpen(false)} disabled={newCycleSaving}>
+              Hủy
+            </Button>
+            <Button type="button" onClick={() => void handleCreateCycle()} disabled={newCycleSaving}>
+              {newCycleSaving ? 'Đang tạo…' : 'Tạo chu kỳ'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

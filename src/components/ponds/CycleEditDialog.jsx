@@ -20,8 +20,11 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
     name: '',
     status: 'CT',
     stock_date: '',
+    total_fish: '',
+    survival_rate: 90,
+    target_weight: 800,
+    initial_expected_harvest_date: '',
     current_fish: '',
-    expected_yield: '',
     expected_harvest_date: '',
     withdrawal_end_date: '',
     notes: '',
@@ -62,8 +65,11 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
             name: c?.name || '',
             status: c?.status || 'CT',
             stock_date: c?.stock_date || '',
+            total_fish: c?.total_fish ?? '',
+            survival_rate: c?.survival_rate ?? 90,
+            target_weight: c?.target_weight ?? 800,
+            initial_expected_harvest_date: c?.initial_expected_harvest_date || '',
             current_fish: c?.current_fish ?? c?.total_fish ?? '',
-            expected_yield: c?.expected_yield ?? '',
             expected_harvest_date: c?.expected_harvest_date || '',
             withdrawal_end_date: c?.withdrawal_end_date || '',
             notes: c?.notes || '',
@@ -82,6 +88,16 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
     };
   }, [open, cycleId]);
 
+  const computedExpectedYield = useMemo(() => {
+    const cur = Number(form.current_fish);
+    const sr = Number(form.survival_rate);
+    const tw = Number(form.target_weight);
+    if (!Number.isFinite(cur) || cur <= 0) return null;
+    if (!Number.isFinite(sr) || sr <= 0) return null;
+    if (!Number.isFinite(tw) || tw <= 0) return null;
+    return Math.round((cur * (sr / 100) * tw) / 1000);
+  }, [form.current_fish, form.survival_rate, form.target_weight]);
+
   const handleSave = async () => {
     if (!cycleId) return;
     setSaving(true);
@@ -91,8 +107,12 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
         name: form.name?.trim() || null,
         status: form.status || 'CT',
         stock_date: form.stock_date || null,
+        total_fish: form.total_fish === '' ? null : Number(form.total_fish),
+        survival_rate: form.survival_rate === '' ? null : Number(form.survival_rate),
+        target_weight: form.target_weight === '' ? null : Number(form.target_weight),
+        initial_expected_harvest_date: form.initial_expected_harvest_date || null,
         current_fish: form.current_fish === '' ? null : Number(form.current_fish),
-        expected_yield: form.expected_yield === '' ? null : Number(form.expected_yield),
+        expected_yield: computedExpectedYield ?? null,
         expected_harvest_date: form.expected_harvest_date || null,
         withdrawal_end_date: form.withdrawal_end_date || null,
         notes: form.notes?.trim() || null,
@@ -161,14 +181,40 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Số cá hiện tại (con)</Label>
-                    <Input className="mt-1" type="number" {...f('current_fish')} />
+                <div className="rounded-lg border border-border p-3 space-y-3">
+                  <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Kế hoạch ban đầu</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tổng số cá thả (con)</Label>
+                      <Input className="mt-1" type="number" {...f('total_fish')} />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Thu hoạch DK (đăng ký gốc)</Label>
+                      <Input className="mt-1" type="date" {...f('initial_expected_harvest_date')} />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tỷ lệ sống (%)</Label>
+                      <Input className="mt-1" type="number" {...f('survival_rate')} />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL kỳ vọng lúc thu (g)</Label>
+                      <Input className="mt-1" type="number" {...f('target_weight')} />
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">SL dự kiến (kg)</Label>
-                    <Input className="mt-1" type="number" {...f('expected_yield')} />
+                </div>
+
+                <div className="rounded-lg border border-border p-3 space-y-3 bg-amber-50/30">
+                  <p className="text-[11px] font-bold text-amber-900/90 uppercase tracking-wider">Kế hoạch điều chỉnh</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Số cá hiện tại (con)</Label>
+                      <Input className="mt-1" type="number" {...f('current_fish')} />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">SL mục tiêu (tự tính)</Label>
+                      <Input className="mt-1 bg-muted/40" readOnly value={computedExpectedYield != null ? computedExpectedYield : ''} placeholder="—" />
+                      <p className="text-[10px] text-muted-foreground mt-1">= số cá hiện tại × tỷ lệ sống × TL thu ÷ 1.000</p>
+                    </div>
                   </div>
                 </div>
 
