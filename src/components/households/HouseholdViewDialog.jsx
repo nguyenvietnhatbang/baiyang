@@ -4,7 +4,7 @@ import { X, MapPin, Building2, Hash, CheckCircle2, XCircle } from 'lucide-react'
 
 export default function HouseholdViewDialog({ open, onClose, household, agency, region }) {
   if (!household) return null;
-
+a
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg">
