@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, Pencil, Fish, QrCode } from 'lucide-react';
+import { Eye, Pencil, Fish, QrCode, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import PondQRCode from '@/components/ponds/PondQRCode';
 import PondStatusBadge from '@/components/ponds/PondStatusBadge';
+import CycleViewDialog from '@/components/ponds/CycleViewDialog';
+import CycleEditDialog from '@/components/ponds/CycleEditDialog';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 
@@ -19,6 +21,9 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
   const [pond, setPond] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [selectedCycle, setSelectedCycle] = useState(null);
+  const [showCycleView, setShowCycleView] = useState(false);
+  const [showCycleEdit, setShowCycleEdit] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +57,26 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
   }, [open, pondId]);
 
   const cycles = useMemo(() => (Array.isArray(pond?.pond_cycles) ? pond.pond_cycles : []), [pond]);
+
+  const handleDeleteCycle = async (cycle) => {
+    if (!confirm(`Xóa chu kỳ "${cycleLabel(cycle, 0)}"?\n\nThao tác này không thể hoàn tác.`)) return;
+    try {
+      await base44.entities.PondCycle.delete(cycle.id);
+      // Reload pond data
+      const p = await base44.entities.Pond.getWithCycles(pondId);
+      setPond(p);
+    } catch (e) {
+      alert('Lỗi xóa chu kỳ: ' + formatSupabaseError(e));
+    }
+  };
+
+  const handleCycleSaved = async () => {
+    // Reload pond data
+    const p = await base44.entities.Pond.getWithCycles(pondId);
+    setPond(p);
+    setShowCycleEdit(false);
+    setSelectedCycle(null);
+  };
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? onClose?.() : null)}>
@@ -135,13 +160,14 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
                         <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THU HOẠCH DK</th>
                         <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">SỐ CÁ</th>
                         <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">SL DỰ KIẾN</th>
+                        <th className="px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
                       {cycles.length === 0 ? (
-                        <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">Chưa có chu kỳ</td></tr>
+                        <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">Chưa có chu kỳ</td></tr>
                       ) : cycles.map((c, idx) => (
-                        <tr key={c.id} className="hover:bg-muted/30 transition-colors">
+                        <tr key={c.id} className="hover:bg-muted/30 transition-colors group">
                           <td className="px-4 py-3 font-medium text-slate-700">{cycleLabel(c, idx)}</td>
                           <td className="px-4 py-3"><PondStatusBadge status={c.status || 'CT'} /></td>
                           <td className="px-4 py-3 text-slate-500 text-xs">{c.stock_date || '—'}</td>
@@ -154,6 +180,37 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
                           <td className="px-4 py-3 text-right font-bold text-slate-800">
                             {c.expected_yield != null ? `${Number(c.expected_yield).toLocaleString()} kg` : '—'}
                           </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => {
+                                  setSelectedCycle(c);
+                                  setShowCycleView(true);
+                                }}
+                                className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
+                                title="Xem chi tiết"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-slate-600" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedCycle(c);
+                                  setShowCycleEdit(true);
+                                }}
+                                className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center hover:bg-blue-200 transition-colors"
+                                title="Sửa chu kỳ"
+                              >
+                                <Pencil className="w-3.5 h-3.5 text-blue-600" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCycle(c)}
+                                className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center hover:bg-red-200 transition-colors"
+                                title="Xóa chu kỳ"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -161,7 +218,7 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
                 </div>
               </div>
               <p className="text-[11px] text-muted-foreground mt-2">
-                Tab này chỉ xem. Chỉnh sửa chu kỳ: vào tab <strong>Chu kỳ</strong> ở trang danh sách và bấm <strong>Sửa</strong>.
+                Hover vào hàng để hiện các nút thao tác: <strong>Xem</strong>, <strong>Sửa</strong>, <strong>Xóa</strong>.
               </p>
             </TabsContent>
 
@@ -180,6 +237,33 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Dialog xem chi tiết chu kỳ */}
+      {selectedCycle && showCycleView && (
+        <CycleViewDialog
+          open={showCycleView}
+          onClose={() => {
+            setShowCycleView(false);
+            setSelectedCycle(null);
+          }}
+          cycle={selectedCycle}
+          pond={pond}
+        />
+      )}
+
+      {/* Dialog sửa chu kỳ */}
+      {selectedCycle && showCycleEdit && (
+        <CycleEditDialog
+          open={showCycleEdit}
+          onClose={() => {
+            setShowCycleEdit(false);
+            setSelectedCycle(null);
+          }}
+          cycle={selectedCycle}
+          pond={pond}
+          onSaved={handleCycleSaved}
+        />
+      )}
     </Dialog>
   );
 }
