@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import QRScanner from '@/components/scanner/QRScanner';
 import LogDetailModal from '@/components/ponds/LogDetailModal';
 import PondLogEditDialog from '@/components/ponds/PondLogEditDialog';
+import PondLogCreateDialog from '@/components/ponds/PondLogCreateDialog';
 import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
 import { format } from 'date-fns';
@@ -35,6 +36,7 @@ export default function Logs() {
   const [showCamera, setShowCamera] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [showLogDialog, setShowLogDialog] = useState(false);
+  const [showCreateLogDialog, setShowCreateLogDialog] = useState(false);
   const [selectedPondForLog, setSelectedPondForLog] = useState(null);
   const [monthFilter, setMonthFilter] = useState('all');
   const [logDateFrom, setLogDateFrom] = useState('');
@@ -201,12 +203,12 @@ export default function Logs() {
       return;
     }
     setSelectedPondForLog(pond);
-    setShowLogDialog(true);
+    setShowCreateLogDialog(true);
   };
 
   const handleLogSaved = async () => {
     await loadData();
-    setShowLogDialog(false);
+    setShowCreateLogDialog(false);
     setSelectedPondForLog(null);
   };
 
@@ -217,22 +219,64 @@ export default function Logs() {
           <h1 className="text-lg sm:text-xl font-bold text-slate-800">Nhật ký & Thống kê</h1>
           <p className="text-slate-500 text-[10px] sm:text-xs">Quản lý nhập liệu tập trung</p>
         </div>
+      </div>
+
+      {/* Chọn ao để ghi nhật ký */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+        <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Chọn ao để ghi nhật ký</Label>
         <div className="flex gap-2">
-           <Button onClick={() => setShowCamera(true)} className="bg-primary text-white h-8 text-xs shadow-sm" size="sm">
-            <Camera className="w-3.5 h-3.5 mr-1.5" />
+          <div className="flex-1">
+            <Select 
+              value={activePond?.id || 'none'} 
+              onValueChange={(v) => {
+                if (v === 'none') {
+                  setActivePond(null);
+                } else {
+                  const pond = ponds.find(p => p.id === v);
+                  setActivePond(pond);
+                }
+              }}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Chọn ao nuôi...">
+                  {activePond ? `${activePond.code} — ${activePond.owner_name}` : 'Chọn ao nuôi...'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="max-h-80">
+                <SelectItem value="none">Chọn ao nuôi...</SelectItem>
+                {pondFilterItems.slice(1).map((it) => (
+                  <SelectItem key={it.value} value={it.value} className="text-xs">
+                    {it.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button 
+            onClick={() => setShowCamera(true)} 
+            variant="outline"
+            className="h-10 px-4" 
+            size="sm"
+          >
+            <Camera className="w-4 h-4 mr-2" />
             Quét QR
           </Button>
           {activePond && pickActiveCycle(activePond.pond_cycles) && (
             <Button 
               onClick={() => handleCreateLog(activePond)} 
-              className="bg-emerald-600 text-white h-8 text-xs shadow-sm hover:bg-emerald-700" 
+              className="bg-emerald-600 text-white h-10 px-4 shadow-sm hover:bg-emerald-700" 
               size="sm"
             >
-              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              <Plus className="w-4 h-4 mr-2" />
               Ghi nhật ký
             </Button>
           )}
         </div>
+        {activePond && !pickActiveCycle(activePond.pond_cycles) && (
+          <p className="text-xs text-amber-600 mt-2 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+            ⚠️ Ao này chưa có chu kỳ hoạt động
+          </p>
+        )}
       </div>
 
       {/* Bộ lọc — Thu gọn và chuyên nghiệp hơn */}
@@ -507,19 +551,15 @@ export default function Logs() {
       )}
       
       {/* Dialog ghi nhật ký mới cho ao đã chọn */}
-      {showLogDialog && selectedPondForLog && !selectedLog && (
-        <PondLogEditDialog
-          open={showLogDialog}
+      {showCreateLogDialog && selectedPondForLog && (
+        <PondLogCreateDialog
+          open={showCreateLogDialog}
           onClose={() => {
-            setShowLogDialog(false);
+            setShowCreateLogDialog(false);
             setSelectedPondForLog(null);
           }}
-          log={{
-            pond_id: selectedPondForLog.id,
-            pond_code: selectedPondForLog.code,
-            pond_cycle_id: pickActiveCycle(selectedPondForLog.pond_cycles)?.id,
-            log_date: format(new Date(), 'yyyy-MM-dd'),
-          }}
+          pond={selectedPondForLog}
+          cycle={pickActiveCycle(selectedPondForLog.pond_cycles)}
           onSaved={handleLogSaved}
         />
       )}
