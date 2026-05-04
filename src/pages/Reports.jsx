@@ -15,6 +15,7 @@ import ReportOriginal from '@/components/reports/ReportOriginal';
 import ReportAdjusted from '@/components/reports/ReportAdjusted';
 import ReportHarvest from '@/components/reports/ReportHarvest';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { calcOriginalYieldKg } from '@/lib/calculateYield';
 
 const MONTHS = ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'];
 
@@ -68,14 +69,30 @@ export default function Reports() {
   const [expandedReport, setExpandedReport] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       base44.entities.Pond.listWithHouseholds('-updated_date', 500),
       base44.entities.HarvestRecord.list('-harvest_date', 500),
-    ]).then(([p, h]) => {
-      setPonds(p || []);
-      setHarvests(h || []);
-      setLoading(false);
-    });
+    ])
+      .then(([p, h]) => {
+        if (cancelled) return;
+        setPonds(p || []);
+        setHarvests(h || []);
+      })
+      .catch((e) => {
+        console.error(e);
+        if (!cancelled) {
+          setPonds([]);
+          setHarvests([]);
+          toast.error('Không tải được dữ liệu báo cáo.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const exportGranularityItems = useMemo(
@@ -96,10 +113,11 @@ export default function Reports() {
     [allAgencies]
   );
 
-  const yearFilterItems = useMemo(
-    () => ['2024', '2025', '2026'].map((y) => ({ value: y, label: y })),
-    []
-  );
+  const yearFilterItems = useMemo(() => {
+    const y0 = new Date().getFullYear();
+    const years = new Set(['2024', '2025', '2026', String(y0 - 1), String(y0), String(y0 + 1)]);
+    return [...years].sort().map((y) => ({ value: y, label: y }));
+  }, []);
 
   const filteredPonds = useMemo(
     () => ponds.filter((p) => agencyFilter === 'all' || p.agency_code === agencyFilter),
@@ -184,11 +202,7 @@ export default function Reports() {
   const totalAdjustedYield = scopedCycleRows.reduce((s, p) => s + (p.expected_yield || 0), 0);
   const totalActual = filteredHarvests.reduce((s, h) => s + (h.actual_yield || 0), 0);
 
-  const calcOriginalYield = (p) => {
-    if (!p.total_fish || !p.survival_rate || !p.target_weight) return 0;
-    return Math.round((p.total_fish * (p.survival_rate / 100) * p.target_weight) / 1000);
-  };
-  const totalOriginalYield = scopedCycleRows.reduce((s, p) => s + calcOriginalYield(p), 0);
+  const totalOriginalYield = scopedCycleRows.reduce((s, p) => s + calcOriginalYieldKg(p), 0);
 
   if (loading) {
     return (
@@ -212,7 +226,7 @@ export default function Reports() {
           <p className="text-muted-foreground text-sm mt-0.5">Phân tích sản lượng theo toàn bộ chu kỳ</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={exportGranularity} onValueChange={setExportGranularity} items={exportGranularityItems}>
+          <Select value={exportGranularity} onValueChange={setExportGranularity}>
             <SelectTrigger className="w-[11.5rem] h-9 text-sm">
               <SelectValue placeholder="Mức chi tiết" />
             </SelectTrigger>
@@ -230,19 +244,19 @@ export default function Reports() {
       </div>
 
       <div className="flex gap-3 flex-wrap items-center">
-        <Select value={reportType} onValueChange={setReportType} items={REPORT_TYPE_ITEMS}>
+        <Select value={reportType} onValueChange={setReportType}>
           <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
           <SelectContent>
             {REPORT_TYPE_ITEMS.map((it) => <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={agencyFilter} onValueChange={setAgencyFilter} items={agencyFilterItems}>
+        <Select value={agencyFilter} onValueChange={setAgencyFilter}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             {agencyFilterItems.map((it) => <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={yearFilter} onValueChange={setYearFilter} items={yearFilterItems}>
+        <Select value={yearFilter} onValueChange={setYearFilter}>
           <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
           <SelectContent>
             {yearFilterItems.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}
@@ -294,7 +308,14 @@ export default function Reports() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v, n) => [`${v.toLocaleString()} kg`, n === 'keHoach' ? 'KH Điều chỉnh' : 'Thực tế']} contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                <Tooltip
+                  formatter={(v, n) => {
+                    const num = typeof v === 'number' ? v : Number(v);
+                    const safe = Number.isFinite(num) ? num : 0;
+                    return [`${safe.toLocaleString()} kg`, n === 'keHoach' ? 'KH Điều chỉnh' : 'Thực tế'];
+                  }}
+                  contentStyle={{ borderRadius: '8px', fontSize: '12px' }}
+                />
                 <Legend formatter={(v) => (v === 'keHoach' ? 'KH Điều chỉnh' : 'Thực tế')} wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="keHoach" fill="hsl(38,85%,52%)" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="thucTe" fill="hsl(145,55%,42%)" radius={[3, 3, 0, 0]} />
@@ -356,7 +377,12 @@ export default function Reports() {
       )}
 
       {/* Modal mở rộng báo cáo */}
-      <Dialog open={!!expandedReport} onOpenChange={(open) => !open && setExpandedReport(null)}>
+      <Dialog
+        open={!!expandedReport}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setExpandedReport(null);
+        }}
+      >
         <DialogContent className="max-w-[98vw] w-[98vw] max-h-[98vh] h-[98vh] overflow-hidden flex flex-col p-0">
           <DialogHeader className="px-6 py-4 border-b border-border flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">

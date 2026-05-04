@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import WaterColorCombobox from '@/components/ponds/WaterColorCombobox';
 import { Save, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
@@ -24,10 +25,18 @@ function cycleChoiceLine(c, cycles) {
   return `${cycleSelectLabel(c, i)} · ${c.status || '—'} · Số cá: ${c.current_fish != null ? c.current_fish.toLocaleString() : '—'}`;
 }
 
-const WATER_COLORS = ['Xanh lá', 'Xanh trà', 'Nâu', 'Nâu đỏ', 'Vàng nhạt', 'Trong'];
-
 function isAlert(key, value) {
   return pondLogEnvOutOfRange(key, value);
+}
+
+function toDateInputValue(d) {
+  if (d == null || d === '') return '';
+  if (typeof d === 'string') return d.length >= 10 ? d.slice(0, 10) : '';
+  try {
+    return format(new Date(d), 'yyyy-MM-dd');
+  } catch {
+    return '';
+  }
 }
 
 export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
@@ -65,6 +74,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [expectedHarvestDate, setExpectedHarvestDate] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -97,6 +107,18 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
     if (!resolvedCycleId) return null;
     return cycles.find((c) => String(c.id) === resolvedCycleId) || null;
   }, [cycles, resolvedCycleId]);
+
+  useEffect(() => {
+    if (!open) {
+      setExpectedHarvestDate('');
+      return;
+    }
+    if (!selectedCycle) {
+      setExpectedHarvestDate('');
+      return;
+    }
+    setExpectedHarvestDate(toDateInputValue(selectedCycle.expected_harvest_date));
+  }, [open, selectedCycle?.id, selectedCycle?.expected_harvest_date]);
 
   const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
@@ -140,6 +162,11 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
         disease_notes: form.disease_notes?.trim() || null,
         notes: form.notes?.trim() || null,
       });
+      const nextHarvest = expectedHarvestDate.trim() || null;
+      const prevHarvest = toDateInputValue(selectedCycle.expected_harvest_date) || null;
+      if (nextHarvest !== prevHarvest) {
+        await base44.entities.PondCycle.update(selectedCycle.id, { expected_harvest_date: nextHarvest });
+      }
       await onSaved?.();
       onClose?.();
     } catch (e) {
@@ -212,6 +239,20 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
                 <span className="font-medium text-slate-700">{selectedCycle?.current_fish?.toLocaleString() || '—'}</span>
               </div>
             </div>
+            {selectedCycle && (
+              <div className="space-y-1 pt-1.5 border-t border-slate-200/80">
+                <Label htmlFor="pond-log-expected-harvest" className="text-[11px] font-semibold text-stone-600">
+                  Ngày thu hoạch dự kiến
+                </Label>
+                <Input
+                  id="pond-log-expected-harvest"
+                  type="date"
+                  className="h-9 text-xs bg-white w-full sm:max-w-[11rem]"
+                  value={expectedHarvestDate}
+                  onChange={(e) => setExpectedHarvestDate(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Ngày ghi và màu nước */}
@@ -221,20 +262,16 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
               <Input className="mt-1" type="date" value={form.log_date} onChange={set('log_date')} />
             </div>
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Màu nước</Label>
-              <Select value={form.water_color || '__none__'} onValueChange={(v) => setForm((p) => ({ ...p, water_color: v === '__none__' ? '' : v }))}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Chọn màu..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">—</SelectItem>
-                  {WATER_COLORS.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="create-log-water-color" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Màu nước
+              </Label>
+              <div className="mt-1">
+                <WaterColorCombobox
+                  id="create-log-water-color"
+                  value={form.water_color}
+                  onChange={(v) => setForm((p) => ({ ...p, water_color: v }))}
+                />
+              </div>
             </div>
           </div>
 

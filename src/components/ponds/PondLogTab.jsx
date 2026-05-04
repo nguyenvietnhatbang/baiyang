@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import WaterColorCombobox from '@/components/ponds/WaterColorCombobox';
 import { Save, ChevronDown, ChevronUp, AlertTriangle, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { submitPondLogEntry } from '@/lib/pondLogSubmit';
@@ -91,20 +91,16 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Màu nước</Label>
-          <Select value={form.water_color} onValueChange={(v) => setForm({ ...form, water_color: v })}>
-            <SelectTrigger className="mt-1 h-9">
-              <SelectValue placeholder="Chọn màu nước..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Xanh lá">Xanh lá</SelectItem>
-              <SelectItem value="Xanh trà">Xanh trà</SelectItem>
-              <SelectItem value="Nâu">Nâu</SelectItem>
-              <SelectItem value="Nâu đỏ">Nâu đỏ</SelectItem>
-              <SelectItem value="Vàng nhạt">Vàng nhạt</SelectItem>
-              <SelectItem value="Trong">Trong</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label htmlFor="pond-log-tab-water-color" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Màu nước
+          </Label>
+          <div className="mt-1">
+            <WaterColorCombobox
+              id="pond-log-tab-water-color"
+              value={form.water_color}
+              onChange={(v) => setForm({ ...form, water_color: v })}
+            />
+          </div>
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày ghi</Label>

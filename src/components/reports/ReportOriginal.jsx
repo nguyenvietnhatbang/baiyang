@@ -6,7 +6,10 @@
 import { Fragment } from 'react';
 import { originalHarvestDateForReport } from '@/lib/planReportHelpers';
 import { uniquePhysicalPondCount, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
-import { calculateYieldFromPond } from '@/lib/calculateYield';
+import { calculateYieldFromPond, calcOriginalYieldKg } from '@/lib/calculateYield';
+
+/** Alias — tránh ReferenceError nếu bundle cũ / nhánh code còn gọi tên cũ */
+const calcOriginalYield = (p) => calcOriginalYieldKg(p);
 
 const MONTHS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
 

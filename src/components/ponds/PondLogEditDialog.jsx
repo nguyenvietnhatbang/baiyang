@@ -4,12 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Save } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
-
-const WATER_COLORS = ['Xanh lá', 'Xanh trà', 'Nâu', 'Nâu đỏ', 'Vàng nhạt', 'Trong'];
+import WaterColorCombobox from '@/components/ponds/WaterColorCombobox';
 
 export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
   const [form, setForm] = useState({
@@ -136,20 +134,16 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
               <Input className="mt-1 h-9 text-sm" type="date" value={form.log_date} onChange={set('log_date')} />
             </div>
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Màu nước</Label>
-              <Select value={form.water_color || '__none__'} onValueChange={(v) => setForm((p) => ({ ...p, water_color: v === '__none__' ? '' : v }))}>
-                <SelectTrigger className="mt-1 h-9 text-sm">
-                  <SelectValue placeholder="Chọn màu..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">—</SelectItem>
-                  {WATER_COLORS.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="edit-log-water-color" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Màu nước
+              </Label>
+              <div className="mt-1">
+                <WaterColorCombobox
+                  id="edit-log-water-color"
+                  value={form.water_color}
+                  onChange={(v) => setForm((p) => ({ ...p, water_color: v }))}
+                />
+              </div>
             </div>
           </div>
 

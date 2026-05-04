@@ -34,3 +34,14 @@ export function calculateCurrentYield(cycle) {
   if (!cycle) return 0;
   return calculateYield(cycle.current_fish, cycle.survival_rate, cycle.target_weight);
 }
+
+/** Sản lượng KH gốc (kg): total_fish × tỷ lệ sống × TL mục tiêu — dùng báo cáo Gốc / so sánh kế hoạch */
+export function calcOriginalYieldKg(p) {
+  if (!p) return 0;
+  return calculateYield(p.total_fish, p.survival_rate, p.target_weight);
+}
+
+/** Cùng nội dung với {@link calcOriginalYieldKg} — tên cũ dùng ở một số báo cáo / export Excel */
+export function calcOriginalYield(p) {
+  return calcOriginalYieldKg(p);
+}
