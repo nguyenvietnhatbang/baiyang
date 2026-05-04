@@ -212,6 +212,8 @@ export default function Logs() {
     setSelectedPondForLog(null);
   };
 
+  const canCreateLog = activePond && pickActiveCycle(activePond.pond_cycles);
+
   return (
     <div className="p-2 sm:p-4 space-y-3 max-w-7xl mx-auto bg-slate-50/50 min-h-screen">
       <div className="flex items-center justify-between px-1">
@@ -225,7 +227,7 @@ export default function Logs() {
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
         <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Chọn ao để ghi nhật ký</Label>
         <div className="flex gap-2">
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <Select 
               value={activePond?.id || 'none'} 
               onValueChange={(v) => {
@@ -255,16 +257,16 @@ export default function Logs() {
           <Button 
             onClick={() => setShowCamera(true)} 
             variant="outline"
-            className="h-9 px-3" 
+            className="h-9 px-3 shrink-0" 
             size="sm"
           >
-            <Camera className="w-4 h-4 mr-2" />
-            Quét QR
+            <Camera className="w-4 h-4 shrink-0" aria-hidden />
+            <span className="sm:ml-2 text-xs sm:text-sm font-medium">Quét QR</span>
           </Button>
-          {activePond && pickActiveCycle(activePond.pond_cycles) && (
+          {canCreateLog && (
             <Button 
               onClick={() => handleCreateLog(activePond)} 
-              className="bg-emerald-600 text-white h-9 px-4 shadow-sm hover:bg-emerald-700" 
+              className="hidden sm:inline-flex bg-emerald-600 text-white h-9 px-4 shadow-sm hover:bg-emerald-700 shrink-0" 
               size="sm"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -272,6 +274,16 @@ export default function Logs() {
             </Button>
           )}
         </div>
+        {canCreateLog && (
+          <Button
+            type="button"
+            onClick={() => handleCreateLog(activePond)}
+            className="mt-3 w-full h-11 text-sm font-semibold bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 sm:hidden"
+          >
+            <Plus className="w-4 h-4 mr-2 shrink-0" />
+            Ghi nhật ký
+          </Button>
+        )}
         {activePond && !pickActiveCycle(activePond.pond_cycles) && (
           <p className="text-xs text-amber-600 mt-2 bg-amber-50 border border-amber-200 rounded px-2 py-1">
             ⚠️ Ao này chưa có chu kỳ hoạt động
@@ -525,7 +537,6 @@ export default function Logs() {
             setSelectedPondForLog(null);
           }}
           pond={selectedPondForLog}
-          cycle={pickActiveCycle(selectedPondForLog.pond_cycles)}
           onSaved={handleLogSaved}
         />
       )}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,19 @@ import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { POND_LOG_ENV_RANGES, pondLogEnvOutOfRange } from '@/lib/pondLogEnvRanges';
+import { pickActiveCycle } from '@/lib/pondCycleHelpers';
+
+function cycleSelectLabel(c, idx) {
+  const n = c?.name?.trim();
+  return n || (c?.stock_date ? `Thả ${c.stock_date}` : `Chu kỳ ${idx + 1}`);
+}
+
+/** Nhãn một dòng cho ô chọn / trigger (không dùng UUID). */
+function cycleChoiceLine(c, cycles) {
+  if (!c) return '';
+  const i = Math.max(0, cycles.findIndex((x) => String(x.id) === String(c.id)));
+  return `${cycleSelectLabel(c, i)} · ${c.status || '—'} · Số cá: ${c.current_fish != null ? c.current_fish.toLocaleString() : '—'}`;
+}
 
 const WATER_COLORS = ['Xanh lá', 'Xanh trà', 'Nâu', 'Nâu đỏ', 'Vàng nhạt', 'Trong'];
 
@@ -17,7 +30,20 @@ function isAlert(key, value) {
   return pondLogEnvOutOfRange(key, value);
 }
 
-export default function PondLogCreateDialog({ open, onClose, pond, cycle, onSaved }) {
+export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
+  const cycles = useMemo(() => {
+    const raw = Array.isArray(pond?.pond_cycles) ? [...pond.pond_cycles] : [];
+    raw.sort((a, b) => {
+      const da = String(a.stock_date || a.created_at || '');
+      const db = String(b.stock_date || b.created_at || '');
+      if (da !== db) return db.localeCompare(da);
+      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    });
+    return raw;
+  }, [pond?.pond_cycles]);
+
+  const [selectedCycleId, setSelectedCycleId] = useState('');
+
   const [form, setForm] = useState({
     log_date: format(new Date(), 'yyyy-MM-dd'),
     ph: '',
@@ -41,29 +67,36 @@ export default function PondLogCreateDialog({ open, onClose, pond, cycle, onSave
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (open) {
-      setError('');
-      setForm({
-        log_date: format(new Date(), 'yyyy-MM-dd'),
-        ph: '',
-        temperature: '',
-        do: '',
-        nh3: '',
-        no2: '',
-        h2s: '',
-        water_color: '',
-        feed_code: '',
-        feed_amount: '',
-        dead_fish: 0,
-        avg_weight: '',
-        medicine_used: '',
-        medicine_dosage: '',
-        withdrawal_days: '',
-        disease_notes: '',
-        notes: '',
-      });
-    }
-  }, [open]);
+    if (!open) return;
+    setError('');
+    setForm({
+      log_date: format(new Date(), 'yyyy-MM-dd'),
+      ph: '',
+      temperature: '',
+      do: '',
+      nh3: '',
+      no2: '',
+      h2s: '',
+      water_color: '',
+      feed_code: '',
+      feed_amount: '',
+      dead_fish: 0,
+      avg_weight: '',
+      medicine_used: '',
+      medicine_dosage: '',
+      withdrawal_days: '',
+      disease_notes: '',
+      notes: '',
+    });
+    setSelectedCycleId('');
+  }, [open, pond?.id, cycles]);
+
+  const resolvedCycleId = String(selectedCycleId || pickActiveCycle(cycles)?.id || '');
+
+  const selectedCycle = useMemo(() => {
+    if (!resolvedCycleId) return null;
+    return cycles.find((c) => String(c.id) === resolvedCycleId) || null;
+  }, [cycles, resolvedCycleId]);
 
   const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
@@ -78,7 +111,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, cycle, onSave
       setError('Chọn ngày ghi');
       return;
     }
-    if (!pond?.id || !cycle?.id) {
+    if (!pond?.id || !selectedCycle?.id) {
       setError('Thiếu thông tin ao hoặc chu kỳ');
       return;
     }
@@ -88,7 +121,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, cycle, onSave
       await base44.entities.PondLog.create({
         pond_id: pond.id,
         pond_code: pond.code,
-        pond_cycle_id: cycle.id,
+        pond_cycle_id: selectedCycle.id,
         log_date: form.log_date,
         ph: toNumOrNull(form.ph),
         temperature: toNumOrNull(form.temperature),
@@ -126,8 +159,35 @@ export default function PondLogCreateDialog({ open, onClose, pond, cycle, onSave
 
         <div className="space-y-4 py-1">
           {/* Thông tin ao */}
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
-            <div className="grid grid-cols-2 gap-2">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs sm:text-sm space-y-2">
+            {cycles.length === 0 && (
+              <p className="text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 text-[11px] leading-snug">
+                Ao chưa có chu kỳ nuôi — tạo chu kỳ trong Quản lý ao trước khi ghi nhật ký.
+              </p>
+            )}
+            {cycles.length > 1 && (
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold text-stone-600">Chu kỳ ghi nhật ký</Label>
+                <Select
+                  value={resolvedCycleId || undefined}
+                  onValueChange={(v) => setSelectedCycleId(v)}
+                >
+                  <SelectTrigger className="mt-0 h-9 bg-white text-xs">
+                    <SelectValue placeholder="Chọn chu kỳ...">
+                      {selectedCycle ? cycleChoiceLine(selectedCycle, cycles) : null}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cycles.map((c, i) => (
+                      <SelectItem key={String(c.id)} value={String(c.id)}>
+                        {cycleChoiceLine(c, cycles)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1 leading-tight">
               <div>
                 <span className="text-slate-500">Mã ao:</span>{' '}
                 <span className="font-bold text-slate-700">{pond?.code}</span>
@@ -138,11 +198,18 @@ export default function PondLogCreateDialog({ open, onClose, pond, cycle, onSave
               </div>
               <div>
                 <span className="text-slate-500">Chu kỳ:</span>{' '}
-                <span className="font-medium text-slate-700">{cycle?.name || cycle?.stock_date || '—'}</span>
+                <span className="font-medium text-slate-700">
+                  {selectedCycle
+                    ? cycleSelectLabel(
+                        selectedCycle,
+                        Math.max(0, cycles.findIndex((c) => String(c.id) === String(selectedCycle.id)))
+                      )
+                    : '—'}
+                </span>
               </div>
               <div>
                 <span className="text-slate-500">Số cá:</span>{' '}
-                <span className="font-medium text-slate-700">{cycle?.current_fish?.toLocaleString() || '—'}</span>
+                <span className="font-medium text-slate-700">{selectedCycle?.current_fish?.toLocaleString() || '—'}</span>
               </div>
             </div>
           </div>
@@ -258,7 +325,12 @@ export default function PondLogCreateDialog({ open, onClose, pond, cycle, onSave
           <Button variant="outline" onClick={onClose} className="flex-1">
             Hủy
           </Button>
-          <Button type="button" onClick={handleSave} disabled={saving} className="flex-1 bg-primary text-white">
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !selectedCycle?.id}
+            className="flex-1 bg-primary text-white"
+          >
             <Save className="w-4 h-4 mr-2" />
             {saving ? 'Đang lưu...' : 'Lưu nhật ký'}
           </Button>
