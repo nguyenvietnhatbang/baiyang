@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { QrCode, ClipboardList, Camera, ChevronRight, Filter, Plus, Edit } from 'lucide-react';
+import { QrCode, ClipboardList, Camera, ChevronRight, ChevronLeft, Filter, Plus, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import QRScanner from '@/components/scanner/QRScanner';
@@ -11,8 +11,13 @@ import LogDetailModal from '@/components/ponds/LogDetailModal';
 import PondLogEditDialog from '@/components/ponds/PondLogEditDialog';
 import PondLogCreateDialog from '@/components/ponds/PondLogCreateDialog';
 import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
-import { pickActiveCycle } from '@/lib/pondCycleHelpers';
+import { pickActiveCycle, cycleLabelForPondLog } from '@/lib/pondCycleHelpers';
 import { format } from 'date-fns';
+
+function cellDash(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  return v;
+}
 
 function inDateScope(logDate, logDateFrom, logDateTo, monthFilter) {
   if (!logDate) return false;
@@ -38,6 +43,7 @@ export default function Logs() {
   const [showLogDialog, setShowLogDialog] = useState(false);
   const [showCreateLogDialog, setShowCreateLogDialog] = useState(false);
   const [selectedPondForLog, setSelectedPondForLog] = useState(null);
+  const [deletingLogId, setDeletingLogId] = useState(null);
   const [monthFilter, setMonthFilter] = useState('all');
   const [logDateFrom, setLogDateFrom] = useState('');
   const [logDateTo, setLogDateTo] = useState('');
@@ -206,6 +212,24 @@ export default function Logs() {
     setShowCreateLogDialog(true);
   };
 
+  const handleDeleteLog = async (log) => {
+    if (!log?.id) return;
+    const ok = window.confirm(`Xóa nhật ký ngày ${log.log_date || '—'} của ao ${log.pond_code || '—'}?`);
+    if (!ok) return;
+    setDeletingLogId(log.id);
+    try {
+      await base44.entities.PondLog.delete(log.id);
+      if (selectedLog?.id === log.id) {
+        setSelectedLog(null);
+        setShowLogDialog(false);
+      }
+      await loadData();
+    } catch (e) {
+      alert(`Không xóa được nhật ký: ${e?.message || 'Lỗi không xác định'}`);
+    }
+    setDeletingLogId(null);
+  };
+
   const handleLogSaved = async () => {
     await loadData();
     setShowCreateLogDialog(false);
@@ -213,9 +237,10 @@ export default function Logs() {
   };
 
   const canCreateLog = activePond && pickActiveCycle(activePond.pond_cycles);
+  const logTableScrollRef = useRef(null);
 
   return (
-    <div className="p-2 sm:p-4 space-y-3 max-w-7xl mx-auto bg-slate-50/50 min-h-screen">
+    <div className="p-2 sm:p-4 space-y-3 w-full max-w-none bg-slate-50/50 min-h-screen">
       <div className="flex items-center justify-between px-1">
         <div>
           <h1 className="text-lg sm:text-xl font-bold text-slate-800">Nhật ký & Thống kê</h1>
@@ -405,7 +430,7 @@ export default function Logs() {
           <span className="text-xs font-medium text-slate-500 bg-white px-2.5 py-1 rounded-full border border-slate-200 whitespace-nowrap">{displayLogs.length} dòng</span>
         </div>
 
-        <div className="overflow-x-auto min-h-[400px]">
+        <div className="min-h-[400px]">
           {loading ? (
             <div className="p-4 space-y-2">
               {Array(8).fill(0).map((_, i) => (
@@ -421,95 +446,161 @@ export default function Logs() {
             </div>
           ) : (
             <>
-              {/* Mobile View Card-like List */}
-              <div className="sm:hidden divide-y divide-slate-100">
-                {displayLogs.map((log) => (
-                  <button
-                    key={log.id}
+              <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5 border-b border-slate-100 bg-slate-50/95">
+                <p className="text-[10px] sm:text-xs text-slate-500 pl-1">
+                  Kéo ngang (hoặc vuốt trên cảm ứng) — dùng nút để lướt nhanh
+                </p>
+                <div className="flex gap-1 shrink-0 pr-1">
+                  <Button
                     type="button"
-                    onClick={() => setSelectedLog(log)}
-                    className="w-full text-left px-4 py-3 hover:bg-slate-50/50 transition-colors"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    aria-label="Cuộn bảng sang trái"
+                    onClick={() => logTableScrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
                   >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className="font-bold text-slate-700 text-xs">{log.pond_code}</span>
-                        <span className="text-slate-400 text-[10px] ml-2 font-medium">{log.log_date}</span>
-                      </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-                    </div>
-                    <div className="flex gap-2.5 mt-1.5 text-[10px] text-slate-500 font-medium">
-                      {log.ph && <span className="bg-slate-100 px-1.5 py-0.5 rounded">pH {log.ph}</span>}
-                      {log.dead_fish > 0 && <span className="text-red-500 bg-red-50 px-1.5 py-0.5 rounded">-{log.dead_fish}</span>}
-                      {log.feed_amount && <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{log.feed_amount}kg</span>}
-                    </div>
-                  </button>
-                ))}
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    aria-label="Cuộn bảng sang phải"
+                    onClick={() => logTableScrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-
-              {/* Desktop Table View - Scrollable */}
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full text-sm min-w-[800px]">
+              <div
+                ref={logTableScrollRef}
+                role="region"
+                aria-label="Bảng nhật ký — cuộn ngang để xem đủ cột"
+                className="overflow-x-auto overscroll-x-contain touch-pan-x scroll-smooth min-h-[360px] max-w-full"
+              >
+                <table className="w-full text-xs sm:text-sm min-w-[1680px] border-collapse">
                   <thead>
                     <tr className="bg-muted/30 border-b border-border">
-                      <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">NGÀY</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">MÃ AO</th>
-                      <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">HAO HỤT</th>
-                      <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THỨC ĂN</th>
-                      <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">pH</th>
-                      <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">T°</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">GHI CHÚ / THUỐC</th>
-                      <th className="px-4 py-3 whitespace-nowrap" />
+                      <th className="sticky left-0 z-10 w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] bg-muted/95 backdrop-blur-sm text-left px-2 sm:px-3 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-r border-border/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                        NGÀY
+                      </th>
+                      <th className="sticky left-[6.25rem] z-10 min-w-[7.5rem] bg-muted/95 backdrop-blur-sm text-left px-2 sm:px-3 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-r border-border/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                        MÃ AO
+                      </th>
+                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">ĐẠI LÝ</th>
+                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[7rem]">CHU KỲ</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">HAO HỤT</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THỨC ĂN</th>
+                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">MÃ TA</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">pH</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">T°</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">DO</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">NH3</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">NO2</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">H2S</th>
+                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[6rem]">MÀU NC</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">TL TB</th>
+                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8rem]">THUỐC</th>
+                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8rem]">GHI CHÚ</th>
+                      <th className="sticky right-0 z-10 bg-muted/95 backdrop-blur-sm px-2 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap w-24 border-l border-border/80 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                        THAO TÁC
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {displayLogs.map((log) => (
-                      <tr
-                        key={log.id}
-                        className="hover:bg-primary/5 cursor-pointer group transition-colors"
-                        onClick={() => {
-                          setSelectedLog(log);
-                          setShowLogDialog(false);
-                        }}
-                      >
-                        <td className="px-4 py-3 text-slate-500 font-medium whitespace-nowrap">{log.log_date}</td>
-                        <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{log.pond_code}</td>
-                        <td className="px-4 py-3 text-right font-bold text-red-600 whitespace-nowrap">
-                          {log.dead_fish > 0 ? `-${log.dead_fish}` : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-right font-bold text-blue-600 whitespace-nowrap">
-                          {log.feed_amount ? `${log.feed_amount}kg` : '—'}
-                        </td>
-                        <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${log.ph && (log.ph < 6.5 || log.ph > 8.5) ? 'text-red-600' : 'text-slate-600'}`}>
-                          {log.ph || '—'}
-                        </td>
-                        <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${log.temperature && (log.temperature < 25 || log.temperature > 32) ? 'text-red-600' : 'text-slate-600'}`}>
-                          {log.temperature || '—'}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 max-w-[250px]">
-                          <div className="truncate">
-                            {log.medicine_used ? `💊 ${log.medicine_used}` : log.notes || '—'}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedLog(log);
-                                setShowLogDialog(true);
-                              }}
-                              className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-200"
-                              title="Sửa nhật ký"
-                            >
-                              <Edit className="w-3.5 h-3.5 text-slate-600" />
-                            </button>
-                            <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    {displayLogs.map((log) => {
+                      const pond = pondById.get(log.pond_id);
+                      const agency = pond?.agency_code || '—';
+                      const cycleLb = cycleLabelForPondLog(log, pond);
+                      return (
+                        <tr
+                          key={log.id}
+                          className="hover:bg-primary/5 cursor-pointer group transition-colors bg-white"
+                          onClick={() => {
+                            setSelectedLog(log);
+                            setShowLogDialog(false);
+                          }}
+                        >
+                          <td className="sticky left-0 z-[1] w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-2.5 sm:py-3 text-slate-500 font-medium whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
+                            {log.log_date}
+                          </td>
+                          <td className="sticky left-[6.25rem] z-[1] min-w-[7.5rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-2.5 sm:py-3 font-bold text-slate-700 whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
+                            {log.pond_code}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 whitespace-nowrap">{agency}</td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[10rem] truncate" title={cycleLb}>
+                            {cycleLb}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right font-bold text-red-600 whitespace-nowrap">
+                            {log.dead_fish > 0 ? `-${log.dead_fish}` : '—'}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right font-bold text-blue-600 whitespace-nowrap">
+                            {log.feed_amount != null && log.feed_amount !== '' ? `${log.feed_amount}kg` : '—'}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 whitespace-nowrap max-w-[6rem] truncate" title={log.feed_code || ''}>
+                            {cellDash(log.feed_code)}
+                          </td>
+                          <td className={`px-3 sm:px-4 py-2.5 sm:py-3 text-right font-semibold whitespace-nowrap ${log.ph != null && log.ph !== '' && (Number(log.ph) < 6.5 || Number(log.ph) > 8.5) ? 'text-red-600' : 'text-slate-600'}`}>
+                            {cellDash(log.ph)}
+                          </td>
+                          <td className={`px-3 sm:px-4 py-2.5 sm:py-3 text-right font-semibold whitespace-nowrap ${log.temperature != null && log.temperature !== '' && (Number(log.temperature) < 25 || Number(log.temperature) > 32) ? 'text-red-600' : 'text-slate-600'}`}>
+                            {cellDash(log.temperature)}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(log.do)}</td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(log.nh3)}</td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(log.no2)}</td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(log.h2s)}</td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[8rem] truncate" title={log.water_color || ''}>
+                            {cellDash(log.water_color)}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">
+                            {log.avg_weight != null && log.avg_weight !== '' ? `${log.avg_weight}` : '—'}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[10rem]">
+                            <div className="truncate" title={log.medicine_used || ''}>
+                              {log.medicine_used ? `💊 ${log.medicine_used}` : '—'}
                             </div>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[12rem]">
+                            <div className="truncate" title={log.notes || ''}>
+                              {cellDash(log.notes)}
+                            </div>
+                          </td>
+                          <td className="sticky right-0 z-[1] px-2 sm:px-4 py-2.5 sm:py-3 text-right whitespace-nowrap bg-white group-hover:bg-primary/5 border-l border-border/60 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.04)]">
+                            <div className="flex items-center justify-end gap-1 sm:gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedLog(log);
+                                  setShowLogDialog(true);
+                                }}
+                                className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center opacity-100 transition-colors hover:bg-slate-200"
+                                title="Sửa nhật ký"
+                              >
+                                <Edit className="w-3.5 h-3.5 text-slate-600" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleDeleteLog(log);
+                                }}
+                                disabled={deletingLogId === log.id}
+                                className="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center opacity-100 transition-colors hover:bg-red-100 disabled:opacity-50"
+                                title="Xóa nhật ký"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                              </button>
+                              <div className="hidden sm:flex w-7 h-7 rounded-full bg-slate-100 items-center justify-center opacity-100">
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

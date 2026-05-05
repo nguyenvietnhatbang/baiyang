@@ -4,6 +4,7 @@
  * Bố cục dạng ma trận theo tháng: mỗi tháng tách 3 cột CC/CT/TH.
  */
 import { Fragment } from 'react';
+import { Link } from 'react-router-dom';
 import { originalHarvestDateForReport } from '@/lib/planReportHelpers';
 import { uniquePhysicalPondCount, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
 import { calculateYieldFromPond, calcOriginalYieldKg } from '@/lib/calculateYield';
@@ -13,22 +14,56 @@ const calcOriginalYield = (p) => calcOriginalYieldKg(p);
 
 const MONTHS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
 
-export default function ReportOriginal({ ponds, agencies }) {
+function parseDate(dateValue) {
+  if (!dateValue) return null;
+  const d = new Date(dateValue);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function isInDateRange(dateValue, fromDate, toDate) {
+  const d = parseDate(dateValue);
+  if (!d) return false;
+  if (fromDate && d < fromDate) return false;
+  if (toDate && d > toDate) return false;
+  return true;
+}
+
+function monthIdxFromRange(fromDate, toDate) {
+  if (!fromDate || !toDate || fromDate > toDate) return null;
+  if (fromDate.getFullYear() !== toDate.getFullYear()) return Array.from({ length: 12 }, (_, i) => i);
+  const start = fromDate.getMonth();
+  const end = toDate.getMonth();
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
+
+export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo }) {
+  const fromDate = parseDate(dateFrom);
+  const toDate = parseDate(dateTo);
   const monthIdx = (() => {
     const set = new Set();
     ponds.forEach((p) => {
       const d = originalHarvestDateForReport(p);
       if (!d) return;
+      if (!isInDateRange(d, fromDate, toDate)) return;
       const y = calculateYieldFromPond(p);
       if (y > 0) set.add(new Date(d).getMonth());
     });
     return [...set].sort((a, b) => a - b);
   })();
 
-  const visibleMonthIdx = monthIdx.length > 0 ? monthIdx : [new Date().getMonth()];
+  const rangeMonths = monthIdxFromRange(fromDate, toDate);
+  const visibleMonthIdx = rangeMonths && rangeMonths.length > 0 ? rangeMonths : (monthIdx.length > 0 ? monthIdx : [new Date().getMonth()]);
 
   const allAgencyRows = agencies.map((agency) => {
     const agencyPonds = ponds.filter((p) => p.agency_code === agency);
+    const uniquePonds = [];
+    const seenPondIds = new Set();
+    agencyPonds.forEach((p) => {
+      const pid = p.pond_id || p.id;
+      if (!pid || seenPondIds.has(pid)) return;
+      seenPondIds.add(pid);
+      uniquePonds.push({ id: pid, code: p.pond_code || p.code || '—' });
+    });
     
     const pondCount = uniquePhysicalPondCount(agencyPonds);
     const totalArea = uniquePhysicalPondTotalArea(agencyPonds);
@@ -36,26 +71,32 @@ export default function ReportOriginal({ ponds, agencies }) {
     // Đếm theo chu kỳ (mỗi chu kỳ = 1 dòng dữ liệu kế hoạch)
     const cc = agencyPonds.filter((p) => p.status === 'CC');
     const ct = agencyPonds.filter((p) => p.status === 'CT');
-    const totalCC = cc.reduce((s, p) => s + calculateYieldFromPond(p), 0);
-    const totalCT = ct.reduce((s, p) => s + calculateYieldFromPond(p), 0);
+    const totalCC = cc.reduce((s, p) => {
+      const d = originalHarvestDateForReport(p);
+      return s + (isInDateRange(d, fromDate, toDate) ? calculateYieldFromPond(p) : 0);
+    }, 0);
+    const totalCT = ct.reduce((s, p) => {
+      const d = originalHarvestDateForReport(p);
+      return s + (isInDateRange(d, fromDate, toDate) ? calculateYieldFromPond(p) : 0);
+    }, 0);
     const totalAll = totalCC + totalCT;
 
     const monthCC = visibleMonthIdx.map((i) =>
       cc.reduce((s, p) => {
         const d = originalHarvestDateForReport(p);
-        return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
+        return s + (d && isInDateRange(d, fromDate, toDate) && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
       }, 0)
     );
     const monthCT = visibleMonthIdx.map((i) =>
       ct.reduce((s, p) => {
         const d = originalHarvestDateForReport(p);
-        return s + (d && new Date(d).getMonth() === i ? calculateYieldFromPond(p) : 0);
+        return s + (d && isInDateRange(d, fromDate, toDate) && new Date(d).getMonth() === i ? calculateYieldFromPond(p) : 0);
       }, 0)
     );
 
     const monthTH = monthCC.map((v, i) => v + monthCT[i]);
 
-    return { agency, ponds: agencyPonds, pondCount, totalArea, totalCC, totalCT, totalAll, monthCC, monthCT, monthTH };
+    return { agency, ponds: agencyPonds, uniquePonds, pondCount, totalArea, totalCC, totalCT, totalAll, monthCC, monthCT, monthTH };
   });
 
   const grandTotalCC = allAgencyRows.reduce((s, r) => s + r.totalCC, 0);
@@ -93,6 +134,18 @@ export default function ReportOriginal({ ponds, agencies }) {
                 Số ao
               </th>
               <th
+                className="text-left px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap border-r border-border"
+                rowSpan={2}
+              >
+                Tên ao
+              </th>
+              <th
+                className="text-center px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap border-r border-border"
+                rowSpan={2}
+              >
+                Nhật ký
+              </th>
+              <th
                 className="text-center px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap border-r border-border"
                 rowSpan={2}
               >
@@ -123,7 +176,7 @@ export default function ReportOriginal({ ponds, agencies }) {
           <tbody className="divide-y divide-border">
             {allAgencyRows.length === 0 ? (
               <tr>
-                <td colSpan={3 + visibleMonthIdx.length * 3 + 3} className="text-center py-8 text-muted-foreground">
+                <td colSpan={5 + visibleMonthIdx.length * 3 + 3} className="text-center py-8 text-muted-foreground">
                   Chưa có dữ liệu
                 </td>
               </tr>
@@ -132,6 +185,18 @@ export default function ReportOriginal({ ponds, agencies }) {
                 <tr key={r.agency} className="hover:bg-muted/20">
                   <td className="sticky left-0 bg-card px-4 py-2.5 font-semibold text-primary border-r border-border whitespace-nowrap">{r.agency}</td>
                   <td className="px-3 py-2.5 text-center">{r.pondCount > 0 ? r.pondCount : ''}</td>
+                  <td className="px-3 py-2.5 text-left border-r border-border max-w-[18rem]">
+                    <div className="truncate" title={r.uniquePonds.map((p) => p.code).join(', ')}>
+                      {r.uniquePonds.map((p) => p.code).join(', ') || '—'}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2.5 text-center border-r border-border">
+                    {r.uniquePonds[0]?.id ? (
+                      <Link className="text-primary hover:underline font-medium" to={`/ponds/${r.uniquePonds[0].id}?tab=log`}>
+                        Xem
+                      </Link>
+                    ) : '—'}
+                  </td>
                   <td className="px-3 py-2.5 text-right border-r border-border">{r.totalArea > 0 ? r.totalArea.toLocaleString() : ''}</td>
                   {visibleMonthIdx.map((mi, i) => (
                     <Fragment key={mi}>
@@ -152,6 +217,8 @@ export default function ReportOriginal({ ponds, agencies }) {
             <tr className="bg-primary/5 font-bold border-t-2 border-primary/20">
               <td className="sticky left-0 bg-primary/5 px-4 py-3 font-bold text-foreground border-r border-border">TỔNG CỘNG</td>
               <td className="px-3 py-3 text-center">{grandTotalPonds}</td>
+              <td className="px-3 py-3 border-r border-border">—</td>
+              <td className="px-3 py-3 text-center border-r border-border">—</td>
               <td className="px-3 py-3 text-right border-r border-border">{grandTotalArea > 0 ? grandTotalArea.toLocaleString() : ''}</td>
               {visibleMonthIdx.map((mi, i) => (
                 <Fragment key={mi}>

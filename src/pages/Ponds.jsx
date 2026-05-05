@@ -296,10 +296,11 @@ function cycleLabel(c, idx) {
 export default function Ponds() {
   const { harvestAlertDays, appSettings } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = String(searchParams.get('tab') || '').trim().toLowerCase();
   const mainTab =
-    searchParams.get('tab') === 'households'
+    tabParam === 'households' || tabParam === 'household'
       ? 'households'
-      : searchParams.get('tab') === 'ponds'
+      : tabParam === 'ponds' || tabParam === 'pond'
         ? 'ponds'
         : 'cycles';
 
@@ -525,7 +526,7 @@ export default function Ponds() {
   };
 
   return (
-    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 w-full max-w-none">
       <Tabs
         value={mainTab}
         onValueChange={(v) => {
@@ -534,9 +535,9 @@ export default function Ponds() {
         className="w-full gap-0"
       >
         <TabsList className="inline-flex h-8 w-fit shrink-0 items-center gap-0 rounded-md border border-border bg-muted/50 p-1 shadow-none">
-          <TabsTrigger value="cycles" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kỳ</TabsTrigger>
-          <TabsTrigger value="ponds" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Ao</TabsTrigger>
           <TabsTrigger value="households" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Hộ nuôi</TabsTrigger>
+          <TabsTrigger value="ponds" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Ao</TabsTrigger>
+          <TabsTrigger value="cycles" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kỳ</TabsTrigger>
         </TabsList>
 
         <div className="mt-3 flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">

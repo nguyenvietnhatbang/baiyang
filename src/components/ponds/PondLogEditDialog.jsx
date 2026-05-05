@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,34 @@ import { Save } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import WaterColorCombobox from '@/components/ponds/WaterColorCombobox';
+import { recalculateCycleMetrics } from '@/lib/recalculateCycleMetrics';
+
+function toDateInputValue(d) {
+  if (d == null || d === '') return '';
+  if (typeof d === 'string') return d.length >= 10 ? d.slice(0, 10) : '';
+  try {
+    return format(new Date(d), 'yyyy-MM-dd');
+  } catch {
+    return '';
+  }
+}
+
+function calcWithdrawalDays(logDate, withdrawalEndDate) {
+  if (!logDate || !withdrawalEndDate) return null;
+  const start = new Date(logDate);
+  const end = new Date(withdrawalEndDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.round((end - start) / msPerDay));
+}
+
+function addDaysToDate(logDate, days) {
+  if (!logDate || days == null || days === '') return '';
+  const base = new Date(logDate);
+  const n = Number(days);
+  if (Number.isNaN(base.getTime()) || !Number.isFinite(n)) return '';
+  return format(new Date(base.getTime() + n * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+}
 
 export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
   const [form, setForm] = useState({
@@ -25,12 +54,14 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
     avg_weight: '',
     medicine_used: '',
     medicine_dosage: '',
-    withdrawal_days: '',
+    withdrawal_end_date: '',
     disease_notes: '',
     notes: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [expectedHarvestDate, setExpectedHarvestDate] = useState('');
+  const [initialExpectedHarvestDate, setInitialExpectedHarvestDate] = useState('');
 
   useEffect(() => {
     if (!open || !log) return;
@@ -50,11 +81,40 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
       avg_weight: log.avg_weight ?? '',
       medicine_used: log.medicine_used || '',
       medicine_dosage: log.medicine_dosage || '',
-      withdrawal_days: log.withdrawal_days ?? '',
+      withdrawal_end_date: addDaysToDate(log.log_date || '', log.withdrawal_days),
       disease_notes: log.disease_notes || '',
       notes: log.notes || '',
     });
-  }, [open, log?.id]);
+
+    let cancelled = false;
+    if (!log.pond_cycle_id) {
+      setExpectedHarvestDate('');
+      setInitialExpectedHarvestDate('');
+      return () => {
+        cancelled = true;
+      };
+    }
+    setExpectedHarvestDate('');
+    setInitialExpectedHarvestDate('');
+    void (async () => {
+      try {
+        const rows = await base44.entities.PondCycle.filter({ id: log.pond_cycle_id }, '-updated_at', 1);
+        const c = rows[0];
+        if (cancelled) return;
+        const val = toDateInputValue(c?.expected_harvest_date);
+        setExpectedHarvestDate(val);
+        setInitialExpectedHarvestDate(val);
+      } catch {
+        if (!cancelled) {
+          setExpectedHarvestDate('');
+          setInitialExpectedHarvestDate('');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, log?.id, log?.pond_cycle_id]);
 
   const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
@@ -87,7 +147,7 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
         avg_weight: toNumOrNull(form.avg_weight),
         medicine_used: form.medicine_used?.trim() || null,
         medicine_dosage: form.medicine_dosage?.trim() || null,
-        withdrawal_days: toNumOrNull(form.withdrawal_days),
+        withdrawal_days: calcWithdrawalDays(form.log_date, form.withdrawal_end_date),
         disease_notes: form.disease_notes?.trim() || null,
         notes: form.notes?.trim() || null,
       };
@@ -99,6 +159,7 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
         // Tạo nhật ký mới
         if (!log?.pond_id || !log?.pond_cycle_id) {
           setError('Thiếu thông tin ao hoặc chu kỳ');
+          setSaving(false);
           return;
         }
         await base44.entities.PondLog.create({
@@ -107,7 +168,16 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
           pond_cycle_id: log.pond_cycle_id,
         });
       }
-      
+
+      if (log?.pond_cycle_id) {
+        const nextNorm = expectedHarvestDate.trim() || null;
+        const prevNorm = initialExpectedHarvestDate.trim() || null;
+        if (nextNorm !== prevNorm) {
+          await base44.entities.PondCycle.update(log.pond_cycle_id, { expected_harvest_date: nextNorm });
+        }
+        await recalculateCycleMetrics(log.pond_cycle_id);
+      }
+
       await onSaved?.();
       onClose?.();
     } catch (e) {
@@ -146,6 +216,21 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
               </div>
             </div>
           </div>
+
+          {log?.pond_cycle_id && (
+            <div>
+              <Label htmlFor="edit-log-expected-harvest" className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Ngày thu hoạch dự kiến (chu kỳ)
+              </Label>
+              <Input
+                id="edit-log-expected-harvest"
+                type="date"
+                className="mt-1 h-9 text-sm w-full sm:max-w-[11rem]"
+                value={expectedHarvestDate}
+                onChange={(e) => setExpectedHarvestDate(e.target.value)}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-2">
             <div>
@@ -203,8 +288,8 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
               <Input className="mt-1 h-9 text-sm" value={form.medicine_dosage} onChange={set('medicine_dosage')} />
             </div>
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngưng thuốc (ngày)</Label>
-              <Input className="mt-1 h-9 text-sm" type="number" value={form.withdrawal_days} onChange={set('withdrawal_days')} />
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày ngưng thuốc</Label>
+              <Input className="mt-1 h-9 text-sm" type="date" value={form.withdrawal_end_date} onChange={set('withdrawal_end_date')} />
             </div>
           </div>
 

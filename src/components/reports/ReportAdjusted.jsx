@@ -10,21 +10,46 @@ import { calculateYieldFromPond } from '@/lib/calculateYield';
 
 const MONTHS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
 
-export default function ReportAdjusted({ ponds, agencies }) {
+function parseDate(dateValue) {
+  if (!dateValue) return null;
+  const d = new Date(dateValue);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function isInDateRange(dateValue, fromDate, toDate) {
+  const d = parseDate(dateValue);
+  if (!d) return false;
+  if (fromDate && d < fromDate) return false;
+  if (toDate && d > toDate) return false;
+  return true;
+}
+
+function monthIdxFromRange(fromDate, toDate) {
+  if (!fromDate || !toDate || fromDate > toDate) return null;
+  if (fromDate.getFullYear() !== toDate.getFullYear()) return Array.from({ length: 12 }, (_, i) => i);
+  const start = fromDate.getMonth();
+  const end = toDate.getMonth();
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
+
+export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo }) {
+  const fromDate = parseDate(dateFrom);
+  const toDate = parseDate(dateTo);
   const monthIdx = (() => {
     const set = new Set();
     ponds.forEach((p) => {
       const adjustedDate = plannedHarvestDateForDisplay(p);
-      if (adjustedDate && (p.expected_yield || 0) > 0) {
+      if (adjustedDate && (p.expected_yield || 0) > 0 && isInDateRange(adjustedDate, fromDate, toDate)) {
         set.add(new Date(adjustedDate).getMonth());
       }
       const d0 = originalHarvestDateForReport(p);
-      if (d0 && calculateYieldFromPond(p) > 0) set.add(new Date(d0).getMonth());
+      if (d0 && calculateYieldFromPond(p) > 0 && isInDateRange(d0, fromDate, toDate)) set.add(new Date(d0).getMonth());
     });
     return [...set].sort((a, b) => a - b);
   })();
 
-  const visibleMonthIdx = monthIdx.length > 0 ? monthIdx : [new Date().getMonth()];
+  const rangeMonths = monthIdxFromRange(fromDate, toDate);
+  const visibleMonthIdx = rangeMonths && rangeMonths.length > 0 ? rangeMonths : (monthIdx.length > 0 ? monthIdx : [new Date().getMonth()]);
 
   const rows = agencies.map((agency) => {
     const agencyPonds = ponds.filter((p) => p.agency_code === agency);
@@ -35,20 +60,26 @@ export default function ReportAdjusted({ ponds, agencies }) {
     // Đếm theo chu kỳ (mỗi chu kỳ = 1 dòng dữ liệu kế hoạch)
     const cc = agencyPonds.filter((p) => p.status === 'CC');
     const ct = agencyPonds.filter((p) => p.status === 'CT');
-    const totalCC = cc.reduce((s, p) => s + (p.expected_yield || 0), 0);
-    const totalCT = ct.reduce((s, p) => s + (p.expected_yield || 0), 0);
+    const totalCC = cc.reduce((s, p) => {
+      const d = plannedHarvestDateForDisplay(p);
+      return s + (isInDateRange(d, fromDate, toDate) ? p.expected_yield || 0 : 0);
+    }, 0);
+    const totalCT = ct.reduce((s, p) => {
+      const d = plannedHarvestDateForDisplay(p);
+      return s + (isInDateRange(d, fromDate, toDate) ? p.expected_yield || 0 : 0);
+    }, 0);
     const totalTH = totalCC + totalCT;
 
     const monthCC = visibleMonthIdx.map((i) =>
       cc.reduce((s, p) => {
         const d = plannedHarvestDateForDisplay(p);
-        return s + (d && new Date(d).getMonth() === i ? p.expected_yield || 0 : 0);
+        return s + (d && isInDateRange(d, fromDate, toDate) && new Date(d).getMonth() === i ? p.expected_yield || 0 : 0);
       }, 0)
     );
     const monthCT = visibleMonthIdx.map((i) =>
       ct.reduce((s, p) => {
         const d = plannedHarvestDateForDisplay(p);
-        return s + (d && new Date(d).getMonth() === i ? p.expected_yield || 0 : 0);
+        return s + (d && isInDateRange(d, fromDate, toDate) && new Date(d).getMonth() === i ? p.expected_yield || 0 : 0);
       }, 0)
     );
     const monthTH = monthCC.map((v, i) => v + monthCT[i]);

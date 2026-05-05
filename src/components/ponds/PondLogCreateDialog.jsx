@@ -12,6 +12,7 @@ import { base44 } from '@/api/base44Client';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { POND_LOG_ENV_RANGES, pondLogEnvOutOfRange } from '@/lib/pondLogEnvRanges';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
+import { recalculateCycleMetrics } from '@/lib/recalculateCycleMetrics';
 
 function cycleSelectLabel(c, idx) {
   const n = c?.name?.trim();
@@ -37,6 +38,15 @@ function toDateInputValue(d) {
   } catch {
     return '';
   }
+}
+
+function calcWithdrawalDays(logDate, withdrawalEndDate) {
+  if (!logDate || !withdrawalEndDate) return null;
+  const start = new Date(logDate);
+  const end = new Date(withdrawalEndDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.round((end - start) / msPerDay));
 }
 
 export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
@@ -68,7 +78,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
     avg_weight: '',
     medicine_used: '',
     medicine_dosage: '',
-    withdrawal_days: '',
+    withdrawal_end_date: '',
     disease_notes: '',
     notes: '',
   });
@@ -94,7 +104,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
       avg_weight: '',
       medicine_used: '',
       medicine_dosage: '',
-      withdrawal_days: '',
+      withdrawal_end_date: '',
       disease_notes: '',
       notes: '',
     });
@@ -107,6 +117,17 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
     if (!resolvedCycleId) return null;
     return cycles.find((c) => String(c.id) === resolvedCycleId) || null;
   }, [cycles, resolvedCycleId]);
+
+  const cycleYieldBreakdown = useMemo(() => {
+    if (!selectedCycle) return { cc: 0, ct: 0, th: 0 };
+    const yieldKg = Number(selectedCycle.expected_yield) || 0;
+    const st = String(selectedCycle.status || 'CT').toUpperCase();
+    return {
+      cc: st === 'CC' ? yieldKg : 0,
+      ct: st === 'CT' ? yieldKg : 0,
+      th: yieldKg,
+    };
+  }, [selectedCycle]);
 
   useEffect(() => {
     if (!open) {
@@ -158,7 +179,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
         avg_weight: toNumOrNull(form.avg_weight),
         medicine_used: form.medicine_used?.trim() || null,
         medicine_dosage: form.medicine_dosage?.trim() || null,
-        withdrawal_days: toNumOrNull(form.withdrawal_days),
+        withdrawal_days: calcWithdrawalDays(form.log_date, form.withdrawal_end_date),
         disease_notes: form.disease_notes?.trim() || null,
         notes: form.notes?.trim() || null,
       });
@@ -167,6 +188,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
       if (nextHarvest !== prevHarvest) {
         await base44.entities.PondCycle.update(selectedCycle.id, { expected_harvest_date: nextHarvest });
       }
+      await recalculateCycleMetrics(selectedCycle.id);
       await onSaved?.();
       onClose?.();
     } catch (e) {
@@ -239,6 +261,28 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
                 <span className="font-medium text-slate-700">{selectedCycle?.current_fish?.toLocaleString() || '—'}</span>
               </div>
             </div>
+            {selectedCycle && (
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200/80">
+                <div className="rounded border border-blue-200 bg-blue-50 px-2 py-1.5">
+                  <p className="text-[10px] font-semibold text-blue-700 uppercase">CC</p>
+                  <p className="text-xs font-bold text-blue-800 mt-0.5">
+                    {cycleYieldBreakdown.cc > 0 ? cycleYieldBreakdown.cc.toLocaleString() : '0'}
+                  </p>
+                </div>
+                <div className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5">
+                  <p className="text-[10px] font-semibold text-slate-700 uppercase">CT</p>
+                  <p className="text-xs font-bold text-slate-800 mt-0.5">
+                    {cycleYieldBreakdown.ct > 0 ? cycleYieldBreakdown.ct.toLocaleString() : '0'}
+                  </p>
+                </div>
+                <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1.5">
+                  <p className="text-[10px] font-semibold text-emerald-700 uppercase">TH</p>
+                  <p className="text-xs font-bold text-emerald-800 mt-0.5">
+                    {cycleYieldBreakdown.th > 0 ? cycleYieldBreakdown.th.toLocaleString() : '0'}
+                  </p>
+                </div>
+              </div>
+            )}
             {selectedCycle && (
               <div className="space-y-1 pt-1.5 border-t border-slate-200/80">
                 <Label htmlFor="pond-log-expected-harvest" className="text-[11px] font-semibold text-stone-600">
@@ -341,8 +385,8 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
                 <Input className="mt-1" value={form.medicine_dosage} onChange={set('medicine_dosage')} />
               </div>
               <div>
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày ngưng thuốc (ngày)</Label>
-                <Input className="mt-1" type="number" value={form.withdrawal_days} onChange={set('withdrawal_days')} placeholder="VD: 14" />
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày ngưng thuốc</Label>
+                <Input className="mt-1" type="date" value={form.withdrawal_end_date} onChange={set('withdrawal_end_date')} />
               </div>
             </div>
             <div className="mt-3">

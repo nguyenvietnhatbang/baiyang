@@ -32,6 +32,22 @@ const CYCLE_FIELDS = [
  * @param {Array<object>|undefined|null} cycles
  * @returns {object|null}
  */
+/** Nhãn hiển thị một chu kỳ (tên / ngày thả / Chu kỳ n). */
+export function cycleDisplayLabel(c, idx = 0) {
+  if (!c) return '—';
+  const n = c?.name?.trim();
+  return n || (c?.stock_date ? `Thả ${c.stock_date}` : `Chu kỳ ${idx + 1}`);
+}
+
+/** Nhãn chu kỳ gắn với một dòng nhật ký (theo pond.pond_cycles). */
+export function cycleLabelForPondLog(log, pond) {
+  if (!log?.pond_cycle_id || !pond?.pond_cycles?.length) return '—';
+  const cycles = pond.pond_cycles;
+  const i = cycles.findIndex((x) => String(x.id) === String(log.pond_cycle_id));
+  if (i < 0) return '—';
+  return cycleDisplayLabel(cycles[i], i);
+}
+
 export function pickActiveCycle(cycles) {
   if (!cycles || cycles.length === 0) return null;
   const cc = cycles.find((c) => c.status === 'CC');

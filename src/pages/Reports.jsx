@@ -14,6 +14,7 @@ import {
 import ReportOriginal from '@/components/reports/ReportOriginal';
 import ReportAdjusted from '@/components/reports/ReportAdjusted';
 import ReportHarvest from '@/components/reports/ReportHarvest';
+import ReportDailyProductionPlan from '@/components/reports/ReportDailyProductionPlan';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { calcOriginalYieldKg } from '@/lib/calculateYield';
 
@@ -24,6 +25,7 @@ const REPORT_TYPE_ITEMS = [
   { value: 'original', label: '📋 Kế hoạch ban đầu (gốc)' },
   { value: 'adjusted', label: '🔄 Kế hoạch điều chỉnh' },
   { value: 'harvest', label: '🚜 Kế hoạch thu & Thực thu' },
+  { value: 'daily_plan', label: '📅 Báo cáo KH thu & sản lượng' },
 ];
 
 function yieldByMonth(rows, monthIdx) {
@@ -63,6 +65,8 @@ export default function Reports() {
   const [reportType, setReportType] = useState('summary');
   const [agencyFilter, setAgencyFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
+  const [dateFrom, setDateFrom] = useState(`${new Date().getFullYear()}-01-01`);
+  const [dateTo, setDateTo] = useState(`${new Date().getFullYear()}-12-31`);
   const [cycleSearch, setCycleSearch] = useState('');
   const [exportGranularity, setExportGranularity] = useState('agency');
   const [exporting, setExporting] = useState(false);
@@ -94,6 +98,11 @@ export default function Reports() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    setDateFrom(`${yearFilter}-01-01`);
+    setDateTo(`${yearFilter}-12-31`);
+  }, [yearFilter]);
 
   const exportGranularityItems = useMemo(
     () => [
@@ -203,6 +212,35 @@ export default function Reports() {
   const totalActual = filteredHarvests.reduce((s, h) => s + (h.actual_yield || 0), 0);
 
   const totalOriginalYield = scopedCycleRows.reduce((s, p) => s + calcOriginalYieldKg(p), 0);
+  const dailyProductionRows = useMemo(() => {
+    const byDate = new Map();
+
+    filteredHarvests.forEach((h) => {
+      if (!h.harvest_date) return;
+      const dateKey = h.harvest_date.slice(0, 10);
+      byDate.set(dateKey, (byDate.get(dateKey) || 0) + (h.actual_yield || 0));
+    });
+
+    const rows = [...byDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dateKey, production]) => ({
+        date: new Date(dateKey).toLocaleDateString('en-US'),
+        demand: 0,
+        production,
+        variance: production,
+      }));
+
+    if (rows.length > 0) return rows;
+
+    return [
+      {
+        date: new Date().toLocaleDateString('en-US'),
+        demand: 0,
+        production: 0,
+        variance: 0,
+      },
+    ];
+  }, [filteredHarvests]);
 
   if (loading) {
     return (
@@ -216,10 +254,11 @@ export default function Reports() {
     original: { label: '📋 Kế hoạch ban đầu (gốc)', desc: 'Tổng hợp theo toàn bộ chu kỳ của mỗi ao' },
     adjusted: { label: '🔄 Kế hoạch điều chỉnh', desc: 'So sánh KH gốc vs KH điều chỉnh theo từng chu kỳ' },
     harvest: { label: '🚜 Kế hoạch thu & Thực thu', desc: 'Chi tiết theo chu kỳ, nhóm theo đại lý' },
+    daily_plan: { label: '📅 Báo cáo KH thu & sản lượng', desc: 'Ma trận 12 tháng theo hộ nuôi với các cột CC/CT/TH' },
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-full">
+    <div className="p-4 space-y-4 max-w-full">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Báo cáo tổng hợp</h1>
@@ -243,21 +282,21 @@ export default function Reports() {
         </div>
       </div>
 
-      <div className="flex gap-3 flex-wrap items-center">
+      <div className="flex gap-2 flex-wrap items-end">
         <Select value={reportType} onValueChange={setReportType}>
-          <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-56 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             {REPORT_TYPE_ITEMS.map((it) => <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={agencyFilter} onValueChange={setAgencyFilter}>
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             {agencyFilterItems.map((it) => <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={yearFilter} onValueChange={setYearFilter}>
-          <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-20 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             {yearFilterItems.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}
           </SelectContent>
@@ -265,91 +304,130 @@ export default function Reports() {
         <div className="flex flex-col gap-1 min-w-[12rem] max-w-xs">
           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Tìm chu kỳ</span>
           <Input
-            className="h-9 text-sm"
+            className="h-8 text-xs"
             placeholder="Tên chu kỳ / ngày thả / mã ao"
             value={cycleSearch}
             onChange={(e) => setCycleSearch(e.target.value)}
           />
         </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Từ ngày</span>
+          <Input className="h-8 w-[9.5rem] text-xs" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Đến ngày</span>
+          <Input className="h-8 w-[9.5rem] text-xs" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">KH Gốc</p>
-          <p className="text-2xl font-bold mt-1 text-foreground">{(totalOriginalYield / 1000).toFixed(1)}T</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{scopedCycleRows.length} chu kỳ</p>
+      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-border">
+          <h3 className="font-semibold text-foreground text-sm">Sản lượng ngày</h3>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">KH Điều chỉnh</p>
-          <p className="text-2xl font-bold mt-1 text-amber-600">{(totalAdjustedYield / 1000).toFixed(1)}T</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{scopedCycleRows.filter((p) => p.status === 'CC').length} chu kỳ CC</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-muted/60 border-b border-border">
+                <th className="px-3 py-2 text-left font-semibold text-foreground">Ngày</th>
+                <th className="px-3 py-2 text-right font-semibold text-foreground">Nhu cầu</th>
+                <th className="px-3 py-2 text-right font-semibold text-foreground">Sản lượng</th>
+                <th className="px-3 py-2 text-right font-semibold text-foreground">Chênh lệch</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dailyProductionRows.map((row, idx) => (
+                <tr key={`${row.date}-${idx}`} className="border-b border-border last:border-b-0">
+                  <td className="px-3 py-2">{row.date}</td>
+                  <td className="px-3 py-2 text-right">{row.demand.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right">{row.production.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right">{row.variance.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Đã thu thực tế</p>
-          <p className="text-2xl font-bold mt-1 text-green-600">{(totalActual / 1000).toFixed(1)}T</p>
-          <p className="text-xs text-muted-foreground mt-0.5">{filteredHarvests.length} phiếu thu</p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">KH Gốc</p>
+          <p className="text-xl font-bold mt-1 text-foreground">{(totalOriginalYield / 1000).toFixed(1)}T</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{scopedCycleRows.length} chu kỳ</p>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Còn tồn chưa thu</p>
-          <p className="text-2xl font-bold mt-1 text-blue-600">{(Math.max(0, totalAdjustedYield - totalActual) / 1000).toFixed(1)}T</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
+        <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">KH Điều chỉnh</p>
+          <p className="text-xl font-bold mt-1 text-amber-600">{(totalAdjustedYield / 1000).toFixed(1)}T</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{scopedCycleRows.filter((p) => p.status === 'CC').length} chu kỳ CC</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Đã thu thực tế</p>
+          <p className="text-xl font-bold mt-1 text-green-600">{(totalActual / 1000).toFixed(1)}T</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{filteredHarvests.length} phiếu thu</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Còn tồn chưa thu</p>
+          <p className="text-xl font-bold mt-1 text-blue-600">{(Math.max(0, totalAdjustedYield - totalActual) / 1000).toFixed(1)}T</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
             {totalAdjustedYield > 0 ? `${Math.round((totalActual / totalAdjustedYield) * 100)}% đã thu` : '—'}
           </p>
         </div>
       </div>
 
       {reportType === 'summary' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5 shadow-sm">
-            <h3 className="font-semibold text-foreground mb-1">Kế hoạch điều chỉnh vs Thực tế theo tháng</h3>
-            <p className="text-xs text-muted-foreground mb-4">Đơn vị: kg</p>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={monthlyData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip
-                  formatter={(v, n) => {
-                    const num = typeof v === 'number' ? v : Number(v);
-                    const safe = Number.isFinite(num) ? num : 0;
-                    return [`${safe.toLocaleString()} kg`, n === 'keHoach' ? 'KH Điều chỉnh' : 'Thực tế'];
-                  }}
-                  contentStyle={{ borderRadius: '8px', fontSize: '12px' }}
-                />
-                <Legend formatter={(v) => (v === 'keHoach' ? 'KH Điều chỉnh' : 'Thực tế')} wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="keHoach" fill="hsl(38,85%,52%)" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="thucTe" fill="hsl(145,55%,42%)" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5 shadow-sm">
+              <h3 className="font-semibold text-foreground mb-1">Kế hoạch điều chỉnh vs Thực tế theo tháng</h3>
+              <p className="text-xs text-muted-foreground mb-4">Đơn vị: kg</p>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={monthlyData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    formatter={(v, n) => {
+                      const num = typeof v === 'number' ? v : Number(v);
+                      const safe = Number.isFinite(num) ? num : 0;
+                      return [`${safe.toLocaleString()} kg`, n === 'keHoach' ? 'KH Điều chỉnh' : 'Thực tế'];
+                    }}
+                    contentStyle={{ borderRadius: '8px', fontSize: '12px' }}
+                  />
+                  <Legend formatter={(v) => (v === 'keHoach' ? 'KH Điều chỉnh' : 'Thực tế')} wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="keHoach" fill="hsl(38,85%,52%)" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="thucTe" fill="hsl(145,55%,42%)" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+              <h3 className="font-semibold text-foreground mb-1">Phân bố FCR</h3>
+              <p className="text-xs text-muted-foreground mb-4">Theo từng chu kỳ</p>
+              {fcrData.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <PieChart>
+                      <Pie data={fcrData} cx="50%" cy="50%" outerRadius={65} dataKey="value">
+                        {fcrData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                      </Pie>
+                      <Tooltip contentStyle={{ fontSize: 11, borderRadius: '8px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="space-y-1.5 mt-2">
+                    {fcrData.map((d) => (
+                      <div key={d.name} className="flex items-center gap-2 text-xs">
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
+                        <span className="text-muted-foreground">{d.name}</span>
+                        <span className="font-medium ml-auto">{d.value} chu kỳ</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground text-sm">Chưa có dữ liệu FCR</div>
+              )}
+            </div>
           </div>
 
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
-            <h3 className="font-semibold text-foreground mb-1">Phân bố FCR</h3>
-            <p className="text-xs text-muted-foreground mb-4">Theo từng chu kỳ</p>
-            {fcrData.length > 0 ? (
-              <>
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie data={fcrData} cx="50%" cy="50%" outerRadius={65} dataKey="value">
-                      {fcrData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ fontSize: 11, borderRadius: '8px' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="space-y-1.5 mt-2">
-                  {fcrData.map((d) => (
-                    <div key={d.name} className="flex items-center gap-2 text-xs">
-                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
-                      <span className="text-muted-foreground">{d.name}</span>
-                      <span className="font-medium ml-auto">{d.value} chu kỳ</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground text-sm">Chưa có dữ liệu FCR</div>
-            )}
-          </div>
         </div>
       )}
 
@@ -370,9 +448,10 @@ export default function Reports() {
               Mở rộng
             </Button>
           </div>
-          {reportType === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} />}
-          {reportType === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} />}
+          {reportType === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} />}
+          {reportType === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} />}
           {reportType === 'harvest' && <ReportHarvest ponds={scopedCycleRows} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
+          {reportType === 'daily_plan' && <ReportDailyProductionPlan ponds={scopedCycleRows} dateFrom={dateFrom} dateTo={dateTo} />}
         </div>
       )}
 
@@ -383,8 +462,8 @@ export default function Reports() {
           if (!nextOpen) setExpandedReport(null);
         }}
       >
-        <DialogContent className="max-w-[98vw] w-[98vw] max-h-[98vh] h-[98vh] overflow-hidden flex flex-col p-0">
-          <DialogHeader className="px-6 py-4 border-b border-border flex-shrink-0">
+        <DialogContent className="!top-0 !left-0 !translate-x-0 !translate-y-0 !w-screen !h-screen !max-w-none !max-h-none !rounded-none !p-0 !gap-0 overflow-hidden flex flex-col m-0">
+          <DialogHeader className="px-4 py-3 border-b border-border flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Maximize2 className="w-5 h-5 text-primary" />
               {expandedReport && reportMeta[expandedReport]?.label}
@@ -393,10 +472,11 @@ export default function Reports() {
               {expandedReport && reportMeta[expandedReport]?.desc} — Năm {yearFilter} • {agencyFilterLabel} • {cycleFilterLabel}
             </p>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            {expandedReport === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} />}
-            {expandedReport === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} />}
+          <div className="flex-1 overflow-auto px-0 py-0">
+            {expandedReport === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} />}
+            {expandedReport === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} />}
             {expandedReport === 'harvest' && <ReportHarvest ponds={scopedCycleRows} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
+            {expandedReport === 'daily_plan' && <ReportDailyProductionPlan ponds={scopedCycleRows} dateFrom={dateFrom} dateTo={dateTo} />}
           </div>
         </DialogContent>
       </Dialog>
