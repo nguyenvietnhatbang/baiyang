@@ -12,10 +12,11 @@ export async function recalculateCycleMetrics(cycleId) {
   const harvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycleId }, '-harvest_date', 2500);
 
   const totalFeedUsed = logs.reduce((sum, l) => sum + (Number(l.feed_amount) || 0), 0);
+  const totalStockedFish = logs.reduce((sum, l) => sum + (Number(l.stocked_fish) || 0), 0);
   const totalDeadFish = logs.reduce((sum, l) => sum + (Number(l.dead_fish) || 0), 0);
 
   const baselineFish = Number(cycle.total_fish ?? cycle.current_fish ?? 0) || 0;
-  const newCurrentFish = Math.max(0, baselineFish - totalDeadFish);
+  const newCurrentFish = Math.max(0, baselineFish + totalStockedFish - totalDeadFish);
 
   const expectedYield = calculateCurrentYield({
     ...cycle,

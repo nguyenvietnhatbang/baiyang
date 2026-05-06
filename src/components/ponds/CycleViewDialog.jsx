@@ -1,5 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Eye, Pencil, ClipboardList, ShoppingCart, MoreHorizontal, Trash2, Info } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Eye,
+  Pencil,
+  ClipboardList,
+  ShoppingCart,
+  MoreHorizontal,
+  Trash2,
+  Info,
+  LayoutGrid,
+  Table2,
+  Edit,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -14,6 +27,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { base44 } from '@/api/base44Client';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
+import { recalculateCycleMetrics } from '@/lib/recalculateCycleMetrics';
+
+function cellDash(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  return v;
+}
 
 function fmtNumber(x) {
   const n = Number(x);
@@ -22,7 +41,9 @@ function fmtNumber(x) {
 }
 
 export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
+  const logTableScrollRef = useRef(null);
   const [tab, setTab] = useState('detail');
+  const [detailLayout, setDetailLayout] = useState('cards');
   const [cycle, setCycle] = useState(null);
   const [pond, setPond] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -31,11 +52,24 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
   const [error, setError] = useState('');
   const [editLog, setEditLog] = useState(null);
   const [harvestOpen, setHarvestOpen] = useState(false);
+  const [deletingLogId, setDeletingLogId] = useState(null);
 
   useEffect(() => {
     if (!open) return;
     setTab('detail');
+    setDetailLayout('cards');
   }, [open]);
+
+  const reloadAfterLogMutation = async () => {
+    if (!cycleId) return;
+    await recalculateCycleMetrics(cycleId);
+    const [l, rows] = await Promise.all([
+      base44.entities.PondLog.filter({ pond_cycle_id: cycleId }, '-log_date', 500),
+      base44.entities.PondCycle.filter({ id: cycleId }, '-updated_at', 1),
+    ]);
+    setLogs(l || []);
+    setCycle(rows?.[0] ?? null);
+  };
 
   useEffect(() => {
     if (!open || !cycleId) {
@@ -87,9 +121,71 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
     return [pondCode, cycleName].filter(Boolean).join(' · ');
   }, [cycle]);
 
+  const cycleLabelForRow = useMemo(() => {
+    if (!cycle) return '—';
+    return (cycle.name && String(cycle.name).trim()) || (cycle.stock_date ? `Thả ${cycle.stock_date}` : 'Chu kỳ');
+  }, [cycle]);
+
+  const statusText = (c) => {
+    if (!c?.status) return '—';
+    if (c.status === 'CC') return 'Có cá / Đang nuôi';
+    if (c.status === 'CT') return 'Chưa thả / Quay vòng';
+    return String(c.status);
+  };
+
+  const cycleTableRows = useMemo(() => {
+    if (!cycle) return [];
+    const yieldPct =
+      cycle.actual_yield != null && cycle.expected_yield != null && Number(cycle.expected_yield)
+        ? `${Math.round((cycle.actual_yield / cycle.expected_yield) * 100)}%`
+        : '—';
+    return [
+      { label: 'Tên chu kỳ', value: cycle.name || '—' },
+      { label: 'Trạng thái', value: statusText(cycle) },
+      { label: 'Ngày thả', value: cycle.stock_date || '—' },
+      { label: 'Tổng cá thả', value: fmtNumber(cycle.total_fish) },
+      { label: 'Size giống', value: cycle.seed_size != null ? `${cycle.seed_size} cm` : '—' },
+      { label: 'TL giống', value: cycle.seed_weight != null ? `${cycle.seed_weight} g` : '—' },
+      { label: 'Mật độ thả', value: cycle.density != null ? `${cycle.density} con/m²` : '—' },
+      { label: 'Số cá hiện tại', value: fmtNumber(cycle.current_fish ?? cycle.total_fish) },
+      { label: 'Tỷ lệ sống', value: cycle.survival_rate != null ? `${cycle.survival_rate}%` : '—' },
+      { label: 'TL thu kỳ vọng', value: cycle.target_weight != null ? `${cycle.target_weight} g` : '—' },
+      { label: 'SL dự kiến', value: cycle.expected_yield != null ? `${fmtNumber(cycle.expected_yield)} kg` : '—' },
+      { label: 'Thu DK (gốc)', value: cycle.initial_expected_harvest_date || '—' },
+      { label: 'Thu DK (điều chỉnh)', value: cycle.expected_harvest_date || '—' },
+      { label: 'Hết ngưng thuốc', value: cycle.withdrawal_end_date || '—' },
+      { label: 'Thực thu (tổng)', value: cycle.actual_yield != null ? `${fmtNumber(cycle.actual_yield)} kg` : '—' },
+      { label: 'Đạt kế hoạch', value: yieldPct },
+      { label: 'Ghi chú chu kỳ', value: cycle.notes ? String(cycle.notes) : '—' },
+    ];
+  }, [cycle]);
+
+  const pondOpsTableRows = useMemo(() => {
+    if (!cycle) return [];
+    const lotHint = pond?.code
+      ? `LOT-${pond.code}-${String(new Date().toISOString().slice(0, 10)).replace(/-/g, '')}`
+      : '—';
+    return [
+      { label: 'Mã ao', value: pond?.code || cycle.pond_code || '—' },
+      { label: 'Chủ hộ', value: pond?.owner_name || '—' },
+      { label: 'Đại lý', value: pond?.agency_code || '—' },
+      { label: 'Diện tích', value: pond?.area ? `${pond.area} m²` : '—' },
+      { label: 'Tổng thức ăn', value: cycle.total_feed_used != null ? `${fmtNumber(cycle.total_feed_used)} kg` : '—' },
+      {
+        label: 'FCR',
+        value:
+          cycle.fcr != null
+            ? `${cycle.fcr}${cycle.fcr <= 1.3 ? ' (tốt)' : cycle.fcr <= 1.6 ? ' (trung bình)' : ' (cao)'}`
+            : '—',
+      },
+      { label: 'Đã thu hoạch', value: cycle.harvest_done ? 'Đã chốt' : 'Chưa' },
+      { label: 'Mã lô truy xuất (gợi ý)', value: lotHint },
+    ];
+  }, [cycle, pond]);
+
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? onClose?.() : null)}>
-      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[min(96rem,98vw)] w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 pr-10">
             <Eye className="w-4 h-4 text-muted-foreground" />
@@ -142,7 +238,85 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="detail" className="mt-3 outline-none">
+              <TabsContent value="detail" className="mt-3 outline-none space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[11px] text-muted-foreground">Hiển thị chi tiết dạng thẻ hoặc hai bảng (chu kỳ + ao/FCR).</p>
+                  <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setDetailLayout('cards')}
+                      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                        detailLayout === 'cards' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      Thẻ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDetailLayout('tables')}
+                      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                        detailLayout === 'tables' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <Table2 className="w-3.5 h-3.5" />
+                      Hai bảng
+                    </button>
+                  </div>
+                </div>
+
+                {detailLayout === 'tables' && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-border bg-card overflow-hidden">
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-3 py-2 bg-muted/30 border-b border-border">
+                        Bảng 1 — Thông tin chu kỳ
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-muted/20 border-b border-border">
+                              <th className="text-left px-3 py-2 w-[40%] text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Chỉ tiêu</th>
+                              <th className="text-left px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Giá trị</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/60">
+                            {cycleTableRows.map((row) => (
+                              <tr key={row.label} className="hover:bg-muted/20">
+                                <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{row.label}</td>
+                                <td className="px-3 py-2 text-foreground font-medium whitespace-pre-wrap break-words max-w-[32rem]">{row.value}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-card overflow-hidden">
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-3 py-2 bg-muted/30 border-b border-border">
+                        Bảng 2 — Ao, thức ăn & FCR
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-muted/20 border-b border-border">
+                              <th className="text-left px-3 py-2 w-[40%] text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Chỉ tiêu</th>
+                              <th className="text-left px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Giá trị</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/60">
+                            {pondOpsTableRows.map((row) => (
+                              <tr key={row.label} className="hover:bg-muted/20">
+                                <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{row.label}</td>
+                                <td className="px-3 py-2 text-foreground font-medium text-sm break-words">{row.value}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {detailLayout === 'cards' && (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
                   <div className="lg:col-span-6 rounded-xl border border-border bg-card p-4 space-y-3">
                     <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Thông tin chu kỳ</p>
@@ -298,76 +472,255 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                     </div>
                   </div>
                 </div>
+                )}
               </TabsContent>
 
               <TabsContent value="logs" className="mt-3 outline-none">
-                <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden flex flex-col">
+                  <div className="px-3 py-2 border-b border-border flex flex-wrap items-center justify-between gap-2 bg-muted/20">
+                    <p className="text-xs text-muted-foreground">
+                      Bảng chi tiết giống trang Nhật ký — kéo ngang để xem đủ cột ({logs.length} dòng).
+                    </p>
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        aria-label="Cuộn bảng sang trái"
+                        onClick={() => logTableScrollRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        aria-label="Cuộn bảng sang phải"
+                        onClick={() => logTableScrollRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div
+                    ref={logTableScrollRef}
+                    role="region"
+                    aria-label="Bảng nhật ký chu kỳ"
+                    className="overflow-x-auto overscroll-x-contain touch-pan-x scroll-smooth min-h-[200px] max-w-full"
+                  >
+                    <table className="w-full text-xs sm:text-sm min-w-[1680px] border-collapse">
                       <thead>
                         <tr className="bg-muted/30 border-b border-border">
-                          <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">NGÀY</th>
-                          <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">pH</th>
-                          <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">T°</th>
-                          <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">DO</th>
-                          <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">MÀU NƯỚC</th>
-                          <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">TA (KG)</th>
-                          <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">HAO HỤT</th>
-                          <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THUỐC</th>
-                          <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">GHI CHÚ</th>
-                          <th className="px-4 py-3 w-12" />
+                          <th className="sticky left-0 z-10 w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] bg-muted/95 backdrop-blur-sm text-left px-2 sm:px-3 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-r border-border/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                            NGÀY
+                          </th>
+                          <th className="sticky left-[6.25rem] z-10 min-w-[7.5rem] bg-muted/95 backdrop-blur-sm text-left px-2 sm:px-3 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-r border-border/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                            MÃ AO
+                          </th>
+                          <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            ĐẠI LÝ
+                          </th>
+                          <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[7rem]">
+                            CHU KỲ
+                          </th>
+                          <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            HAO HỤT
+                          </th>
+                          <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            THẢ THÊM
+                          </th>
+                          <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            THỨC ĂN
+                          </th>
+                          <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            MÃ TA
+                          </th>
+                          <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            pH
+                          </th>
+                          <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            T°
+                          </th>
+                          <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            DO
+                          </th>
+                          <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            NH3
+                          </th>
+                          <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            NO2
+                          </th>
+                          <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            H2S
+                          </th>
+                          <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[6rem]">
+                            MÀU NC
+                          </th>
+                          <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                            TL TB
+                          </th>
+                          <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8rem]">
+                            THUỐC
+                          </th>
+                          <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8rem]">
+                            GHI CHÚ
+                          </th>
+                          <th className="sticky right-0 z-10 bg-muted/95 backdrop-blur-sm px-2 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap w-28 border-l border-border/80 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                            THAO TÁC
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
                         {logs.length === 0 ? (
-                          <tr><td colSpan={10} className="text-center py-10 text-muted-foreground">Chưa có nhật ký</td></tr>
-                        ) : logs.map((l) => (
-                          <tr key={l.id} className="hover:bg-muted/30 transition-colors">
-                            <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">{l.log_date || '—'}</td>
-                            <td className="px-4 py-3 text-right text-slate-700">{l.ph ?? '—'}</td>
-                            <td className="px-4 py-3 text-right text-slate-700">{l.temperature ?? '—'}</td>
-                            <td className="px-4 py-3 text-right text-slate-700">{l.do ?? '—'}</td>
-                            <td className="px-4 py-3 text-slate-600">{l.water_color || '—'}</td>
-                            <td className="px-4 py-3 text-right text-slate-700">{l.feed_amount != null ? fmtNumber(l.feed_amount) : '—'}</td>
-                            <td className="px-4 py-3 text-right text-slate-700">{l.dead_fish != null ? fmtNumber(l.dead_fish) : '—'}</td>
-                            <td className="px-4 py-3 text-slate-600">
-                              {l.medicine_used ? `${l.medicine_used}${l.withdrawal_days ? ` (${l.withdrawal_days} ngày)` : ''}` : '—'}
-                            </td>
-                            <td className="px-4 py-3 text-slate-600 max-w-[22rem] truncate" title={l.notes || ''}>
-                              {l.notes || l.disease_notes || '—'}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-36">
-                                  <DropdownMenuItem onClick={() => setEditLog(l)}>
-                                    <Pencil className="w-4 h-4 mr-2" /> Sửa nhật ký
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-red-600 focus:text-red-600"
-                                    onClick={async () => {
-                                      if (!window.confirm('Xóa nhật ký này?')) return;
-                                      try {
-                                        await base44.entities.PondLog.delete(l.id);
-                                        const next = await base44.entities.PondLog.filter({ pond_cycle_id: cycleId }, '-log_date', 500);
-                                        setLogs(next || []);
-                                      } catch (e) {
-                                        alert(formatSupabaseError(e));
-                                      }
-                                    }}
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" /> Xóa
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                          <tr>
+                            <td colSpan={19} className="text-center py-10 text-muted-foreground">
+                              Chưa có nhật ký
                             </td>
                           </tr>
-                        ))}
+                        ) : (
+                          logs.map((l) => {
+                            const agency = pond?.agency_code || '—';
+                            const pondCodeCell = l.pond_code || cycle?.pond_code || '—';
+                            const medicineBits = [
+                              l.medicine_used ? `💊 ${l.medicine_used}` : null,
+                              l.withdrawal_end_date
+                                ? `Hết NT: ${l.withdrawal_end_date}`
+                                : l.withdrawal_days
+                                  ? `Ngưng ${l.withdrawal_days} ngày`
+                                  : null,
+                            ].filter(Boolean);
+                            const medicineStr = medicineBits.length ? medicineBits.join(' · ') : '—';
+                            return (
+                              <tr key={l.id} className="hover:bg-primary/5 group transition-colors bg-white">
+                                <td className="sticky left-0 z-[1] w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-2.5 sm:py-3 text-slate-500 font-medium whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
+                                  {l.log_date || '—'}
+                                </td>
+                                <td className="sticky left-[6.25rem] z-[1] min-w-[7.5rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-2.5 sm:py-3 font-bold text-slate-700 whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
+                                  {pondCodeCell}
+                                </td>
+                                <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 whitespace-nowrap">{agency}</td>
+                                <td
+                                  className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[10rem] truncate"
+                                  title={cycleLabelForRow}
+                                >
+                                  {cycleLabelForRow}
+                                </td>
+                                <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right font-bold text-red-600 whitespace-nowrap">
+                                  {Number(l.dead_fish) > 0 ? `-${l.dead_fish}` : '—'}
+                                </td>
+                                <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right font-bold text-emerald-600 whitespace-nowrap">
+                                  {Number(l.stocked_fish) > 0 ? `+${l.stocked_fish}` : '—'}
+                                </td>
+                                <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right font-bold text-blue-600 whitespace-nowrap">
+                                  {l.feed_amount != null && l.feed_amount !== '' ? `${l.feed_amount}kg` : '—'}
+                                </td>
+                                <td
+                                  className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 whitespace-nowrap max-w-[6rem] truncate"
+                                  title={l.feed_code || ''}
+                                >
+                                  {cellDash(l.feed_code)}
+                                </td>
+                                <td
+                                  className={`px-3 sm:px-4 py-2.5 sm:py-3 text-right font-semibold whitespace-nowrap ${l.ph != null && l.ph !== '' && (Number(l.ph) < 6.5 || Number(l.ph) > 8.5) ? 'text-red-600' : 'text-slate-600'}`}
+                                >
+                                  {cellDash(l.ph)}
+                                </td>
+                                <td
+                                  className={`px-3 sm:px-4 py-2.5 sm:py-3 text-right font-semibold whitespace-nowrap ${l.temperature != null && l.temperature !== '' && (Number(l.temperature) < 25 || Number(l.temperature) > 32) ? 'text-red-600' : 'text-slate-600'}`}
+                                >
+                                  {cellDash(l.temperature)}
+                                </td>
+                                <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(l.do)}</td>
+                                <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(l.nh3)}</td>
+                                <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(l.no2)}</td>
+                                <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(l.h2s)}</td>
+                                <td
+                                  className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[8rem] truncate"
+                                  title={l.water_color || ''}
+                                >
+                                  {cellDash(l.water_color)}
+                                </td>
+                                <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">
+                                  {l.avg_weight != null && l.avg_weight !== '' ? `${l.avg_weight}` : '—'}
+                                </td>
+                                <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[10rem]">
+                                  <div className="truncate" title={medicineStr !== '—' ? medicineStr : ''}>
+                                    {medicineStr}
+                                  </div>
+                                </td>
+                                <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[12rem]">
+                                  <div className="truncate" title={l.notes || l.disease_notes || ''}>
+                                    {cellDash(l.notes || l.disease_notes)}
+                                  </div>
+                                </td>
+                                <td className="sticky right-0 z-[1] px-2 sm:px-4 py-2.5 sm:py-3 text-right whitespace-nowrap bg-white group-hover:bg-primary/5 border-l border-border/60 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.04)]">
+                                  <div className="flex items-center justify-end gap-1 sm:gap-2">
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0" aria-label="Thêm">
+                                          <MoreHorizontal className="w-4 h-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="w-40">
+                                        <DropdownMenuItem onClick={() => setEditLog(l)}>
+                                          <Pencil className="w-4 h-4 mr-2" /> Sửa nhật ký
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          className="text-red-600 focus:text-red-600"
+                                          onClick={async () => {
+                                            if (!window.confirm('Xóa nhật ký này?')) return;
+                                            setDeletingLogId(l.id);
+                                            try {
+                                              await base44.entities.PondLog.delete(l.id);
+                                              await reloadAfterLogMutation();
+                                            } catch (e) {
+                                              alert(formatSupabaseError(e));
+                                            } finally {
+                                              setDeletingLogId(null);
+                                            }
+                                          }}
+                                        >
+                                          <Trash2 className="w-4 h-4 mr-2" /> Xóa
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditLog(l)}
+                                      className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 shrink-0"
+                                      title="Sửa nhật ký"
+                                    >
+                                      <Edit className="w-3.5 h-3.5 text-slate-600" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (!window.confirm('Xóa nhật ký này?')) return;
+                                        setDeletingLogId(l.id);
+                                        try {
+                                          await base44.entities.PondLog.delete(l.id);
+                                          await reloadAfterLogMutation();
+                                        } catch (e) {
+                                          alert(formatSupabaseError(e));
+                                        } finally {
+                                          setDeletingLogId(null);
+                                        }
+                                      }}
+                                      disabled={deletingLogId === l.id}
+                                      className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center hover:bg-red-100 disabled:opacity-50 shrink-0"
+                                      title="Xóa nhật ký"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -438,8 +791,11 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
           onClose={() => setEditLog(null)}
           onSaved={async () => {
             setEditLog(null);
-            const next = await base44.entities.PondLog.filter({ pond_cycle_id: cycleId }, '-log_date', 500);
-            setLogs(next || []);
+            try {
+              await reloadAfterLogMutation();
+            } catch (e) {
+              alert(formatSupabaseError(e));
+            }
           }}
         />
 

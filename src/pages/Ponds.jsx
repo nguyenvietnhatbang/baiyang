@@ -53,7 +53,9 @@ const CYCLE_COLUMNS = [
   { key: 'agency_code', label: 'ĐẠI LÝ' },
   { key: 'status', label: 'TRẠNG THÁI' },
   { key: 'stock_date', label: 'NGÀY THẢ' },
-  { key: 'current_fish', label: 'SỐ CÁ' },
+  { key: 'total_fish', label: 'SỐ CÁ BAN ĐẦU' },
+  { key: 'stocked_fish_added', label: 'SỐ CÁ THẢ THÊM' },
+  { key: 'current_fish', label: 'SỐ CÁ HIỆN TẠI' },
   { key: 'expected_yield', label: 'SL DỰ KIẾN' },
   { key: 'expected_harvest_date', label: 'THU HOẠCH DK' },
   { key: 'total_feed_used', label: 'TỔNG THỨC ĂN' },
@@ -69,6 +71,8 @@ const DEFAULT_VISIBLE_COLUMNS = {
   agency_code: true,
   status: true,
   stock_date: true,
+  total_fish: true,
+  stocked_fish_added: true,
   current_fish: true,
   expected_yield: true,
   expected_harvest_date: true,
@@ -125,9 +129,9 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
     () =>
       households.map((h) => ({
         value: h.id,
-        label: `${h.name} — ${h.household_segment} (${h.region_code})`,
+        label: `${h.name} — KV ${h.region_code} · HT ${agencies.find((a) => a.id === h.agency_id)?.code || '—'} · ĐL ${agencies.find((a) => a.id === h.agency_id)?.code || '—'} · Hộ ${h.household_segment}`,
       })),
-    [households]
+    [households, agencies]
   );
 
   const handleCreate = async () => {
@@ -306,6 +310,7 @@ export default function Ponds() {
 
   const [ponds, setPonds] = useState([]);
   const [agencies, setAgencies] = useState([]);
+  const [stockedFishByCycle, setStockedFishByCycle] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -325,18 +330,36 @@ export default function Ponds() {
   const [newCycleOpen, setNewCycleOpen] = useState(false);
   const [newCycleSaving, setNewCycleSaving] = useState(false);
   const [newCycleErr, setNewCycleErr] = useState('');
-  const [newCycleForm, setNewCycleForm] = useState({ pond_id: '', name: '' });
+  const [newCycleForm, setNewCycleForm] = useState({
+    pond_id: '',
+    name: '',
+    stock_date: '',
+    total_fish: '',
+    seed_size: '',
+    seed_weight: '',
+    survival_rate: 90,
+    target_weight: 800,
+    initial_expected_harvest_date: '',
+  });
   const [deleteCycleId, setDeleteCycleId] = useState(null);
   const [deleteCycleLabel, setDeleteCycleLabel] = useState('');
   const [deletingCycle, setDeletingCycle] = useState(false);
 
   const loadPonds = async () => {
-    const [data, agencyData] = await Promise.all([
+    const [data, agencyData, logRows] = await Promise.all([
       base44.entities.Pond.listWithHouseholds('-updated_date', 500),
       base44.entities.Agency.list('code', 200),
+      base44.entities.PondLog.list('-log_date', 5000),
     ]);
+    const stockedMap = {};
+    for (const log of logRows || []) {
+      const cycleId = log?.pond_cycle_id;
+      if (!cycleId) continue;
+      stockedMap[cycleId] = (stockedMap[cycleId] || 0) + (Number(log.stocked_fish) || 0);
+    }
     setPonds(data || []);
     setAgencies(agencyData || []);
+    setStockedFishByCycle(stockedMap);
     setLoading(false);
   };
 
@@ -373,6 +396,8 @@ export default function Ponds() {
           cycle_id: null,
           cycle_name: 'Chưa có chu kỳ',
           status: 'CT',
+          total_fish: null,
+          stocked_fish_added: null,
           current_fish: null,
           expected_yield: null,
           expected_harvest_date: null,
@@ -396,6 +421,8 @@ export default function Ponds() {
             cycle_id: c.id,
             cycle_name: cycleLabel(c, idx),
             status: c.status || 'CT',
+            total_fish: c.total_fish ?? null,
+            stocked_fish_added: stockedFishByCycle[c.id] ?? 0,
             current_fish: c.current_fish ?? c.total_fish ?? null,
             expected_yield: c.expected_yield,
             expected_harvest_date: plannedHarvestDateForDisplay(c),
@@ -416,7 +443,7 @@ export default function Ponds() {
       if (!b.stock_date) return -1;
       return b.stock_date.localeCompare(a.stock_date);
     });
-  }, [ponds]);
+  }, [ponds, stockedFishByCycle]);
 
   const agencyCodes = [...new Set(cycleRows.map((r) => r.agency_code).filter(Boolean))];
   const agencyFilterItems = useMemo(
@@ -508,16 +535,52 @@ export default function Ponds() {
       setNewCycleErr('Chọn ao');
       return;
     }
+    if (!newCycleForm.stock_date) {
+      setNewCycleErr('Nhập ngày thả');
+      return;
+    }
+    if (!newCycleForm.total_fish) {
+      setNewCycleErr('Nhập tổng cá thả');
+      return;
+    }
     setNewCycleSaving(true);
     setNewCycleErr('');
     try {
+      const totalFishNum = Number(newCycleForm.total_fish) || 0;
+      const survivalRateNum = Number(newCycleForm.survival_rate) || 0;
+      const targetWeightNum = Number(newCycleForm.target_weight) || 0;
+      const expectedYield =
+        totalFishNum > 0 && survivalRateNum > 0 && targetWeightNum > 0
+          ? Math.round((totalFishNum * (survivalRateNum / 100) * targetWeightNum) / 1000)
+          : null;
+      const status = totalFishNum > 0 ? 'CC' : 'CT';
+
       await base44.entities.PondCycle.create({
         pond_id: newCycleForm.pond_id,
-        status: 'CT',
+        status,
         name: newCycleForm.name?.trim() || null,
+        stock_date: newCycleForm.stock_date || null,
+        total_fish: totalFishNum || null,
+        current_fish: totalFishNum || null,
+        seed_size: newCycleForm.seed_size === '' ? null : Number(newCycleForm.seed_size),
+        seed_weight: newCycleForm.seed_weight === '' ? null : Number(newCycleForm.seed_weight),
+        survival_rate: survivalRateNum || null,
+        target_weight: targetWeightNum || null,
+        initial_expected_harvest_date: newCycleForm.initial_expected_harvest_date || null,
+        expected_yield: expectedYield,
       });
       setNewCycleOpen(false);
-      setNewCycleForm({ pond_id: '', name: '' });
+      setNewCycleForm({
+        pond_id: '',
+        name: '',
+        stock_date: '',
+        total_fish: '',
+        seed_size: '',
+        seed_weight: '',
+        survival_rate: 90,
+        target_weight: 800,
+        initial_expected_harvest_date: '',
+      });
       await loadPonds();
     } catch (e) {
       setNewCycleErr(formatSupabaseError(e));
@@ -564,7 +627,17 @@ export default function Ponds() {
                   <Button
                     onClick={() => {
                       setNewCycleErr('');
-                      setNewCycleForm({ pond_id: '', name: '' });
+                      setNewCycleForm({
+                        pond_id: '',
+                        name: '',
+                        stock_date: '',
+                        total_fish: '',
+                        seed_size: '',
+                        seed_weight: '',
+                        survival_rate: 90,
+                        target_weight: 800,
+                        initial_expected_harvest_date: '',
+                      });
                       setNewCycleOpen(true);
                     }}
                     className="bg-primary text-white flex items-center gap-2 text-sm"
@@ -830,6 +903,20 @@ export default function Ponds() {
                         {visibleCols.agency_code && <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">{r.agency_code || '—'}</td>}
                         {visibleCols.status && <td className="px-4 py-3 whitespace-nowrap"><PondStatusBadge status={r.status} /></td>}
                         {visibleCols.stock_date && <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{r.stock_date || '—'}</td>}
+                        {visibleCols.total_fish && (
+                          <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                            {r.total_fish != null && !Number.isNaN(Number(r.total_fish))
+                              ? Number(r.total_fish).toLocaleString()
+                              : '—'}
+                          </td>
+                        )}
+                        {visibleCols.stocked_fish_added && (
+                          <td className="px-4 py-3 text-right font-medium text-emerald-700 whitespace-nowrap">
+                            {r.stocked_fish_added != null && !Number.isNaN(Number(r.stocked_fish_added))
+                              ? Number(r.stocked_fish_added).toLocaleString()
+                              : '—'}
+                          </td>
+                        )}
                         {visibleCols.current_fish && (
                           <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
                             {r.current_fish != null && !Number.isNaN(Number(r.current_fish))
@@ -1042,7 +1129,11 @@ export default function Ponds() {
             <DialogTitle>Tạo chu kỳ mới</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-1">
-            {newCycleErr && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{newCycleErr}</p>}
+            {newCycleErr && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+                {newCycleErr}
+              </p>
+            )}
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chọn ao *</Label>
               <Select
@@ -1066,6 +1157,75 @@ export default function Ponds() {
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tên chu kỳ (tuỳ chọn)</Label>
               <Input className="mt-1" value={newCycleForm.name} onChange={(e) => setNewCycleForm((p) => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày thả *</Label>
+                <Input
+                  className="mt-1"
+                  type="date"
+                  value={newCycleForm.stock_date}
+                  onChange={(e) => setNewCycleForm((p) => ({ ...p, stock_date: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Thu hoạch DK (gốc)</Label>
+                <Input
+                  className="mt-1"
+                  type="date"
+                  value={newCycleForm.initial_expected_harvest_date}
+                  onChange={(e) =>
+                    setNewCycleForm((p) => ({ ...p, initial_expected_harvest_date: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tổng cá thả (con) *</Label>
+                <Input
+                  className="mt-1"
+                  type="number"
+                  value={newCycleForm.total_fish}
+                  onChange={(e) => setNewCycleForm((p) => ({ ...p, total_fish: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Size giống (cm)</Label>
+                <Input
+                  className="mt-1"
+                  type="number"
+                  step="0.1"
+                  value={newCycleForm.seed_size}
+                  onChange={(e) => setNewCycleForm((p) => ({ ...p, seed_size: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL giống (g)</Label>
+                <Input
+                  className="mt-1"
+                  type="number"
+                  step="0.1"
+                  value={newCycleForm.seed_weight}
+                  onChange={(e) => setNewCycleForm((p) => ({ ...p, seed_weight: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tỷ lệ sống (%)</Label>
+                <Input
+                  className="mt-1"
+                  type="number"
+                  value={newCycleForm.survival_rate}
+                  onChange={(e) => setNewCycleForm((p) => ({ ...p, survival_rate: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL kỳ vọng lúc thu (g)</Label>
+                <Input
+                  className="mt-1"
+                  type="number"
+                  value={newCycleForm.target_weight}
+                  onChange={(e) => setNewCycleForm((p) => ({ ...p, target_weight: e.target.value }))}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">

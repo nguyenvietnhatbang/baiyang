@@ -74,6 +74,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
     water_color: '',
     feed_code: '',
     feed_amount: '',
+    stocked_fish: 0,
     dead_fish: 0,
     avg_weight: '',
     medicine_used: '',
@@ -100,6 +101,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
       water_color: '',
       feed_code: '',
       feed_amount: '',
+      stocked_fish: 0,
       dead_fish: 0,
       avg_weight: '',
       medicine_used: '',
@@ -175,6 +177,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
         water_color: form.water_color?.trim() || null,
         feed_code: form.feed_code?.trim() || null,
         feed_amount: toNumOrNull(form.feed_amount),
+        stocked_fish: toNumOrNull(form.stocked_fish) ?? 0,
         dead_fish: toNumOrNull(form.dead_fish) ?? 0,
         avg_weight: toNumOrNull(form.avg_weight),
         medicine_used: form.medicine_used?.trim() || null,
@@ -259,6 +262,10 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
               <div>
                 <span className="text-slate-500">Số cá:</span>{' '}
                 <span className="font-medium text-slate-700">{selectedCycle?.current_fish?.toLocaleString() || '—'}</span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-slate-500">Số cá ban đầu thả:</span>{' '}
+                <span className="font-medium text-slate-700">{selectedCycle?.total_fish?.toLocaleString() || '—'}</span>
               </div>
             </div>
             {selectedCycle && (
@@ -360,6 +367,10 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
               <div>
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Lượng thức ăn (kg)</Label>
                 <Input className="mt-1" type="number" value={form.feed_amount} onChange={set('feed_amount')} />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Số cá thả thêm (con)</Label>
+                <Input className="mt-1 border-emerald-200" type="number" value={form.stocked_fish} onChange={set('stocked_fish')} />
               </div>
               <div>
                 <Label className="text-xs font-semibold text-red-600 uppercase tracking-wide">Số cá hao hụt (con)</Label>

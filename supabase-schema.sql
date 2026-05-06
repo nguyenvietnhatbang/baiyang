@@ -232,6 +232,7 @@ create table if not exists public.pond_logs (
   water_color text,
   feed_code text,
   feed_amount numeric,
+  stocked_fish numeric not null default 0,
   dead_fish numeric not null default 0,
   medicine_used text,
   medicine_dosage text,
@@ -242,6 +243,9 @@ create table if not exists public.pond_logs (
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+alter table if exists public.pond_logs
+  add column if not exists stocked_fish numeric not null default 0;
 
 create table if not exists public.harvest_records (
   id uuid primary key default gen_random_uuid(),
@@ -584,6 +588,7 @@ declare
   h record;
   a record;
   prefix text;
+  system_seg text;
   next_n int;
   max_s int;
 begin
@@ -593,7 +598,13 @@ begin
   end if;
   select * into a from public.agencies where id = h.agency_id;
 
-  prefix := h.region_code || '-' || a.pond_code_segment || '-' || h.household_segment;
+  -- Format yêu cầu: Mã tỉnh - Mã hệ thống - Mã hộ nuôi - Mã ao nuôi
+  -- Ở hệ thống này: "Mã hệ thống" = agencies.code (ví dụ 09), KHÔNG phải pond_code_segment.
+  system_seg := lpad(regexp_replace(coalesce(a.code, ''), '\D', '', 'g'), 2, '0');
+  if system_seg = '' then
+    raise exception 'Agency code not set for household %', p_household_id;
+  end if;
+  prefix := h.region_code || '-' || system_seg || '-' || h.household_segment;
 
   select coalesce(max(
     (regexp_match(p.code, '-(\d+)$'))[1]::int

@@ -51,6 +51,11 @@
       "type": "number",
       "description": "L\u01b0\u1ee3ng th\u1ee9c \u0103n (kg)"
     },
+    "stocked_fish": {
+      "type": "number",
+      "default": 0,
+      "description": "S\u1ed1 c\u00e1 th\u1ea3 th\u00eam trong ng\u00e0y"
+    },
     "dead_fish": {
       "type": "number",
       "default": 0,

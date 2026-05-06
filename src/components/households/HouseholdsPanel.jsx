@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Plus, Pencil, Trash2, AlertTriangle, Save, Upload, Eye, MoreVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,91 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import HouseholdViewDialog from './HouseholdViewDialog';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import ExcelJS from 'exceljs';
+import { ChevronsUpDown } from 'lucide-react';
+
+function SearchablePicker({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder = 'Chọn…',
+  disabled,
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) setSearch('');
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e) => {
+      const root = rootRef.current;
+      if (!root) return;
+      if (!root.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [open, rootRef]);
+
+  const trimmed = search.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!trimmed) return options;
+    return options.filter((o) => (o.searchText || o.label).toLowerCase().includes(trimmed));
+  }, [options, trimmed]);
+
+  const current = options.find((o) => String(o.value) === String(value)) || null;
+
+  return (
+    <div ref={rootRef} className="relative">
+      {label ? <Label className="text-xs font-semibold text-muted-foreground uppercase">{label}</Label> : null}
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className={`mt-1 h-9 w-full justify-between px-2 font-normal text-sm ${!current ? 'text-muted-foreground' : ''}`}
+      >
+        <span className="truncate text-left">{current?.label || placeholder}</span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+      </Button>
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-[12rem] rounded-lg border border-border bg-popover shadow-md">
+          <div className="p-2 border-b border-border">
+            <Input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tìm…"
+              className="h-8 text-sm"
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <div className="px-2 py-2 text-xs text-muted-foreground">Không có kết quả</div>
+            ) : (
+              filtered.map((o) => (
+                <button
+                  key={String(o.value)}
+                  type="button"
+                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground ${String(o.value) === String(value) ? 'bg-accent/60' : ''}`}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                >
+                  {o.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function normalizeSegment(s) {
   const t = (s || '').trim();
@@ -115,11 +200,21 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
   const f = (key) => ({ value: form[key], onChange: (e) => setForm({ ...form, [key]: e.target.value }) });
 
   const agencySelectItems = useMemo(
-    () => agencies.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` })),
+    () =>
+      agencies.map((a) => ({
+        value: a.id,
+        label: `${a.code} — ${a.name}`,
+        searchText: `${a.code} ${a.name} ${a.region_code || ''}`,
+      })),
     [agencies]
   );
   const regionSelectItems = useMemo(
-    () => regions.map((r) => ({ value: r.code, label: `${r.code} — ${r.name}` })),
+    () =>
+      regions.map((r) => ({
+        value: r.code,
+        label: `${r.code} — ${r.name}`,
+        searchText: `${r.code} ${r.name}`,
+      })),
     [regions]
   );
   const activeSelectItems = useMemo(
@@ -140,10 +235,10 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
           <div className="space-y-4 py-2">
             {error && <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase">Đại lý *</Label>
-              <Select
+              <SearchablePicker
+                label="Đại lý *"
                 value={form.agency_id}
-                onValueChange={(v) => {
+                onChange={(v) => {
                   const ag = agencies.find((a) => a.id === v);
                   setForm({
                     ...form,
@@ -151,34 +246,20 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
                     region_code: ag?.region_code || form.region_code,
                   });
                 }}
-                items={agencySelectItems}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Chọn đại lý" />
-                </SelectTrigger>
-                <SelectContent>
-                  {agencies.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{a.code} — {a.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={agencySelectItems}
+                placeholder="Chọn đại lý"
+                disabled={agencies.length === 0}
+              />
             </div>
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase">Khu vực (mã) *</Label>
-              <Select
+              <SearchablePicker
+                label="Khu vực (mã) *"
                 value={form.region_code}
-                onValueChange={(v) => setForm({ ...form, region_code: v })}
-                items={regionSelectItems}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {regions.map((r) => (
-                    <SelectItem key={r.code} value={r.code}>{r.code} — {r.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(v) => setForm({ ...form, region_code: v })}
+                options={regionSelectItems}
+                placeholder="Chọn khu vực"
+                disabled={regions.length === 0}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

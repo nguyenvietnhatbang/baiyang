@@ -20,7 +20,7 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
   const [form, setForm] = useState({
     log_date: format(new Date(), 'yyyy-MM-dd'),
     ph: '', temperature: '', do: '', nh3: '', no2: '', h2s: '',
-    water_color: '', feed_code: '', feed_amount: '',
+    water_color: '', feed_code: '', feed_amount: '', stocked_fish: 0,
     dead_fish: 0, medicine_used: '', medicine_dosage: '',
     withdrawal_days: '', disease_notes: '', avg_weight: '', notes: '',
   });
@@ -49,6 +49,7 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
       loadLogs();
       setForm((f) => ({
         ...f,
+        stocked_fish: 0,
         dead_fish: 0,
         feed_amount: '',
         medicine_used: '',
@@ -62,6 +63,24 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
 
   return (
     <div className="space-y-5 pt-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="rounded-lg border border-border bg-card p-2">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Số cá ban đầu</p>
+          <p className="font-semibold text-foreground mt-0.5">
+            {cycle?.total_fish != null && !Number.isNaN(Number(cycle.total_fish)) ? Number(cycle.total_fish).toLocaleString() : '—'}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-2">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Số cá hiện tại</p>
+          <p className="font-semibold text-foreground mt-0.5">
+            {cycle?.current_fish != null && !Number.isNaN(Number(cycle.current_fish))
+              ? Number(cycle.current_fish).toLocaleString()
+              : cycle?.total_fish != null && !Number.isNaN(Number(cycle.total_fish))
+                ? Number(cycle.total_fish).toLocaleString()
+                : '—'}
+          </p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-3 gap-3">
         {Object.entries(POND_LOG_ENV_RANGES).map(([key, cfg]) => (
@@ -113,6 +132,10 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Lượng thức ăn (kg)</Label>
           <Input type="number" value={form.feed_amount} onChange={e => setForm({...form, feed_amount: e.target.value})} className="mt-1" />
+        </div>
+        <div>
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide text-emerald-700">Số cá thả thêm (con)</Label>
+          <Input type="number" value={form.stocked_fish} onChange={e => setForm({...form, stocked_fish: e.target.value})} className="mt-1 border-emerald-200" />
         </div>
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide text-red-600">Số cá hao hụt (con)</Label>
@@ -170,6 +193,7 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
               <div key={log.id} className="bg-muted/50 rounded-lg p-3 text-xs">
                 <div className="flex justify-between items-center mb-1">
                   <span className="font-semibold text-foreground">{log.log_date}</span>
+                  {Number(log.stocked_fish) > 0 && <span className="text-emerald-600 font-medium">+{log.stocked_fish} con</span>}
                   {log.dead_fish > 0 && <span className="text-red-500 font-medium">-{log.dead_fish} con</span>}
                   {log.feed_amount && <span className="text-blue-600">TA: {log.feed_amount}kg</span>}
                 </div>

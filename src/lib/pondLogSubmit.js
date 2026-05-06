@@ -14,12 +14,16 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
 
   // Validation: Số cá hao hụt
   const deadFish = Number(form.dead_fish) || 0;
+  const stockedFish = Number(form.stocked_fish) || 0;
+  if (stockedFish < 0) {
+    throw new Error('Số cá thả thêm không thể âm');
+  }
   if (deadFish < 0) {
     throw new Error('Số cá hao hụt không thể âm');
   }
   const currentFish = cycle.current_fish || 0;
-  if (deadFish > currentFish) {
-    throw new Error(`Số cá hao hụt (${deadFish}) không thể vượt quá số cá hiện tại (${currentFish})`);
+  if (deadFish > currentFish + stockedFish) {
+    throw new Error(`Số cá hao hụt (${deadFish}) không thể vượt quá số cá hiện tại + thả thêm (${currentFish + stockedFish})`);
   }
 
   // Validation: Lượng thức ăn
@@ -44,7 +48,7 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
     throw new Error('Chu kỳ chưa có tỷ lệ sống hoặc trọng lượng mục tiêu. Vui lòng cập nhật thông tin chu kỳ trước.');
   }
 
-  const newCurrentFish = currentFish - deadFish;
+  const newCurrentFish = Math.max(0, currentFish + stockedFish - deadFish);
   const totalFeed = (cycle.total_feed_used || 0) + feedAmount;
 
   // Sửa: Tính withdrawal_end_date từ log_date, không phải TODAY
@@ -65,6 +69,7 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
     no2: Number(form.no2) || null,
     h2s: Number(form.h2s) || null,
     feed_amount: Number(form.feed_amount) || null,
+    stocked_fish: stockedFish,
     dead_fish: deadFish,
     withdrawal_days: Number(form.withdrawal_days) || null,
     avg_weight: Number(form.avg_weight) || null,

@@ -50,6 +50,7 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
     water_color: '',
     feed_code: '',
     feed_amount: '',
+    stocked_fish: '',
     dead_fish: '',
     avg_weight: '',
     medicine_used: '',
@@ -77,6 +78,7 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
       water_color: log.water_color || '',
       feed_code: log.feed_code || '',
       feed_amount: log.feed_amount ?? '',
+      stocked_fish: log.stocked_fish ?? '',
       dead_fish: log.dead_fish ?? '',
       avg_weight: log.avg_weight ?? '',
       medicine_used: log.medicine_used || '',
@@ -143,6 +145,7 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
         water_color: form.water_color?.trim() || null,
         feed_code: form.feed_code?.trim() || null,
         feed_amount: toNumOrNull(form.feed_amount),
+        stocked_fish: toNumOrNull(form.stocked_fish) ?? 0,
         dead_fish: toNumOrNull(form.dead_fish) ?? 0,
         avg_weight: toNumOrNull(form.avg_weight),
         medicine_used: form.medicine_used?.trim() || null,
@@ -267,6 +270,10 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Lượng thức ăn (kg)</Label>
               <Input className="mt-1 h-9 text-sm" type="number" value={form.feed_amount} onChange={set('feed_amount')} />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Thả thêm (con)</Label>
+              <Input className="mt-1 h-9 text-sm" type="number" value={form.stocked_fish} onChange={set('stocked_fish')} />
             </div>
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Hao hụt (con)</Label>
