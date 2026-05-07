@@ -30,6 +30,7 @@ const HARVEST_ACTION_ITEMS = [
 
 export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) {
   const [records, setRecords] = useState([]);
+  const [showEntryForm, setShowEntryForm] = useState(true);
   const [form, setForm] = useState({
     harvest_date: format(new Date(), 'yyyy-MM-dd'),
     actual_yield: '',
@@ -57,6 +58,13 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
     }
     base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id }, '-harvest_date', 500).then(setRecords);
   }, [pond.id, cycle?.id]);
+
+  useEffect(() => {
+    // Mặc định: nếu đã có phiếu thu, chỉ hiện lịch sử (ẩn form) để tránh nhập nhầm lại.
+    // Người dùng bấm "Ghi thu hoạch mới" để mở form.
+    setShowEntryForm(records.length === 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cycle?.id]);
 
   const lastHarvestSummary = records.length > 0
     ? {
@@ -166,6 +174,9 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
         price_per_kg: '',
         notes: '',
       });
+
+      // Ẩn form sau khi ghi thành công
+      setShowEntryForm(false);
       
     } catch (e) {
       console.error('Lỗi ghi thu hoạch:', e);
@@ -199,130 +210,146 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
       )}
 
       {/* Lot code */}
-      <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex items-center gap-3">
-        <Package className="w-5 h-5 text-primary flex-shrink-0" />
-        <div>
-          <p className="text-xs text-primary/70 font-medium">Mã lô truy xuất nguồn gốc</p>
-          <p className="font-bold text-primary text-sm font-mono">{lotCode}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày thu hoạch</Label>
-          <Input type="date" value={form.harvest_date} onChange={e => setForm({ ...form, harvest_date: e.target.value })} className="mt-1" />
-        </div>
-        <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sản lượng thực thu (kg)</Label>
-          <Input type="number" value={form.actual_yield} onChange={e => setForm({ ...form, actual_yield: e.target.value })} className="mt-1" />
-        </div>
-        <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Số cá thu (con)</Label>
-          <Input type="number" value={form.fish_count_harvested} onChange={e => setForm({ ...form, fish_count_harvested: e.target.value })} className="mt-1" />
-        </div>
-        <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL TB lúc thu (g)</Label>
-          <Input type="number" value={form.avg_weight_harvest} onChange={e => setForm({ ...form, avg_weight_harvest: e.target.value })} className="mt-1" />
-        </div>
-        <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá chết (kg)</Label>
-          <Input type="number" value={form.dead_fish_count} onChange={e => setForm({ ...form, dead_fish_count: e.target.value })} className="mt-1" />
-        </div>
-        <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá phế phẩm (kg)</Label>
-          <Input type="number" value={form.reject_fish_count} onChange={e => setForm({ ...form, reject_fish_count: e.target.value })} className="mt-1" />
-        </div>
-        <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá vàng thịt/bệnh (kg)</Label>
-          <Input type="number" value={form.sick_yellow_fish} onChange={e => setForm({ ...form, sick_yellow_fish: e.target.value })} className="mt-1" />
-        </div>
-        <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá gầy &lt;42% phi-lê (kg)</Label>
-          <Input type="number" value={form.thin_fish} onChange={e => setForm({ ...form, thin_fish: e.target.value })} className="mt-1" />
-        </div>
-        <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tỷ lệ dạ dày (%)</Label>
-          <Input type="number" value={form.stomach_ratio} onChange={e => setForm({ ...form, stomach_ratio: e.target.value })} className="mt-1" />
-        </div>
-        <div>
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Giá thu mua (đ/kg)</Label>
-          <Input type="number" value={form.price_per_kg} onChange={e => setForm({ ...form, price_per_kg: e.target.value })} className="mt-1" />
-        </div>
-      </div>
-
-      {totalValue && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
-          <p className="text-xs text-green-600 font-medium">Tổng giá trị lô hàng</p>
-          <p className="text-xl font-bold text-green-700">{totalValue} đ</p>
-        </div>
-      )}
-
-      {/* Quality Checklist */}
-      <div className="border border-border rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <ShieldCheck className="w-4 h-4 text-primary" />
-          <p className="text-xs font-semibold text-primary uppercase tracking-wide">Kiểm tra chất lượng</p>
-        </div>
-        <div className="space-y-1">
-          <CheckItem label="Chất lượng nước/bùn đạt tiêu chuẩn" checked={form.water_quality_ok} onChange={v => setForm({ ...form, water_quality_ok: v })} />
-          <CheckItem label="Dư lượng kháng sinh trong ngưỡng cho phép" checked={form.antibiotic_residue_ok} onChange={v => setForm({ ...form, antibiotic_residue_ok: v })} />
-          <CheckItem label="Kim loại nặng không phát hiện" checked={form.heavy_metal_ok} onChange={v => setForm({ ...form, heavy_metal_ok: v })} />
-          <CheckItem label="Thuốc trừ sâu không phát hiện" checked={form.pesticide_ok} onChange={v => setForm({ ...form, pesticide_ok: v })} />
-        </div>
-      </div>
-
-      {/* Auto-suggested action */}
-      {qualityIssues.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
-          <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">⚠️ Phát hiện vấn đề chất lượng</p>
-          <ul className="text-xs text-amber-700 space-y-0.5 list-disc list-inside">
-            {qualityIssues.map((issue, i) => <li key={i}>{issue}</li>)}
-          </ul>
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <p className="text-xs text-amber-600">Đề xuất xử lý:</p>
-            <button
-              onClick={() => setForm({ ...form, action_taken: suggestedAction })}
-              className="text-xs font-semibold px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded transition-colors"
-            >
-              Áp dụng: {suggestedAction === 'deduct_weight' ? '⚖️ Trừ KL' : suggestedAction === 'deduct_price' ? '💸 Trừ giá' : '❌ Từ chối'}
-            </button>
+      <div className="flex items-start justify-between gap-2">
+        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex items-center gap-3 flex-1">
+          <Package className="w-5 h-5 text-primary flex-shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs text-primary/70 font-medium">Mã lô truy xuất nguồn gốc</p>
+            <p className="font-bold text-primary text-sm font-mono truncate">{lotCode}</p>
           </div>
         </div>
-      )}
-      {failedChecks && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-700 font-medium">
-          ❌ Chưa đủ điều kiện: dư lượng kháng sinh / kim loại nặng / thuốc trừ sâu chưa đạt
-        </div>
-      )}
-
-      {/* Action */}
-      <div>
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Phương án xử lý</Label>
-        <Select value={form.action_taken} onValueChange={v => setForm({ ...form, action_taken: v })} items={HARVEST_ACTION_ITEMS}>
-          <SelectTrigger className="mt-1">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {HARVEST_ACTION_ITEMS.map((it) => (
-              <SelectItem key={it.value} value={it.value}>
-                {it.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {!isWithdrawal && (
+          <Button
+            type="button"
+            variant={showEntryForm ? 'outline' : 'default'}
+            className={showEntryForm ? '' : 'bg-primary text-white'}
+            onClick={() => setShowEntryForm((v) => !v)}
+          >
+            {showEntryForm ? 'Ẩn form' : 'Ghi thu hoạch mới'}
+          </Button>
+        )}
       </div>
 
-      <Textarea
-        placeholder="Ghi chú..."
-        value={form.notes}
-        onChange={e => setForm({ ...form, notes: e.target.value })}
-        className="h-16 text-sm"
-      />
+      {showEntryForm && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày thu hoạch</Label>
+              <Input type="date" value={form.harvest_date} onChange={e => setForm({ ...form, harvest_date: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sản lượng thực thu (kg)</Label>
+              <Input type="number" value={form.actual_yield} onChange={e => setForm({ ...form, actual_yield: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Số cá thu (con)</Label>
+              <Input type="number" value={form.fish_count_harvested} onChange={e => setForm({ ...form, fish_count_harvested: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL TB lúc thu (g)</Label>
+              <Input type="number" value={form.avg_weight_harvest} onChange={e => setForm({ ...form, avg_weight_harvest: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá chết (kg)</Label>
+              <Input type="number" value={form.dead_fish_count} onChange={e => setForm({ ...form, dead_fish_count: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá phế phẩm (kg)</Label>
+              <Input type="number" value={form.reject_fish_count} onChange={e => setForm({ ...form, reject_fish_count: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá vàng thịt/bệnh (kg)</Label>
+              <Input type="number" value={form.sick_yellow_fish} onChange={e => setForm({ ...form, sick_yellow_fish: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cá gầy &lt;42% phi-lê (kg)</Label>
+              <Input type="number" value={form.thin_fish} onChange={e => setForm({ ...form, thin_fish: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tỷ lệ dạ dày (%)</Label>
+              <Input type="number" value={form.stomach_ratio} onChange={e => setForm({ ...form, stomach_ratio: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Giá thu mua (đ/kg)</Label>
+              <Input type="number" value={form.price_per_kg} onChange={e => setForm({ ...form, price_per_kg: e.target.value })} className="mt-1" />
+            </div>
+          </div>
 
-      <Button onClick={handleSave} disabled={saving || isWithdrawal} className="w-full bg-primary text-white">
-        <Save className="w-4 h-4 mr-2" />
-        {saving ? 'Đang lưu...' : 'Ghi nhận thu hoạch'}
-      </Button>
+          {totalValue && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+              <p className="text-xs text-green-600 font-medium">Tổng giá trị lô hàng</p>
+              <p className="text-xl font-bold text-green-700">{totalValue} đ</p>
+            </div>
+          )}
+
+          {/* Quality Checklist */}
+          <div className="border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <ShieldCheck className="w-4 h-4 text-primary" />
+              <p className="text-xs font-semibold text-primary uppercase tracking-wide">Kiểm tra chất lượng</p>
+            </div>
+            <div className="space-y-1">
+              <CheckItem label="Chất lượng nước/bùn đạt tiêu chuẩn" checked={form.water_quality_ok} onChange={v => setForm({ ...form, water_quality_ok: v })} />
+              <CheckItem label="Dư lượng kháng sinh trong ngưỡng cho phép" checked={form.antibiotic_residue_ok} onChange={v => setForm({ ...form, antibiotic_residue_ok: v })} />
+              <CheckItem label="Kim loại nặng không phát hiện" checked={form.heavy_metal_ok} onChange={v => setForm({ ...form, heavy_metal_ok: v })} />
+              <CheckItem label="Thuốc trừ sâu không phát hiện" checked={form.pesticide_ok} onChange={v => setForm({ ...form, pesticide_ok: v })} />
+            </div>
+          </div>
+
+          {/* Auto-suggested action */}
+          {qualityIssues.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+              <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">⚠️ Phát hiện vấn đề chất lượng</p>
+              <ul className="text-xs text-amber-700 space-y-0.5 list-disc list-inside">
+                {qualityIssues.map((issue, i) => <li key={i}>{issue}</li>)}
+              </ul>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <p className="text-xs text-amber-600">Đề xuất xử lý:</p>
+                <button
+                  onClick={() => setForm({ ...form, action_taken: suggestedAction })}
+                  className="text-xs font-semibold px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded transition-colors"
+                >
+                  Áp dụng: {suggestedAction === 'deduct_weight' ? '⚖️ Trừ KL' : suggestedAction === 'deduct_price' ? '💸 Trừ giá' : '❌ Từ chối'}
+                </button>
+              </div>
+            </div>
+          )}
+          {failedChecks && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-700 font-medium">
+              ❌ Chưa đủ điều kiện: dư lượng kháng sinh / kim loại nặng / thuốc trừ sâu chưa đạt
+            </div>
+          )}
+
+          {/* Action */}
+          <div>
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Phương án xử lý</Label>
+            <Select value={form.action_taken} onValueChange={v => setForm({ ...form, action_taken: v })} items={HARVEST_ACTION_ITEMS}>
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {HARVEST_ACTION_ITEMS.map((it) => (
+                  <SelectItem key={it.value} value={it.value}>
+                    {it.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Textarea
+            placeholder="Ghi chú..."
+            value={form.notes}
+            onChange={e => setForm({ ...form, notes: e.target.value })}
+            className="h-16 text-sm"
+          />
+
+          <Button onClick={handleSave} disabled={saving || isWithdrawal} className="w-full bg-primary text-white">
+            <Save className="w-4 h-4 mr-2" />
+            {saving ? 'Đang lưu...' : 'Ghi nhận thu hoạch'}
+          </Button>
+        </>
+      )}
 
       {records.length > 0 && (
         <div>

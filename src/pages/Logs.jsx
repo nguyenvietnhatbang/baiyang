@@ -13,6 +13,7 @@ import PondLogCreateDialog from '@/components/ponds/PondLogCreateDialog';
 import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
 import { pickActiveCycle, cycleLabelForPondLog } from '@/lib/pondCycleHelpers';
 import { format } from 'date-fns';
+import { formatDateDisplay } from '@/lib/dateFormat';
 
 function cellDash(v) {
   if (v === null || v === undefined || v === '') return '—';
@@ -393,21 +394,21 @@ export default function Logs() {
               <p className="text-base font-bold text-slate-800 mt-0.5">{summary.nLogs.toLocaleString()}</p>
             </div>
             <div className="rounded-lg border border-blue-200 p-2 bg-blue-50/50">
-              <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wide">Thức ăn</p>
+              <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wide">Thức ăn (kg)</p>
               <p className="text-base font-bold text-blue-700 mt-0.5">
-                {summary.sumFeedKg > 0 ? `${summary.sumFeedKg.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg` : '—'}
+                {summary.sumFeedKg > 0 ? summary.sumFeedKg.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—'}
               </p>
             </div>
             <div className="rounded-lg border border-emerald-200 p-2 bg-emerald-50/50">
-              <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Thu hoạch</p>
+              <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Thu hoạch (kg)</p>
               <p className="text-base font-bold text-emerald-700 mt-0.5">
-                {summary.sumHarvestKg > 0 ? `${summary.sumHarvestKg.toLocaleString(undefined, { maximumFractionDigits: 0 })} kg` : '—'}
+                {summary.sumHarvestKg > 0 ? summary.sumHarvestKg.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}
               </p>
             </div>
             <div className="rounded-lg border border-amber-200 p-2 bg-amber-50/50">
               <p className="text-[9px] font-bold text-amber-600 uppercase tracking-wide">Hao hụt</p>
               <p className="text-base font-bold text-amber-700 mt-0.5">
-                {summary.sumDead.toLocaleString()} con
+                {summary.sumDead.toLocaleString()}
               </p>
             </div>
             <div className="rounded-lg border border-violet-200 p-2 bg-violet-50/50 col-span-2 sm:col-span-1">
@@ -490,8 +491,8 @@ export default function Logs() {
                       </th>
                       <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">ĐẠI LÝ</th>
                       <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[7rem]">CHU KỲ</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">HAO HỤT</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THỨC ĂN</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">HAO HỤT (CON)</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THỨC ĂN (KG)</th>
                       <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">MÃ TA</th>
                       <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">pH</th>
                       <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">T°</th>
@@ -523,7 +524,7 @@ export default function Logs() {
                           }}
                         >
                           <td className="sticky left-0 z-[1] w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-2.5 sm:py-3 text-slate-500 font-medium whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
-                            {log.log_date}
+                            {formatDateDisplay(log.log_date)}
                           </td>
                           <td className="sticky left-[6.25rem] z-[1] min-w-[7.5rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-2.5 sm:py-3 font-bold text-slate-700 whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
                             {log.pond_code}
@@ -536,7 +537,7 @@ export default function Logs() {
                             {log.dead_fish > 0 ? `-${log.dead_fish}` : '—'}
                           </td>
                           <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right font-bold text-blue-600 whitespace-nowrap">
-                            {log.feed_amount != null && log.feed_amount !== '' ? `${log.feed_amount}kg` : '—'}
+                            {log.feed_amount != null && log.feed_amount !== '' ? `${log.feed_amount}` : '—'}
                           </td>
                           <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 whitespace-nowrap max-w-[6rem] truncate" title={log.feed_code || ''}>
                             {cellDash(log.feed_code)}
