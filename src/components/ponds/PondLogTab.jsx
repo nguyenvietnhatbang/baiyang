@@ -195,7 +195,7 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
                   <span className="font-semibold text-foreground">{log.log_date}</span>
                   {Number(log.stocked_fish) > 0 && <span className="text-emerald-600 font-medium">+{log.stocked_fish} con</span>}
                   {log.dead_fish > 0 && <span className="text-red-500 font-medium">-{log.dead_fish} con</span>}
-                  {log.feed_amount && <span className="text-blue-600">TA: {log.feed_amount}kg</span>}
+                  {log.feed_amount && <span className="text-blue-600">TA: {log.feed_amount}</span>}
                 </div>
                 {(log.ph || log.temperature || log.do) && (
                   <div className="flex gap-3 text-muted-foreground">

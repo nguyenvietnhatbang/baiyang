@@ -93,12 +93,16 @@ create table if not exists public.households (
   region_code text not null references public.region_codes(code) on update cascade on delete restrict,
   household_segment text not null,
   name text not null,
+  phone text,
   address text,
   active boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   unique (agency_id, household_segment)
 );
+
+alter table if exists public.households
+  add column if not exists phone text;
 
 create index if not exists idx_households_agency_id on public.households(agency_id);
 
@@ -844,12 +848,8 @@ create policy households_select on public.households
   );
 
 create policy households_mutate on public.households
-  for all using (public.app_settings_bypass_rls() or public.is_admin() or exists (
-    select 1 from public.profiles p where p.id = auth.uid() and p.role = 'agency' and p.agency_id = households.agency_id
-  ))
-  with check (public.app_settings_bypass_rls() or public.is_admin() or exists (
-    select 1 from public.profiles p where p.id = auth.uid() and p.role = 'agency' and p.agency_id = households.agency_id
-  ));
+  for all using (public.app_settings_bypass_rls() or public.is_admin())
+  with check (public.app_settings_bypass_rls() or public.is_admin());
 
 create policy profiles_own on public.profiles
   for select using (public.app_settings_bypass_rls() or id = auth.uid() or public.is_admin());
@@ -880,39 +880,16 @@ create policy ponds_insert on public.ponds
   for insert with check (
     public.app_settings_bypass_rls()
     or public.is_admin()
-    or exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.role = 'agency'
-        and p.agency_id = (select agency_id from public.agencies a where a.code = ponds.agency_code limit 1)
-    )
   );
 
 create policy ponds_update on public.ponds
   for update using (
     public.app_settings_bypass_rls()
     or public.is_admin()
-    or exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.role = 'agency'
-        and p.agency_id = (select agency_id from public.agencies a where a.code = ponds.agency_code limit 1)
-    )
-    or exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.household_id = ponds.household_id
-    )
   )
   with check (
     public.app_settings_bypass_rls()
     or public.is_admin()
-    or exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.role = 'agency'
-        and p.agency_id = (select agency_id from public.agencies a where a.code = ponds.agency_code limit 1)
-    )
-    or exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.household_id = ponds.household_id
-    )
   );
 
 create policy ponds_delete on public.ponds
@@ -943,61 +920,16 @@ create policy pond_cycles_insert on public.pond_cycles
   for insert with check (
     public.app_settings_bypass_rls()
     or public.is_admin()
-    or exists (
-      select 1 from public.ponds po
-      where po.id = pond_cycles.pond_id
-        and (
-          exists (
-            select 1 from public.profiles p
-            where p.id = auth.uid() and p.role = 'agency'
-              and p.agency_id = (select agency_id from public.agencies a where a.code = po.agency_code limit 1)
-          )
-          or exists (
-            select 1 from public.profiles p2
-            where p2.id = auth.uid() and p2.household_id = po.household_id
-          )
-        )
-    )
   );
 
 create policy pond_cycles_update on public.pond_cycles
   for update using (
     public.app_settings_bypass_rls()
     or public.is_admin()
-    or exists (
-      select 1 from public.ponds po
-      where po.id = pond_cycles.pond_id
-        and (
-          exists (
-            select 1 from public.profiles p
-            where p.id = auth.uid() and p.role = 'agency'
-              and p.agency_id = (select agency_id from public.agencies a where a.code = po.agency_code limit 1)
-          )
-          or exists (
-            select 1 from public.profiles p2
-            where p2.id = auth.uid() and p2.household_id = po.household_id
-          )
-        )
-    )
   )
   with check (
     public.app_settings_bypass_rls()
     or public.is_admin()
-    or exists (
-      select 1 from public.ponds po
-      where po.id = pond_cycles.pond_id
-        and (
-          exists (
-            select 1 from public.profiles p
-            where p.id = auth.uid() and p.role = 'agency'
-              and p.agency_id = (select agency_id from public.agencies a where a.code = po.agency_code limit 1)
-          )
-          or exists (
-            select 1 from public.profiles p2
-            where p2.id = auth.uid() and p2.household_id = po.household_id
-          )
-        )
-    )
   );
 
 create policy pond_cycles_delete on public.pond_cycles

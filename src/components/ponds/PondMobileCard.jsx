@@ -1,5 +1,6 @@
 import PondStatusBadge from './PondStatusBadge';
 import { differenceInDays, parseISO } from 'date-fns';
+import { formatDateDisplay } from '@/lib/dateFormat';
 
 export default function PondMobileCard({ pond, checked, onCheck, onClick, harvestAlertDays = 7 }) {
   const today = new Date();
@@ -59,7 +60,7 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
         <span>Đại lý: <span className="font-medium text-foreground">{pond.agency_code || '—'}</span></span>
         {pond.expected_harvest_date && (
           <span className={isUrgent ? 'text-red-600 font-bold' : ''}>
-            Thu: {pond.expected_harvest_date}
+            Thu: {formatDateDisplay(pond.expected_harvest_date)}
             {isOverdue && ' (QH)'}
           </span>
         )}

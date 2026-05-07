@@ -28,6 +28,7 @@ import {
 import { base44 } from '@/api/base44Client';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { recalculateCycleMetrics } from '@/lib/recalculateCycleMetrics';
+import { formatDateDisplay } from '@/lib/dateFormat';
 
 function cellDash(v) {
   if (v === null || v === undefined || v === '') return '—';
@@ -142,7 +143,7 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
     return [
       { label: 'Tên chu kỳ', value: cycle.name || '—' },
       { label: 'Trạng thái', value: statusText(cycle) },
-      { label: 'Ngày thả', value: cycle.stock_date || '—' },
+      { label: 'Ngày thả', value: formatDateDisplay(cycle.stock_date) },
       { label: 'Tổng cá thả', value: fmtNumber(cycle.total_fish) },
       { label: 'Size giống', value: cycle.seed_size != null ? `${cycle.seed_size} cm` : '—' },
       { label: 'TL giống', value: cycle.seed_weight != null ? `${cycle.seed_weight} g` : '—' },
@@ -151,9 +152,9 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
       { label: 'Tỷ lệ sống', value: cycle.survival_rate != null ? `${cycle.survival_rate}%` : '—' },
       { label: 'TL thu kỳ vọng', value: cycle.target_weight != null ? `${cycle.target_weight} g` : '—' },
       { label: 'SL dự kiến', value: cycle.expected_yield != null ? `${fmtNumber(cycle.expected_yield)} kg` : '—' },
-      { label: 'Thu DK (gốc)', value: cycle.initial_expected_harvest_date || '—' },
-      { label: 'Thu DK (điều chỉnh)', value: cycle.expected_harvest_date || '—' },
-      { label: 'Hết ngưng thuốc', value: cycle.withdrawal_end_date || '—' },
+      { label: 'Thu DK (gốc)', value: formatDateDisplay(cycle.initial_expected_harvest_date) },
+      { label: 'Thu DK (điều chỉnh)', value: formatDateDisplay(cycle.expected_harvest_date) },
+      { label: 'Hết ngưng thuốc', value: formatDateDisplay(cycle.withdrawal_end_date) },
       { label: 'Thực thu (tổng)', value: cycle.actual_yield != null ? `${fmtNumber(cycle.actual_yield)} kg` : '—' },
       { label: 'Đạt kế hoạch', value: yieldPct },
       { label: 'Ghi chú chu kỳ', value: cycle.notes ? String(cycle.notes) : '—' },
@@ -210,7 +211,7 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
               </div>
               <div className="rounded-lg border border-border p-2">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Ngày thả</p>
-                <p className="font-semibold text-foreground mt-0.5">{cycle.stock_date || '—'}</p>
+                <p className="font-semibold text-foreground mt-0.5">{formatDateDisplay(cycle.stock_date)}</p>
               </div>
               <div className="rounded-lg border border-border p-2">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Số cá</p>
@@ -333,7 +334,7 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                       </div>
                       <div className="rounded-lg border border-border p-2">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Ngày thả</p>
-                        <p className="font-semibold text-foreground mt-0.5">{cycle.stock_date || '—'}</p>
+                        <p className="font-semibold text-foreground mt-0.5">{formatDateDisplay(cycle.stock_date)}</p>
                       </div>
                       <div className="rounded-lg border border-border p-2">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tổng cá thả</p>
@@ -374,15 +375,15 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                       <div className="grid grid-cols-2 gap-2">
                         <div className="rounded-lg border border-border p-2">
                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Thu DK (gốc)</p>
-                          <p className="font-semibold text-foreground mt-0.5">{cycle.initial_expected_harvest_date || '—'}</p>
+                          <p className="font-semibold text-foreground mt-0.5">{formatDateDisplay(cycle.initial_expected_harvest_date)}</p>
                         </div>
                         <div className="rounded-lg border border-border p-2">
                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Thu DK (điều chỉnh)</p>
-                          <p className="font-semibold text-foreground mt-0.5">{cycle.expected_harvest_date || '—'}</p>
+                          <p className="font-semibold text-foreground mt-0.5">{formatDateDisplay(cycle.expected_harvest_date)}</p>
                         </div>
                         <div className="rounded-lg border border-border p-2 col-span-2">
                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Hết ngưng thuốc</p>
-                          <p className="font-semibold text-foreground mt-0.5">{cycle.withdrawal_end_date || '—'}</p>
+                          <p className="font-semibold text-foreground mt-0.5">{formatDateDisplay(cycle.withdrawal_end_date)}</p>
                         </div>
                       </div>
                     </div>
@@ -532,7 +533,7 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                             THẢ THÊM
                           </th>
                           <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
-                            THỨC ĂN
+                            THỨC ĂN (KG)
                           </th>
                           <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
                             MÃ TA
@@ -595,7 +596,7 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                             return (
                               <tr key={l.id} className="hover:bg-primary/5 group transition-colors bg-white">
                                 <td className="sticky left-0 z-[1] w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-2.5 sm:py-3 text-slate-500 font-medium whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
-                                  {l.log_date || '—'}
+                                  {formatDateDisplay(l.log_date)}
                                 </td>
                                 <td className="sticky left-[6.25rem] z-[1] min-w-[7.5rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-2.5 sm:py-3 font-bold text-slate-700 whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
                                   {pondCodeCell}
@@ -614,7 +615,7 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                                   {Number(l.stocked_fish) > 0 ? `+${l.stocked_fish}` : '—'}
                                 </td>
                                 <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right font-bold text-blue-600 whitespace-nowrap">
-                                  {l.feed_amount != null && l.feed_amount !== '' ? `${l.feed_amount}kg` : '—'}
+                                  {l.feed_amount != null && l.feed_amount !== '' ? `${l.feed_amount}` : '—'}
                                 </td>
                                 <td
                                   className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 whitespace-nowrap max-w-[6rem] truncate"
@@ -755,7 +756,7 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                           <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">Chưa có phiếu thu hoạch</td></tr>
                         ) : harvests.map((h) => (
                           <tr key={h.id} className="hover:bg-muted/30 transition-colors">
-                            <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">{h.harvest_date || '—'}</td>
+                            <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">{formatDateDisplay(h.harvest_date)}</td>
                             <td className="px-4 py-3 text-right font-bold text-slate-800">{h.actual_yield != null ? fmtNumber(h.actual_yield) : '—'}</td>
                             <td className="px-4 py-3 text-right text-slate-700">{h.fish_count_harvested != null ? fmtNumber(h.fish_count_harvested) : '—'}</td>
                             <td className="px-4 py-3 text-right text-slate-700">{h.avg_weight_harvest != null ? fmtNumber(h.avg_weight_harvest) : '—'}</td>

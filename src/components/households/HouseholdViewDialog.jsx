@@ -2,8 +2,12 @@ import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MapPin, Building2, Hash, CheckCircle2, XCircle } from 'lucide-react';
+import { MapPin, Building2, Hash, CheckCircle2, XCircle, Phone, MessageCircle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+
+function phoneDigits(p) {
+  return String(p || '').replace(/\D/g, '');
+}
 
 export default function HouseholdViewDialog({ open, onClose, household, agency, region }) {
   const [householdPonds, setHouseholdPonds] = useState([]);
@@ -101,6 +105,32 @@ export default function HouseholdViewDialog({ open, onClose, household, agency, 
                     <span className="text-slate-400">—</span>
                   )}
                 </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 items-start">
+                <span className="text-xs font-semibold text-slate-500 uppercase">SĐT</span>
+                <div className="col-span-2">
+                  <p className="text-sm text-slate-700 font-medium">{household.phone || '—'}</p>
+                  {household.phone && (
+                    <div className="flex gap-2 mt-2">
+                      <a href={`tel:${phoneDigits(household.phone)}`} className="inline-flex">
+                        <Button type="button" variant="outline" size="sm" className="gap-2">
+                          <Phone className="w-4 h-4" /> Gọi
+                        </Button>
+                      </a>
+                      <a
+                        href={`https://zalo.me/${phoneDigits(household.phone)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex"
+                      >
+                        <Button type="button" variant="outline" size="sm" className="gap-2">
+                          <MessageCircle className="w-4 h-4" /> Zalo
+                        </Button>
+                      </a>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Plus, Pencil, Trash2, AlertTriangle, Save, Upload, Eye, MoreVertical } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, Save, Upload, Eye, MoreVertical, Phone, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -104,6 +104,10 @@ function normalizeSegment(s) {
   return digits.padStart(3, '0').slice(-3);
 }
 
+function phoneDigits(p) {
+  return String(p || '').replace(/\D/g, '');
+}
+
 function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, households = [] }) {
   const isEdit = !!row;
   const [form, setForm] = useState({
@@ -111,6 +115,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
     region_code: '17',
     household_segment: '',
     name: '',
+    phone: '',
     address: '',
     active: true,
   });
@@ -129,6 +134,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
           region_code: row.region_code || '17',
           household_segment: row.household_segment || '',
           name: row.name || '',
+          phone: row.phone || '',
           address: row.address || '',
           active: row.active !== false,
         });
@@ -139,6 +145,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
           region_code: firstAg?.region_code || regions[0]?.code || '17',
           household_segment: '',
           name: '',
+          phone: '',
           address: '',
           active: true,
         });
@@ -169,6 +176,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
         region_code: form.region_code,
         household_segment: seg,
         name: form.name.trim(),
+        phone: form.phone?.trim() || null,
         address: form.address?.trim() || null,
         active: form.active,
       };
@@ -289,6 +297,10 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase">Tên hộ *</Label>
               <Input {...f('name')} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase">SĐT</Label>
+              <Input {...f('phone')} className="mt-1" placeholder="VD: 0912345678" inputMode="tel" />
             </div>
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase">Địa chỉ</Label>
@@ -524,15 +536,16 @@ export function HouseholdsPanel({ embedded = false }) {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Mã hộ</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Khu vực</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Đại lý</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">SĐT</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Địa chỉ</th>
                 <th className="sticky right-0 bg-muted/50 text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {loading ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Đang tải...</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Đang tải...</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">Chưa có hộ nuôi</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">Chưa có hộ nuôi</td></tr>
               ) : (
                 rows.map((x) => (
                   <tr key={x.id} className="hover:bg-muted/20">
@@ -540,6 +553,7 @@ export function HouseholdsPanel({ embedded = false }) {
                     <td className="px-4 py-3 font-mono text-primary whitespace-nowrap">{x.household_segment}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{x.region_code}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{agencyMap[x.agency_id]?.code || '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{x.phone || '—'}</td>
                     <td className="px-4 py-3 text-muted-foreground text-xs max-w-[250px]">
                       <div className="truncate">{x.address || '—'}</div>
                     </td>
@@ -552,6 +566,27 @@ export function HouseholdsPanel({ embedded = false }) {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {x.phone && (
+                              <>
+                                <DropdownMenuItem asChild>
+                                  <a href={`tel:${phoneDigits(x.phone)}`} className="flex items-center">
+                                    <Phone className="w-4 h-4 mr-2" />
+                                    Gọi
+                                  </a>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                  <a
+                                    href={`https://zalo.me/${phoneDigits(x.phone)}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center"
+                                  >
+                                    <MessageCircle className="w-4 h-4 mr-2" />
+                                    Zalo
+                                  </a>
+                                </DropdownMenuItem>
+                              </>
+                            )}
                             <DropdownMenuItem onClick={() => { setViewRow(x); setViewDialogOpen(true); }}>
                               <Eye className="w-4 h-4 mr-2" />
                               Xem

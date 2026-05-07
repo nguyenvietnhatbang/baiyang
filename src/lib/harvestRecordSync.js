@@ -5,6 +5,12 @@
 
 import { base44 } from '@/api/base44Client';
 
+async function getPondCycleById(id) {
+  if (!id) return null;
+  const rows = await base44.entities.PondCycle.filter({ id }, '-updated_at', 1);
+  return rows?.[0] || null;
+}
+
 /**
  * Tạo HarvestRecord và tự động đồng bộ với PondCycle
  * @param {object} data - Dữ liệu HarvestRecord
@@ -49,7 +55,7 @@ export async function syncPondCycleWithHarvests(pondCycleId) {
   const totalActualYield = allHarvests.reduce((sum, h) => sum + (h.actual_yield || 0), 0);
   
   // Lấy thông tin PondCycle
-  const cycle = await base44.entities.PondCycle.get(pondCycleId);
+  const cycle = await getPondCycleById(pondCycleId);
   if (!cycle) {
     throw new Error(`Không tìm thấy PondCycle với ID: ${pondCycleId}`);
   }
@@ -99,7 +105,7 @@ export async function checkAndFixHarvestConsistency(pondCycleId) {
   const issues = [];
   
   // Lấy PondCycle
-  const cycle = await base44.entities.PondCycle.get(pondCycleId);
+  const cycle = await getPondCycleById(pondCycleId);
   if (!cycle) {
     return { fixed: false, issues: [`Không tìm thấy PondCycle: ${pondCycleId}`] };
   }

@@ -10,6 +10,7 @@ import CycleViewDialog from '@/components/ponds/CycleViewDialog';
 import CycleEditDialog from '@/components/ponds/CycleEditDialog';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
+import { formatDateDisplay } from '@/lib/dateFormat';
 
 function cycleLabel(c, idx) {
   const n = String(c?.name || '').trim();
@@ -170,8 +171,8 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
                         <tr key={c.id} className="hover:bg-muted/30 transition-colors group">
                           <td className="px-4 py-3 font-medium text-slate-700">{cycleLabel(c, idx)}</td>
                           <td className="px-4 py-3"><PondStatusBadge status={c.status || 'CT'} /></td>
-                          <td className="px-4 py-3 text-slate-500 text-xs">{c.stock_date || '—'}</td>
-                          <td className="px-4 py-3 text-slate-600 text-xs">{plannedHarvestDateForDisplay(c) || '—'}</td>
+                          <td className="px-4 py-3 text-slate-500 text-xs">{formatDateDisplay(c.stock_date)}</td>
+                          <td className="px-4 py-3 text-slate-600 text-xs">{formatDateDisplay(plannedHarvestDateForDisplay(c))}</td>
                           <td className="px-4 py-3 text-right font-medium text-slate-700">
                             {c.current_fish != null && !Number.isNaN(Number(c.current_fish))
                               ? Number(c.current_fish).toLocaleString()

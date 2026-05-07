@@ -1,6 +1,12 @@
 import { base44 } from '@/api/base44Client';
 import { computeFcr } from '@/lib/fcr';
 
+async function getPondCycleById(id) {
+  if (!id) return null;
+  const rows = await base44.entities.PondCycle.filter({ id }, '-updated_at', 1);
+  return rows?.[0] || null;
+}
+
 /**
  * Đồng bộ hóa dữ liệu giữa HarvestRecord và PondCycle
  * - Tính tổng actual_yield từ HarvestRecord cho mỗi PondCycle
@@ -74,7 +80,7 @@ export async function syncPondCyclesWithHarvests() {
  */
 export async function recalculateFcrForCycle(cycleId) {
   try {
-    const cycle = await base44.entities.PondCycle.get(cycleId);
+    const cycle = await getPondCycleById(cycleId);
     if (!cycle) {
       throw new Error(`Không tìm thấy chu kỳ ${cycleId}`);
     }

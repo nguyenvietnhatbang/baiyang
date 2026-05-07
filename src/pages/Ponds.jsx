@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Plus, Search, Settings2 } from 'lucide-react';
+import { Plus, Search, Settings2, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,7 @@ import PondMobileCard from '@/components/ponds/PondMobileCard';
 import { differenceInDays, parseISO } from 'date-fns';
 import { useAuth } from '@/lib/AuthContext';
 import { MoreHorizontal, Eye, Edit, Trash2, AlertCircle } from 'lucide-react';
+import { formatDateDisplay } from '@/lib/dateFormat';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +41,79 @@ import PondViewDialog from '@/components/ponds/PondViewDialog';
 import CycleViewDialog from '@/components/ponds/CycleViewDialog';
 import CycleEditDialog from '@/components/ponds/CycleEditDialog';
 
+function SearchableSelect({ label, value, onChange, options, placeholder = 'Chọn...', disabled }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) setSearch('');
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e) => {
+      const root = rootRef.current;
+      if (!root) return;
+      if (!root.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [open]);
+
+  const q = search.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!q) return options;
+    return options.filter((o) => String(o.label || '').toLowerCase().includes(q));
+  }, [options, q]);
+
+  const cur = options.find((o) => String(o.value) === String(value)) || null;
+
+  return (
+    <div ref={rootRef} className="relative">
+      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</Label>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className={`mt-1 h-9 w-full justify-between px-2 font-normal text-sm ${!cur ? 'text-muted-foreground' : ''}`}
+      >
+        <span className="truncate text-left">{cur?.label || placeholder}</span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+      </Button>
+      {open && !disabled && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-[12rem] rounded-lg border border-border bg-popover shadow-md">
+          <div className="p-2 border-b border-border">
+            <Input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm..." className="h-8 text-sm" />
+          </div>
+          <div className="max-h-64 overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <div className="px-2 py-2 text-xs text-muted-foreground">Không có kết quả</div>
+            ) : (
+              filtered.map((o) => (
+                <button
+                  key={String(o.value)}
+                  type="button"
+                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground ${
+                    String(o.value) === String(value) ? 'bg-accent/60' : ''
+                  }`}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                >
+                  {o.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const POND_STATUS_FILTER_ITEMS = [
   { value: 'all', label: 'Tất cả trạng thái' },
   { value: 'CC', label: 'CC - Có cá' },
@@ -56,9 +130,9 @@ const CYCLE_COLUMNS = [
   { key: 'total_fish', label: 'SỐ CÁ BAN ĐẦU' },
   { key: 'stocked_fish_added', label: 'SỐ CÁ THẢ THÊM' },
   { key: 'current_fish', label: 'SỐ CÁ HIỆN TẠI' },
-  { key: 'expected_yield', label: 'SL DỰ KIẾN' },
+  { key: 'expected_yield', label: 'SL DỰ KIẾN (KG)' },
   { key: 'expected_harvest_date', label: 'THU HOẠCH DK' },
-  { key: 'total_feed_used', label: 'TỔNG THỨC ĂN' },
+  { key: 'total_feed_used', label: 'TỔNG THỨC ĂN (KG)' },
   { key: 'fcr', label: 'FCR' },
   { key: 'alerts', label: 'CẢNH BÁO' },
   { key: 'actions', label: '' },
@@ -333,6 +407,7 @@ export default function Ponds() {
   const [newCycleForm, setNewCycleForm] = useState({
     pond_id: '',
     name: '',
+    status: 'CT',
     stock_date: '',
     total_fish: '',
     seed_size: '',
@@ -553,7 +628,8 @@ export default function Ponds() {
         totalFishNum > 0 && survivalRateNum > 0 && targetWeightNum > 0
           ? Math.round((totalFishNum * (survivalRateNum / 100) * targetWeightNum) / 1000)
           : null;
-      const status = totalFishNum > 0 ? 'CC' : 'CT';
+      const status = newCycleForm.status === 'CC' ? 'CC' : 'CT';
+      const currentFish = status === 'CC' ? totalFishNum : 0;
 
       await base44.entities.PondCycle.create({
         pond_id: newCycleForm.pond_id,
@@ -561,7 +637,7 @@ export default function Ponds() {
         name: newCycleForm.name?.trim() || null,
         stock_date: newCycleForm.stock_date || null,
         total_fish: totalFishNum || null,
-        current_fish: totalFishNum || null,
+        current_fish: currentFish,
         seed_size: newCycleForm.seed_size === '' ? null : Number(newCycleForm.seed_size),
         seed_weight: newCycleForm.seed_weight === '' ? null : Number(newCycleForm.seed_weight),
         survival_rate: survivalRateNum || null,
@@ -573,6 +649,7 @@ export default function Ponds() {
       setNewCycleForm({
         pond_id: '',
         name: '',
+        status: 'CT',
         stock_date: '',
         total_fish: '',
         seed_size: '',
@@ -630,6 +707,7 @@ export default function Ponds() {
                       setNewCycleForm({
                         pond_id: '',
                         name: '',
+                        status: 'CT',
                         stock_date: '',
                         total_fish: '',
                         seed_size: '',
@@ -723,7 +801,7 @@ export default function Ponds() {
                         <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">NGÀY THẢ</th>
                         <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THU HOẠCH DK</th>
                         <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">SỐ CÁ</th>
-                        <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">SL DỰ KIẾN</th>
+                        <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">SL DỰ KIẾN (KG)</th>
                         <th className="sticky right-0 bg-muted/30 text-center px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">THAO TÁC</th>
                       </tr>
                     </thead>
@@ -749,13 +827,13 @@ export default function Ponds() {
                             <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{p.owner_name || '—'}</td>
                             <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">{p.agency_code || '—'}</td>
                             <td className="px-4 py-3 whitespace-nowrap"><PondStatusBadge status={status} /></td>
-                            <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{p.active_cycle?.stock_date || '—'}</td>
+                            <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{formatDateDisplay(p.active_cycle?.stock_date)}</td>
                             <td className="px-4 py-3 text-slate-600 text-xs whitespace-nowrap">{expectedHarvestDate || '—'}</td>
                             <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
                               {currentFish != null && !Number.isNaN(Number(currentFish)) ? Number(currentFish).toLocaleString() : '—'}
                             </td>
                             <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
-                              {expectedYield != null && (Number(currentFish) > 0 || status === 'CC') ? `${Number(expectedYield).toLocaleString()} kg` : '—'}
+                              {expectedYield != null && (Number(currentFish) > 0 || status === 'CC') ? Number(expectedYield).toLocaleString() : '—'}
                             </td>
                             <td className="sticky right-0 bg-card px-4 py-3 text-center whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]" onClick={(e) => e.stopPropagation()}>
                               <DropdownMenu>
@@ -902,7 +980,11 @@ export default function Ponds() {
                         {visibleCols.owner_name && <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{r.owner_name}</td>}
                         {visibleCols.agency_code && <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">{r.agency_code || '—'}</td>}
                         {visibleCols.status && <td className="px-4 py-3 whitespace-nowrap"><PondStatusBadge status={r.status} /></td>}
-                        {visibleCols.stock_date && <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{r.stock_date || '—'}</td>}
+                        {visibleCols.stock_date && (
+                          <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
+                            {formatDateDisplay(r.stock_date)}
+                          </td>
+                        )}
                         {visibleCols.total_fish && (
                           <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
                             {r.total_fish != null && !Number.isNaN(Number(r.total_fish))
@@ -927,14 +1009,21 @@ export default function Ponds() {
                         {visibleCols.expected_yield && (
                           <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
                             {r.expected_yield != null && (r.current_fish > 0 || r.status === 'CC')
-                              ? `${Number(r.expected_yield).toLocaleString()} kg` 
+                              ? Number(r.expected_yield).toLocaleString()
                               : '—'}
                           </td>
                         )}
-                        {visibleCols.expected_harvest_date && <td className={`px-4 py-3 text-xs whitespace-nowrap ${isUrgent ? 'font-bold text-red-600' : 'text-slate-600'}`}>{r.expected_harvest_date || '—'}{isOverdue && <span className="text-red-500 ml-1">(QH)</span>}</td>}
+                        {visibleCols.expected_harvest_date && (
+                          <td
+                            className={`px-4 py-3 text-xs whitespace-nowrap ${isUrgent ? 'font-bold text-red-600' : 'text-slate-600'}`}
+                          >
+                            {formatDateDisplay(r.expected_harvest_date)}
+                            {isOverdue && <span className="text-red-500 ml-1">(QH)</span>}
+                          </td>
+                        )}
                         {visibleCols.total_feed_used && (
                           <td className="px-4 py-3 text-right text-blue-600 font-medium whitespace-nowrap">
-                            {r.total_feed_used > 0 ? `${Number(r.total_feed_used).toLocaleString()} kg` : '—'}
+                            {r.total_feed_used > 0 ? Number(r.total_feed_used).toLocaleString() : '—'}
                           </td>
                         )}
                         {visibleCols.fcr && (
@@ -1135,22 +1224,24 @@ export default function Ponds() {
               </p>
             )}
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chọn ao *</Label>
-              <Select
+              <SearchableSelect
+                label="Chọn ao *"
                 value={newCycleForm.pond_id || '__none__'}
-                onValueChange={(v) => setNewCycleForm((p) => ({ ...p, pond_id: v === '__none__' ? '' : v }))}
-                items={pondSelectItems}
-              >
+                onChange={(v) => setNewCycleForm((p) => ({ ...p, pond_id: v === '__none__' ? '' : v }))}
+                options={pondSelectItems}
+                placeholder="Chọn ao..."
+                disabled={(pondSelectItems?.length || 0) <= 1}
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trạng thái thả *</Label>
+              <Select value={newCycleForm.status} onValueChange={(v) => setNewCycleForm((p) => ({ ...p, status: v }))}>
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Chọn ao..." />
+                  <SelectValue placeholder="Chọn trạng thái..." />
                 </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  <SelectItem value="__none__">— Chọn ao —</SelectItem>
-                  {(ponds || []).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.code} — {p.owner_name || '—'}
-                    </SelectItem>
-                  ))}
+                <SelectContent>
+                  <SelectItem value="CC">CC — Có cá / đang nuôi</SelectItem>
+                  <SelectItem value="CT">CT — Chưa thả / quay vòng</SelectItem>
                 </SelectContent>
               </Select>
             </div>

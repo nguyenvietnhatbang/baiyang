@@ -6,6 +6,7 @@
     "region_code": { "type": "string", "description": "Mã khu vực (FK region_codes)" },
     "household_segment": { "type": "string", "description": "Phần mã hộ trong mã ao (VD: 001)" },
     "name": { "type": "string", "description": "Tên hộ nuôi" },
+    "phone": { "type": "string", "description": "Số điện thoại" },
     "address": { "type": "string" },
     "active": { "type": "boolean", "default": true }
   },
