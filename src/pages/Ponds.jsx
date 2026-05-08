@@ -20,6 +20,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
@@ -387,8 +389,9 @@ export default function Ponds() {
   const [stockedFishByCycle, setStockedFishByCycle] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [agencyFilter, setAgencyFilter] = useState('all');
+  const [statusFilters, setStatusFilters] = useState(() => new Set());
+  const [agencyFilters, setAgencyFilters] = useState(() => new Set());
+  const [householdFilters, setHouseholdFilters] = useState(() => new Set());
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -447,12 +450,14 @@ export default function Ponds() {
     const rows = (ponds || []).filter((p) => {
       const matchSearch = !q || [p.code, p.owner_name, p.agency_code].filter(Boolean).some((x) => String(x).toLowerCase().includes(q));
       const status = p.active_cycle?.status || 'CT';
-      const matchStatus = statusFilter === 'all' || status === statusFilter;
-      const matchAgency = agencyFilter === 'all' || p.agency_code === agencyFilter;
-      return matchSearch && matchStatus && matchAgency;
+      const matchStatus = statusFilters.size === 0 || statusFilters.has(status);
+      const matchAgency = agencyFilters.size === 0 || agencyFilters.has(p.agency_code);
+      const hid = p?.household_id || p?.households?.id || null;
+      const matchHousehold = householdFilters.size === 0 || (hid && householdFilters.has(String(hid)));
+      return matchSearch && matchStatus && matchAgency && matchHousehold;
     });
     return rows.sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')));
-  }, [ponds, search, statusFilter, agencyFilter]);
+  }, [ponds, search, statusFilters, agencyFilters, householdFilters]);
 
   const cycleRows = useMemo(() => {
     const rows = [];
@@ -465,6 +470,7 @@ export default function Ponds() {
           pond_code: p.code,
           owner_name: p.owner_name,
           agency_code: p.agency_code,
+          household_id: p?.household_id || p?.households?.id || null,
           area: p.area,
           location: p.location,
           depth: p.depth,
@@ -490,6 +496,7 @@ export default function Ponds() {
             pond_code: p.code,
             owner_name: p.owner_name,
             agency_code: p.agency_code,
+          household_id: p?.household_id || p?.households?.id || null,
             area: p.area,
             location: p.location,
             depth: p.depth,
@@ -500,6 +507,8 @@ export default function Ponds() {
             stocked_fish_added: stockedFishByCycle[c.id] ?? 0,
             current_fish: c.current_fish ?? c.total_fish ?? null,
             expected_yield: c.expected_yield,
+            actual_yield: c.actual_yield ?? null,
+            harvest_done: Boolean(c.harvest_done),
             expected_harvest_date: plannedHarvestDateForDisplay(c),
             stock_date: c.stock_date,
             withdrawal_end_date: c.withdrawal_end_date,
@@ -521,22 +530,74 @@ export default function Ponds() {
   }, [ponds, stockedFishByCycle]);
 
   const agencyCodes = [...new Set(cycleRows.map((r) => r.agency_code).filter(Boolean))];
-  const agencyFilterItems = useMemo(
-    () => [{ value: 'all', label: 'Tất cả đại lý' }, ...agencyCodes.map((a) => ({ value: a, label: a }))],
-    [agencyCodes]
+  const agencyFilterItems = useMemo(() => agencyCodes.sort((a, b) => String(a).localeCompare(String(b), 'vi')), [agencyCodes]);
+
+  const householdFilterItems = useMemo(() => {
+    const map = new Map();
+    (ponds || []).forEach((p) => {
+      const hid = p?.household_id || p?.households?.id || null;
+      if (!hid) return;
+      const name = (p?.owner_name || p?.households?.name || '').trim();
+      if (!map.has(String(hid))) {
+        map.set(String(hid), { id: String(hid), name: name || '—', agency: p.agency_code || '' });
+      }
+    });
+    return [...map.values()].sort((a, b) => {
+      const aa = String(a.agency).localeCompare(String(b.agency), 'vi');
+      if (aa !== 0) return aa;
+      return String(a.name).localeCompare(String(b.name), 'vi');
+    });
+  }, [ponds]);
+
+  const statusFilterItems = useMemo(
+    () => [
+      { value: 'CC', label: 'CC - Có cá' },
+      { value: 'CT', label: 'CT - Chưa thả' },
+    ],
+    []
   );
+
+  const today = new Date();
 
   const filteredRows = useMemo(() => {
     const q = search.toLowerCase();
     return cycleRows.filter((r) => {
       const matchSearch = !q || [r.pond_code, r.owner_name, r.cycle_name].filter(Boolean).some((x) => String(x).toLowerCase().includes(q));
-      const matchStatus = statusFilter === 'all' || r.status === statusFilter;
-      const matchAgency = agencyFilter === 'all' || r.agency_code === agencyFilter;
-      return matchSearch && matchStatus && matchAgency;
-    });
-  }, [cycleRows, search, statusFilter, agencyFilter]);
+      const matchStatus = statusFilters.size === 0 || statusFilters.has(r.status);
+      const matchAgency = agencyFilters.size === 0 || agencyFilters.has(r.agency_code);
+      const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
+      if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
 
-  const today = new Date();
+      // Tab "Chu kỳ": chỉ hiển thị chu kỳ có (kế hoạch thả) hoặc (đang CC) hoặc (cảnh báo thu/thuốc).
+      // Chu kỳ đã thu hoạch sẽ chuyển sang báo cáo KQ thu & thực thu.
+      const isHarvested = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
+      if (isHarvested) return false;
+
+      const hasPlan = Boolean(r.stock_date) || (Number(r.total_fish) || 0) > 0;
+      const hasFish = r.status === 'CC';
+      const diff = r.expected_harvest_date ? differenceInDays(parseISO(r.expected_harvest_date), today) : null;
+      const isUrgent = diff !== null && diff <= harvestAlertDays;
+      const isWithdrawal = r.withdrawal_end_date && differenceInDays(parseISO(r.withdrawal_end_date), today) >= 0;
+      const hasAlert = Boolean(isUrgent || isWithdrawal);
+
+      return hasPlan || hasFish || hasAlert;
+    });
+  }, [cycleRows, search, statusFilters, agencyFilters, householdFilters, harvestAlertDays, today]);
+
+  const cycleTotals = useMemo(() => {
+    const rows = filteredRows || [];
+    const pondSet = new Set(rows.map((r) => r.pond_id).filter(Boolean));
+    const sum = (key) => rows.reduce((s, r) => s + (Number(r[key]) || 0), 0);
+    return {
+      ponds: pondSet.size,
+      cycles: rows.filter((r) => r.cycle_id).length,
+      sum_total_fish: sum('total_fish'),
+      sum_stocked_added: sum('stocked_fish_added'),
+      sum_current_fish: sum('current_fish'),
+      sum_expected_yield: sum('expected_yield'),
+      sum_total_feed_used: sum('total_feed_used'),
+    };
+  }, [filteredRows]);
 
   const toggleHarvestCheck = (cycleId, e) => {
     e.stopPropagation();
@@ -742,22 +803,97 @@ export default function Ponds() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input placeholder="Tìm mã ao, tên chủ hộ, đại lý..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter} items={POND_STATUS_FILTER_ITEMS}>
-                  <SelectTrigger className="w-36"><SelectValue>{POND_STATUS_FILTER_ITEMS.find((x) => x.value === statusFilter)?.label}</SelectValue></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tất cả trạng thái</SelectItem>
-                    <SelectItem value="CC">CC - Có cá</SelectItem>
-                    <SelectItem value="CT">CT - Chưa thả</SelectItem>
-                  </SelectContent>
-                </Select>
-                {agencyCodes.length > 0 && (
-                  <Select value={agencyFilter} onValueChange={setAgencyFilter} items={agencyFilterItems}>
-                    <SelectTrigger className="w-36"><SelectValue>{agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}</SelectValue></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tất cả đại lý</SelectItem>
-                      {agencyCodes.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-44 justify-between">
+                      {statusFilters.size === 0 ? 'Trạng thái: Tất cả' : `Trạng thái: ${[...statusFilters].join(', ')}`}
+                      <ChevronsUpDown className="w-4 h-4 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuLabel>Trạng thái</DropdownMenuLabel>
+                    {statusFilterItems.map((it) => (
+                      <DropdownMenuCheckboxItem
+                        key={it.value}
+                        checked={statusFilters.has(it.value)}
+                        onCheckedChange={() =>
+                          setStatusFilters((prev) => {
+                            const next = new Set(prev);
+                            next.has(it.value) ? next.delete(it.value) : next.add(it.value);
+                            return next;
+                          })
+                        }
+                      >
+                        {it.label}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setStatusFilters(new Set())}>Bỏ chọn</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {agencyFilterItems.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-44 justify-between">
+                        {agencyFilters.size === 0 ? 'Đại lý: Tất cả' : `Đại lý: ${agencyFilters.size} đã chọn`}
+                        <ChevronsUpDown className="w-4 h-4 opacity-50" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56">
+                      <DropdownMenuLabel>Đại lý</DropdownMenuLabel>
+                      {agencyFilterItems.map((a) => (
+                        <DropdownMenuCheckboxItem
+                          key={a}
+                          checked={agencyFilters.has(a)}
+                          onCheckedChange={() =>
+                            setAgencyFilters((prev) => {
+                              const next = new Set(prev);
+                              next.has(a) ? next.delete(a) : next.add(a);
+                              return next;
+                            })
+                          }
+                        >
+                          {a}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setAgencyFilters(new Set())}>Bỏ chọn</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+
+                {householdFilterItems.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-52 justify-between">
+                        {householdFilters.size === 0 ? 'Chủ hộ: Tất cả' : `Chủ hộ: ${householdFilters.size} đã chọn`}
+                        <ChevronsUpDown className="w-4 h-4 opacity-50" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-[22rem] max-h-80 overflow-auto">
+                      <DropdownMenuLabel>Chủ hộ</DropdownMenuLabel>
+                      {householdFilterItems.map((h) => (
+                        <DropdownMenuCheckboxItem
+                          key={h.id}
+                          checked={householdFilters.has(String(h.id))}
+                          onCheckedChange={() =>
+                            setHouseholdFilters((prev) => {
+                              const next = new Set(prev);
+                              const id = String(h.id);
+                              next.has(id) ? next.delete(id) : next.add(id);
+                              return next;
+                            })
+                          }
+                        >
+                          {h.agency ? `${h.agency} — ` : ''}{h.name}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setHouseholdFilters(new Set())}>Bỏ chọn</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </div>
 
@@ -883,23 +1019,129 @@ export default function Ponds() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Tìm mã ao, tên chủ hộ, tên chu kỳ..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter} items={POND_STATUS_FILTER_ITEMS}>
-              <SelectTrigger className="w-36"><SelectValue>{POND_STATUS_FILTER_ITEMS.find((x) => x.value === statusFilter)?.label}</SelectValue></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả trạng thái</SelectItem>
-                <SelectItem value="CC">CC - Có cá</SelectItem>
-                <SelectItem value="CT">CT - Chưa thả</SelectItem>
-              </SelectContent>
-            </Select>
-            {agencyCodes.length > 0 && (
-              <Select value={agencyFilter} onValueChange={setAgencyFilter} items={agencyFilterItems}>
-                <SelectTrigger className="w-36"><SelectValue>{agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}</SelectValue></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả đại lý</SelectItem>
-                  {agencyCodes.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                </SelectContent>
-              </Select>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-44 justify-between">
+                  {statusFilters.size === 0 ? 'Trạng thái: Tất cả' : `Trạng thái: ${[...statusFilters].join(', ')}`}
+                  <ChevronsUpDown className="w-4 h-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuLabel>Trạng thái</DropdownMenuLabel>
+                {statusFilterItems.map((it) => (
+                  <DropdownMenuCheckboxItem
+                    key={it.value}
+                    checked={statusFilters.has(it.value)}
+                    onCheckedChange={() =>
+                      setStatusFilters((prev) => {
+                        const next = new Set(prev);
+                        next.has(it.value) ? next.delete(it.value) : next.add(it.value);
+                        return next;
+                      })
+                    }
+                  >
+                    {it.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setStatusFilters(new Set())}>Bỏ chọn</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {agencyFilterItems.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-44 justify-between">
+                    {agencyFilters.size === 0 ? 'Đại lý: Tất cả' : `Đại lý: ${agencyFilters.size} đã chọn`}
+                    <ChevronsUpDown className="w-4 h-4 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuLabel>Đại lý</DropdownMenuLabel>
+                  {agencyFilterItems.map((a) => (
+                    <DropdownMenuCheckboxItem
+                      key={a}
+                      checked={agencyFilters.has(a)}
+                      onCheckedChange={() =>
+                        setAgencyFilters((prev) => {
+                          const next = new Set(prev);
+                          next.has(a) ? next.delete(a) : next.add(a);
+                          return next;
+                        })
+                      }
+                    >
+                      {a}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setAgencyFilters(new Set())}>Bỏ chọn</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
+
+            {householdFilterItems.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-52 justify-between">
+                    {householdFilters.size === 0 ? 'Chủ hộ: Tất cả' : `Chủ hộ: ${householdFilters.size} đã chọn`}
+                    <ChevronsUpDown className="w-4 h-4 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[22rem] max-h-80 overflow-auto">
+                  <DropdownMenuLabel>Chủ hộ</DropdownMenuLabel>
+                  {householdFilterItems.map((h) => (
+                    <DropdownMenuCheckboxItem
+                      key={h.id}
+                      checked={householdFilters.has(String(h.id))}
+                      onCheckedChange={() =>
+                        setHouseholdFilters((prev) => {
+                          const next = new Set(prev);
+                          const id = String(h.id);
+                          next.has(id) ? next.delete(id) : next.add(id);
+                          return next;
+                        })
+                      }
+                    >
+                      {h.agency ? `${h.agency} — ` : ''}{h.name}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setHouseholdFilters(new Set())}>Bỏ chọn</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+            <div className="rounded-lg border border-border bg-card p-2">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Tổng ao</p>
+              <p className="text-base font-extrabold text-foreground mt-0.5">{cycleTotals.ponds.toLocaleString()}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-2">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Tổng chu kỳ</p>
+              <p className="text-base font-extrabold text-foreground mt-0.5">{cycleTotals.cycles.toLocaleString()}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-2">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Cá ban đầu</p>
+              <p className="text-base font-extrabold text-foreground mt-0.5">{cycleTotals.sum_total_fish ? cycleTotals.sum_total_fish.toLocaleString() : '—'}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-2">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Thả thêm</p>
+              <p className="text-base font-extrabold text-foreground mt-0.5">{cycleTotals.sum_stocked_added ? cycleTotals.sum_stocked_added.toLocaleString() : '—'}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-2">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Cá hiện tại</p>
+              <p className="text-base font-extrabold text-foreground mt-0.5">{cycleTotals.sum_current_fish ? cycleTotals.sum_current_fish.toLocaleString() : '—'}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-2">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">SL dự kiến (kg)</p>
+              <p className="text-base font-extrabold text-foreground mt-0.5">{cycleTotals.sum_expected_yield ? cycleTotals.sum_expected_yield.toLocaleString() : '—'}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-2">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Tổng thức ăn (kg)</p>
+              <p className="text-base font-extrabold text-foreground mt-0.5">{cycleTotals.sum_total_feed_used ? cycleTotals.sum_total_feed_used.toLocaleString() : '—'}</p>
+            </div>
           </div>
 
           <div className="sm:hidden space-y-3">
@@ -921,6 +1163,8 @@ export default function Ponds() {
                   withdrawal_end_date: r.withdrawal_end_date,
                   fcr: r.fcr,
                   agency_code: r.agency_code,
+                  harvest_done: r.harvest_done,
+                  actual_yield: r.actual_yield,
                 }}
                 checked={r.cycle_id ? checkedHarvest.has(r.cycle_id) : false}
                 onCheck={(e) => toggleHarvestCheck(r.cycle_id, e)}
@@ -955,9 +1199,10 @@ export default function Ponds() {
                     const prevRow = filteredRows[idx - 1];
                     const isNewGroup = !prevRow || prevRow.pond_code !== r.pond_code;
                     const diff = r.expected_harvest_date ? differenceInDays(parseISO(r.expected_harvest_date), today) : null;
-                    const isUrgent = diff !== null && diff <= harvestAlertDays;
+                    const isHarvested = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
+                    const isUrgent = !isHarvested && diff !== null && diff <= harvestAlertDays;
                     const isOverdue = diff !== null && diff < 0;
-                    const isWithdrawal = r.withdrawal_end_date && differenceInDays(parseISO(r.withdrawal_end_date), today) >= 0;
+                    const isWithdrawal = !isHarvested && r.withdrawal_end_date && differenceInDays(parseISO(r.withdrawal_end_date), today) >= 0;
                     const rowBgClass = isOverdue ? 'bg-red-50/40' : isUrgent ? 'bg-yellow-50/40' : 'bg-card';
 
                     return (

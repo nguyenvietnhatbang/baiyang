@@ -5,9 +5,10 @@ import { formatDateDisplay } from '@/lib/dateFormat';
 export default function PondMobileCard({ pond, checked, onCheck, onClick, harvestAlertDays = 7 }) {
   const today = new Date();
   const diff = pond.expected_harvest_date ? differenceInDays(parseISO(pond.expected_harvest_date), today) : null;
-  const isUrgent = diff !== null && diff <= harvestAlertDays;
+  const isHarvested = pond?.harvest_done === true || (Number(pond?.actual_yield) || 0) > 0;
+  const isUrgent = !isHarvested && diff !== null && diff <= harvestAlertDays;
   const isOverdue = diff !== null && diff < 0;
-  const isWithdrawal = pond.withdrawal_end_date && differenceInDays(parseISO(pond.withdrawal_end_date), today) >= 0;
+  const isWithdrawal = !isHarvested && pond.withdrawal_end_date && differenceInDays(parseISO(pond.withdrawal_end_date), today) >= 0;
   const currentFishNumber = Number(pond.current_fish);
   const hasCurrentFish = pond.current_fish != null && !Number.isNaN(currentFishNumber);
 

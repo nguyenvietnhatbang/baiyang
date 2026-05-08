@@ -16,6 +16,106 @@ import {
 } from '@/lib/reportPondDedupe';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `T${i + 1}`);
+const MONTH_LABELS_LONG = Array.from({ length: 12 }, (_, i) => `Tháng ${i + 1}`);
+
+function systemCodeFromAgencyCode(agencyCode) {
+  const digits = String(agencyCode || '').replace(/\D/g, '');
+  return digits || String(agencyCode || '').trim();
+}
+
+function styleHeaderRowSoft(row) {
+  row.height = 22;
+  row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    cell.font = { bold: true, size: 10, color: { argb: 'FF1F2937' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: colNumber <= 2 ? 'left' : 'center',
+      wrapText: true,
+    };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FF000000' } },
+      left: { style: 'thin', color: { argb: 'FF000000' } },
+      bottom: { style: 'thin', color: { argb: 'FF000000' } },
+      right: { style: 'thin', color: { argb: 'FF000000' } },
+    };
+  });
+}
+
+function styleSubHeaderRow(row) {
+  row.height = 18;
+  row.eachCell({ includeEmpty: true }, (cell) => {
+    cell.font = { bold: true, size: 9, color: { argb: 'FF111827' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FF000000' } },
+      left: { style: 'thin', color: { argb: 'FF000000' } },
+      bottom: { style: 'thin', color: { argb: 'FF000000' } },
+      right: { style: 'thin', color: { argb: 'FF000000' } },
+    };
+  });
+}
+
+function addPlanMatrixTop(sheet, { title, filterLine }) {
+  const fixedCols = 4; // Mã hệ thống, Hệ thống, Số lượng ao nuôi, Diện tích
+  const monthGroups = 12;
+  const colsPerMonth = 3;
+  const totalCols = 3; // CC, CT, TH
+  const ncol = fixedCols + monthGroups * colsPerMonth + totalCols;
+
+  sheet.addRow([title]);
+  styleTitleRow(sheet.getRow(1), ncol);
+  sheet.addRow([filterLine]);
+  styleFilterRow(sheet.getRow(2), ncol);
+  sheet.addRow([]);
+
+  // Header row 1 (merged months)
+  const header1 = [
+    'Mã hệ thống',
+    'Hệ thống',
+    'Số lượng ao nuôi',
+    'Diện tích',
+    ...MONTH_LABELS_LONG.flatMap((m) => [m, '', '']),
+    'Tổng',
+    '',
+    '',
+  ];
+  sheet.addRow(header1);
+  styleHeaderRowSoft(sheet.getRow(4));
+
+  // Merge fixed headers vertically across 2 header rows
+  sheet.mergeCells(4, 1, 5, 1);
+  sheet.mergeCells(4, 2, 5, 2);
+  sheet.mergeCells(4, 3, 5, 3);
+  sheet.mergeCells(4, 4, 5, 4);
+
+  // Merge each month group across 3 columns (row 4)
+  for (let i = 0; i < 12; i += 1) {
+    const start = fixedCols + i * colsPerMonth + 1;
+    sheet.mergeCells(4, start, 4, start + 2);
+  }
+
+  // Merge "Tổng" across 3 columns
+  const totalStart = fixedCols + monthGroups * colsPerMonth + 1;
+  sheet.mergeCells(4, totalStart, 4, totalStart + 2);
+
+  // Header row 2 (CC/CT/TH)
+  const header2 = [
+    '',
+    '',
+    '',
+    '',
+    ...Array.from({ length: 12 }, () => ['CC', 'CT', 'TH']).flat(),
+    'CC',
+    'CT',
+    'TH',
+  ];
+  sheet.addRow(header2);
+  styleSubHeaderRow(sheet.getRow(5));
+
+  return { headerRowIndex: 5, ncol };
+}
 
 function activeMonthIdxFromRows(rows, dateAccessor, valueAccessor) {
   const set = new Set();
@@ -138,71 +238,100 @@ function finalizeSheetView(sheet, headerRowIndex) {
 
 function buildOriginal(sheet, { granularity, ponds, agencies, filterLine, factoryPlanKgByMonth }) {
   const title = 'Kế hoạch ban đầu (gốc)';
-  const monthIdx = activeMonthIdxFromRows(
-    ponds,
-    (p) => originalHarvestDateForReport(p),
-    (p) => calcOriginalYield(p)
-  );
-  const monthLabels = monthIdx.map((i) => MONTHS[i]);
+  const monthIdx = Array.from({ length: 12 }, (_, i) => i);
   const factoryPlan = Array.isArray(factoryPlanKgByMonth) ? factoryPlanKgByMonth : Array.from({ length: 12 }, () => 0);
   if (granularity === 'agency') {
-    const headers = ['Hệ thống', 'Số ao CC', 'Số ao CT', 'Tổng ao', 'KH CC (kg)', 'KH CT (kg)', 'KH Tổng (kg)', ...monthLabels];
-    addSheetCommonTop(sheet, { title, filterLine, headers });
-    const numFmt = ['', '', '', '', '#,##0', '#,##0', '#,##0', ...monthLabels.map(() => '#,##0')];
+    const { headerRowIndex } = addPlanMatrixTop(sheet, { title: 'KẾ HOẠCH GỐC', filterLine });
+    const numFmt = [
+      '',
+      '',
+      '0',
+      '0.00',
+      ...Array.from({ length: 12 }, () => ['#,##0', '#,##0', '#,##0']).flat(),
+      '#,##0',
+      '#,##0',
+      '#,##0',
+    ];
     agencies.forEach((agency, idx) => {
       const ap = ponds.filter((p) => p.agency_code === agency);
       const cc = ap.filter((p) => p.status === 'CC');
       const ct = ap.filter((p) => p.status === 'CT');
-      const totalCC = cc.reduce((s, p) => s + calcOriginalYield(p), 0);
-      const totalCT = ct.reduce((s, p) => s + calcOriginalYield(p), 0);
-      const totalAll = totalCC + totalCT;
-      const monthVals = monthIdx.map((i) => {
-        const vcc = cc.reduce((s, p) => {
+      const totalArea = uniquePhysicalPondTotalArea(ap);
+      const monthCC = monthIdx.map((i) =>
+        cc.reduce((s, p) => {
           const d = originalHarvestDateForReport(p);
           return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
-        }, 0);
-        const vct = ct.reduce((s, p) => {
+        }, 0)
+      );
+      const monthCT = monthIdx.map((i) =>
+        ct.reduce((s, p) => {
           const d = originalHarvestDateForReport(p);
           return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
-        }, 0);
-        return vcc + vct;
-      });
-      const row = sheet.addRow([agency, cc.length, ct.length, uniquePhysicalPondCount(ap), totalCC, totalCT, totalAll, ...monthVals]);
+        }, 0)
+      );
+      const monthTH = monthCC.map((v, i) => v + monthCT[i]);
+      const totalCC = monthCC.reduce((s, v) => s + v, 0);
+      const totalCT = monthCT.reduce((s, v) => s + v, 0);
+      const totalTH = totalCC + totalCT;
+      const monthTriplets = monthIdx.flatMap((_, i) => [monthCC[i] || null, monthCT[i] || null, monthTH[i] || null]);
+
+      const row = sheet.addRow([
+        systemCodeFromAgencyCode(agency),
+        agency,
+        uniquePhysicalPondCount(ap) || null,
+        totalArea || null,
+        ...monthTriplets,
+        totalCC || null,
+        totalCT || null,
+        totalTH || null,
+      ]);
       applyNumberFormats(row, numFmt);
       styleBodyRow(row, { zebra: idx % 2 === 1 });
     });
-    const grandCC = ponds.filter((p) => p.status === 'CC').length;
-    const grandCT = ponds.filter((p) => p.status === 'CT').length;
-    const gCCkg = ponds.filter((p) => p.status === 'CC').reduce((s, p) => s + calcOriginalYield(p), 0);
-    const gCTkg = ponds.filter((p) => p.status === 'CT').reduce((s, p) => s + calcOriginalYield(p), 0);
-    const gAll = gCCkg + gCTkg;
-    const gMonths = monthIdx.map((i) =>
+    const grandArea = uniquePhysicalPondTotalArea(ponds);
+    const grandMonthCC = monthIdx.map((i) =>
       ponds.reduce((s, p) => {
+        if (p.status !== 'CC') return s;
         const d = originalHarvestDateForReport(p);
         return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
       }, 0)
     );
-    const totalRow = sheet.addRow(['TỔNG CỘNG', grandCC, grandCT, uniquePhysicalPondCount(ponds), gCCkg, gCTkg, gAll, ...gMonths]);
+    const grandMonthCT = monthIdx.map((i) =>
+      ponds.reduce((s, p) => {
+        if (p.status !== 'CT') return s;
+        const d = originalHarvestDateForReport(p);
+        return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
+      }, 0)
+    );
+    const grandMonthTH = grandMonthCC.map((v, i) => v + grandMonthCT[i]);
+    const grandTotalCC = grandMonthCC.reduce((s, v) => s + v, 0);
+    const grandTotalCT = grandMonthCT.reduce((s, v) => s + v, 0);
+    const grandTotalTH = grandTotalCC + grandTotalCT;
+    const grandTriplets = monthIdx.flatMap((_, i) => [grandMonthCC[i] || null, grandMonthCT[i] || null, grandMonthTH[i] || null]);
+
+    const totalRow = sheet.addRow(['', 'Tổng', uniquePhysicalPondCount(ponds) || null, grandArea || null, ...grandTriplets, grandTotalCC || null, grandTotalCT || null, grandTotalTH || null]);
     applyNumberFormats(totalRow, numFmt);
     styleBodyRow(totalRow, { isTotal: true });
 
-    // Kế hoạch nhà máy + chênh lệch (TH - Factory)
     const fMonths = monthIdx.map((i) => Number(factoryPlan[i] || 0) || 0);
     const fTotal = fMonths.reduce((s, v) => s + v, 0);
-    const deltaMonths = gMonths.map((v, i) => (Number(v || 0) || 0) - (Number(fMonths[i] || 0) || 0));
-    const deltaTotal = (Number(gAll || 0) || 0) - (Number(fTotal || 0) || 0);
+    const deltaMonths = grandMonthTH.map((v, i) => (Number(v || 0) || 0) - (Number(fMonths[i] || 0) || 0));
+    const deltaTotal = (Number(grandTotalTH || 0) || 0) - (Number(fTotal || 0) || 0);
+    const fTriplets = monthIdx.flatMap((_, i) => [null, null, fMonths[i] > 0 ? fMonths[i] : null]);
+    const dTriplets = monthIdx.flatMap((_, i) => [null, null, deltaMonths[i] !== 0 ? deltaMonths[i] : null]);
 
-    const factoryRow = sheet.addRow(['KẾ HOẠCH NHÀ MÁY', null, null, null, null, null, fTotal || null, ...fMonths.map((x) => (x > 0 ? x : null))]);
+    const factoryRow = sheet.addRow(['', 'Sản lượng Nhà máy giao', null, null, ...fTriplets, null, null, fTotal || null]);
     applyNumberFormats(factoryRow, numFmt);
     styleBodyRow(factoryRow, { zebra: false });
     factoryRow.font = { bold: true, color: { argb: 'FF7C2D12' } };
 
-    const deltaRow = sheet.addRow(['THỪA/THIẾU (KH - NM)', null, null, null, null, null, deltaTotal || null, ...deltaMonths.map((x) => (x !== 0 ? x : null))]);
+    const deltaRow = sheet.addRow(['', 'Cân đối', null, null, ...dTriplets, null, null, deltaTotal || null]);
     applyNumberFormats(deltaRow, numFmt);
     styleBodyRow(deltaRow, { zebra: false });
     deltaRow.font = { bold: true };
 
-    setColumnWidths(sheet, [22, 10, 10, 10, 14, 14, 14, ...monthLabels.map(() => 11)]);
+    setColumnWidths(sheet, [12, 18, 14, 10, ...Array.from({ length: 12 }, () => [7, 7, 7]).flat(), 7, 7, 7]);
+    finalizeSheetView(sheet, headerRowIndex);
   } else {
     const headers = [
       'Đại lý',
@@ -246,23 +375,26 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine, factor
     });
     setColumnWidths(sheet, [16, 12, 22, 12, 6, 12, 12, 12, 14, ...monthLabels.map(() => 10)]);
   }
-  finalizeSheetView(sheet, 4);
+  if (granularity !== 'agency') finalizeSheetView(sheet, 4);
 }
 
 function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine, factoryPlanKgByMonth }) {
   const title = 'Kế hoạch điều chỉnh';
   const adjustedHarvestDate = (p) => plannedHarvestDateForDisplay(p);
-  const monthIdx = [...new Set([
-    ...activeMonthIdxFromRows(ponds, (p) => originalHarvestDateForReport(p), (p) => calcOriginalYield(p)),
-    ...activeMonthIdxFromRows(ponds, (p) => adjustedHarvestDate(p), (p) => p.expected_yield || 0),
-  ])].sort((a, b) => a - b);
-  const monthLabels = monthIdx.map((i) => MONTHS[i]);
+  const monthIdx = Array.from({ length: 12 }, (_, i) => i);
   const factoryPlan = Array.isArray(factoryPlanKgByMonth) ? factoryPlanKgByMonth : Array.from({ length: 12 }, () => 0);
   if (granularity === 'agency') {
-    const monthHeaders = monthLabels.flatMap((m) => [`${m} CC`, `${m} CT`, `${m} TH`]);
-    const headers = ['Hệ thống', 'Số ao', 'Diện tích (m²)', ...monthHeaders, 'Tổng CC', 'Tổng CT', 'Tổng TH'];
-    addSheetCommonTop(sheet, { title, filterLine, headers });
-    const numFmt = ['', '', '0.00', ...monthHeaders.map(() => '#,##0'), '#,##0', '#,##0', '#,##0'];
+    const { headerRowIndex } = addPlanMatrixTop(sheet, { title: 'KẾ HOẠCH ĐIỀU CHỈNH', filterLine });
+    const numFmt = [
+      '',
+      '',
+      '0',
+      '0.00',
+      ...Array.from({ length: 12 }, () => ['#,##0', '#,##0', '#,##0']).flat(),
+      '#,##0',
+      '#,##0',
+      '#,##0',
+    ];
     agencies.forEach((agency, idx) => {
       const ap = ponds.filter((p) => p.agency_code === agency);
       const cc = ap.filter((p) => p.status === 'CC');
@@ -280,6 +412,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine, factor
       const totalTH = totalCC + totalCT;
       const monthTriplets = monthIdx.flatMap((_, i) => [monthCC[i] || null, monthCT[i] || null, monthTH[i] || null]);
       const row = sheet.addRow([
+        systemCodeFromAgencyCode(agency),
         agency,
         uniquePhysicalPondCount(ap) || null,
         totalArea || null,
@@ -304,7 +437,8 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine, factor
     const grandTotalTH = grandTotalCC + grandTotalCT;
     const grandTriplets = monthIdx.flatMap((_, i) => [grandMonthCC[i] || null, grandMonthCT[i] || null, grandMonthTH[i] || null]);
     const totalRow = sheet.addRow([
-      'TỔNG CỘNG',
+      '',
+      'Tổng',
       uniquePhysicalPondCount(ponds) || null,
       grandArea || null,
       ...grandTriplets,
@@ -322,33 +456,18 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine, factor
     const fTriplets = monthIdx.flatMap((_, i) => [null, null, fMonths[i] > 0 ? fMonths[i] : null]);
     const dTriplets = monthIdx.flatMap((_, i) => [null, null, deltaMonths[i] !== 0 ? deltaMonths[i] : null]);
 
-    const factoryRow = sheet.addRow([
-      'KẾ HOẠCH NHÀ MÁY',
-      null,
-      null,
-      ...fTriplets,
-      null,
-      null,
-      fTotal || null,
-    ]);
+    const factoryRow = sheet.addRow(['', 'Sản lượng Nhà máy giao', null, null, ...fTriplets, null, null, fTotal || null]);
     applyNumberFormats(factoryRow, numFmt);
     styleBodyRow(factoryRow, { zebra: false });
     factoryRow.font = { bold: true, color: { argb: 'FF7C2D12' } };
 
-    const deltaRow = sheet.addRow([
-      'THỪA/THIẾU (KH - NM)',
-      null,
-      null,
-      ...dTriplets,
-      null,
-      null,
-      deltaTotal || null,
-    ]);
+    const deltaRow = sheet.addRow(['', 'Cân đối', null, null, ...dTriplets, null, null, deltaTotal || null]);
     applyNumberFormats(deltaRow, numFmt);
     styleBodyRow(deltaRow, { zebra: false });
     deltaRow.font = { bold: true };
 
-    setColumnWidths(sheet, [20, 10, 14, ...monthLabels.flatMap(() => [10, 10, 10]), 12, 12, 12]);
+    setColumnWidths(sheet, [12, 18, 14, 10, ...Array.from({ length: 12 }, () => [7, 7, 7]).flat(), 7, 7, 7]);
+    finalizeSheetView(sheet, headerRowIndex);
   } else {
     const headers = [
       'Đại lý',
@@ -394,34 +513,82 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine, factor
     });
     setColumnWidths(sheet, [16, 12, 22, 6, 14, 16, 12, 14, ...monthLabels.map(() => 10)]);
   }
-  finalizeSheetView(sheet, 4);
+  if (granularity !== 'agency') finalizeSheetView(sheet, 4);
 }
 
-function buildHarvest(sheet, { granularity, ponds, harvests, harvestAlertDays, filterLine }) {
+function buildHarvest(sheet, { granularity, ponds, harvests, harvestAlertDays, filterLine, agencyNameByCode }) {
   const title = 'Kế hoạch thu & Thực thu';
   const active = ponds.filter((p) => p.status === 'CC' || plannedHarvestDateForDisplay(p));
   if (granularity === 'agency') {
-    const headers = ['Đại lý', 'Số ao', 'Tổng KH thu (kg)', 'Đã thu (kg)', 'Còn tồn (kg)', 'FCR trung bình'];
-    addSheetCommonTop(sheet, { title, filterLine, headers });
+    const headers = [
+      'Mã hệ thống',
+      'Hệ thống',
+      'Hộ nuôi',
+      'Ao nuôi',
+      'Chu kỳ',
+      'Diện tích',
+      'Kế hoạch thu (ngày thu kế)',
+      'Ngày thu thực tế',
+      'Sản lượng Kế hoạch',
+      'Sản lượng thực tế',
+      'Tổng lượng thức ăn',
+      'FCR',
+      'Ghi chú',
+    ];
+    addSheetCommonTop(sheet, { title: 'BÁO CÁO THU HOẠCH', filterLine, headers });
+    const numFmt = ['', '', '', '', '', '0.00', 'yyyy-mm-dd', 'yyyy-mm-dd', '#,##0', '#,##0', '#,##0', '0.00', ''];
+
     const codes = [...new Set(active.map((p) => p.agency_code || '(Chưa phân)'))].sort((a, b) => a.localeCompare(b));
     codes.forEach((agency, idx) => {
       const ap = active.filter((p) => (p.agency_code || '(Chưa phân)') === agency);
-      const planned = ap.reduce((s, p) => s + (p.expected_yield || 0), 0);
-      const actual = ap.reduce((s, p) => s + totalActualYieldForCycleRow(p, harvests), 0);
-      const remaining = planned > 0 ? Math.max(0, planned - actual) : null;
-      const fcrs = ap.map((p) => p.fcr).filter((f) => f != null && !Number.isNaN(f));
-      const avgFcr = fcrs.length ? fcrs.reduce((a, b) => a + b, 0) / fcrs.length : null;
-      const row = sheet.addRow([agency, uniquePhysicalPondCount(ap), planned || null, actual || null, remaining, avgFcr]);
-      applyNumberFormats(row, ['', '', '#,##0', '#,##0', '#,##0', '0.00']);
+      const plannedKg = ap.reduce((s, p) => s + (p.expected_yield || 0), 0);
+      const actualKg = ap.reduce((s, p) => s + totalActualYieldForCycleRow(p, harvests), 0);
+      const feedKg = ap.reduce((s, p) => s + (Number(p.total_feed_used) || 0), 0);
+      const fcr = actualKg > 0 && feedKg > 0 ? feedKg / actualKg : null;
+      const sysCode = systemCodeFromAgencyCode(agency);
+      const sysName = agencyNameByCode instanceof Map ? (agencyNameByCode.get(String(agency)) || agency) : agency;
+
+      const row = sheet.addRow([
+        sysCode || null,
+        sysName || agency,
+        null,
+        null,
+        null,
+        uniquePhysicalPondTotalArea(ap) || null,
+        null,
+        null,
+        plannedKg || null,
+        actualKg || null,
+        feedKg || null,
+        fcr,
+        null,
+      ]);
+      applyNumberFormats(row, numFmt);
       styleBodyRow(row, { zebra: idx % 2 === 1 });
     });
+
     const totalPlanned = active.reduce((s, p) => s + (p.expected_yield || 0), 0);
     const totalActual = active.reduce((s, p) => s + totalActualYieldForCycleRow(p, harvests), 0);
-    const totalRem = totalPlanned > 0 ? Math.max(0, totalPlanned - totalActual) : null;
-    const totalRow = sheet.addRow(['TỔNG CỘNG', uniquePhysicalPondCount(active), totalPlanned, totalActual, totalRem, null]);
-    applyNumberFormats(totalRow, ['', '', '#,##0', '#,##0', '#,##0', '0.00']);
+    const totalFeed = active.reduce((s, p) => s + (Number(p.total_feed_used) || 0), 0);
+    const totalFcr = totalActual > 0 && totalFeed > 0 ? totalFeed / totalActual : null;
+    const totalRow = sheet.addRow([
+      null,
+      'Tổng',
+      null,
+      null,
+      null,
+      uniquePhysicalPondTotalArea(active) || null,
+      null,
+      null,
+      totalPlanned || null,
+      totalActual || null,
+      totalFeed || null,
+      totalFcr,
+      null,
+    ]);
+    applyNumberFormats(totalRow, numFmt);
     styleBodyRow(totalRow, { isTotal: true });
-    setColumnWidths(sheet, [22, 10, 18, 16, 16, 14]);
+    setColumnWidths(sheet, [12, 16, 16, 12, 10, 10, 18, 14, 14, 14, 16, 8, 18]);
   } else {
     const headers = [
       'Đại lý',
@@ -584,8 +751,125 @@ function buildSummary(sheet, { granularity, ponds, harvests, agencies, filterLin
   finalizeSheetView(sheet, 4);
 }
 
+function buildSummaryMatrix(sheet, { granularity, ponds, harvests, agencies, filterLine, factoryPlanKgByMonth, agencyNameByCode }) {
+  if (granularity !== 'agency') {
+    // Template ảnh chỉ dành cho tổng hợp theo hệ thống.
+    const headers = ['Chỉ hỗ trợ xuất theo hệ thống (agency).'];
+    addSheetCommonTop(sheet, { title: 'BÁO CÁO TỔNG HỢP', filterLine, headers });
+    finalizeSheetView(sheet, 4);
+    return;
+  }
+
+  const monthIdx = Array.from({ length: 12 }, (_, i) => i);
+  const factoryPlan = Array.isArray(factoryPlanKgByMonth) ? factoryPlanKgByMonth : Array.from({ length: 12 }, () => 0);
+  const headers = [
+    'Mã hệ thống',
+    'Hệ thống',
+    ...MONTH_LABELS_LONG.flatMap((m) => [m, '']),
+    'Tổng',
+    '',
+  ];
+  const { headerRowIndex, ncol } = (() => {
+    const fixedCols = 2;
+    const ncolLocal = fixedCols + 12 * 2 + 2;
+    sheet.addRow(['BÁO CÁO TỔNG HỢP']);
+    styleTitleRow(sheet.getRow(1), ncolLocal);
+    sheet.addRow([filterLine]);
+    styleFilterRow(sheet.getRow(2), ncolLocal);
+    sheet.addRow([]);
+    sheet.addRow(headers);
+    styleHeaderRowSoft(sheet.getRow(4));
+    // Merge fixed headers across 2 header rows
+    sheet.mergeCells(4, 1, 5, 1);
+    sheet.mergeCells(4, 2, 5, 2);
+    // Merge each month group (2 cols)
+    for (let i = 0; i < 12; i += 1) {
+      const start = fixedCols + i * 2 + 1;
+      sheet.mergeCells(4, start, 4, start + 1);
+    }
+    const totalStart = fixedCols + 12 * 2 + 1;
+    sheet.mergeCells(4, totalStart, 4, totalStart + 1);
+    // Sub headers
+    sheet.addRow(['', '', ...Array.from({ length: 12 }, () => ['Kế hoạch', 'Thực hiện']).flat(), 'Kế hoạch', 'Thực hiện']);
+    styleSubHeaderRow(sheet.getRow(5));
+    return { headerRowIndex: 5, ncol: ncolLocal };
+  })();
+
+  const harvestByCycleId = new Map();
+  (harvests || []).forEach((h) => {
+    if (!h?.pond_cycle_id) return;
+    if (!harvestByCycleId.has(h.pond_cycle_id)) harvestByCycleId.set(h.pond_cycle_id, []);
+    harvestByCycleId.get(h.pond_cycle_id).push(h);
+  });
+
+  const numFmt = [
+    '',
+    '',
+    ...Array.from({ length: 12 }, () => ['#,##0', '#,##0']).flat(),
+    '#,##0',
+    '#,##0',
+  ];
+
+  const agencyRows = (agencies || []).map((agency) => {
+    const ap = (ponds || []).filter((p) => p.agency_code === agency);
+    const planM = Array.from({ length: 12 }, () => 0);
+    const actM = Array.from({ length: 12 }, () => 0);
+    ap.forEach((p) => {
+      const d = plannedHarvestDateForDisplay(p);
+      if (d) planM[new Date(d).getMonth()] += Number(p.expected_yield) || 0;
+      const hs = harvestByCycleId.get(p.pond_cycle_id) || [];
+      hs.forEach((h) => {
+        if (!h.harvest_date) return;
+        actM[new Date(h.harvest_date).getMonth()] += Number(h.actual_yield) || 0;
+      });
+    });
+    const totalPlan = planM.reduce((s, v) => s + v, 0);
+    const totalAct = actM.reduce((s, v) => s + v, 0);
+    const sysName = agencyNameByCode instanceof Map ? (agencyNameByCode.get(String(agency)) || agency) : agency;
+    return { agency, sysName, planM, actM, totalPlan, totalAct };
+  });
+
+  agencyRows.forEach((r, idx) => {
+    const cells = monthIdx.flatMap((i) => [r.planM[i] || null, r.actM[i] || null]);
+    const row = sheet.addRow([systemCodeFromAgencyCode(r.agency), r.sysName, ...cells, r.totalPlan || null, r.totalAct || null]);
+    applyNumberFormats(row, numFmt);
+    styleBodyRow(row, { zebra: idx % 2 === 1 });
+  });
+
+  const grandPlanM = monthIdx.map((i) => agencyRows.reduce((s, r) => s + (r.planM[i] || 0), 0));
+  const grandActM = monthIdx.map((i) => agencyRows.reduce((s, r) => s + (r.actM[i] || 0), 0));
+  const grandPlan = grandPlanM.reduce((s, v) => s + v, 0);
+  const grandAct = grandActM.reduce((s, v) => s + v, 0);
+  const totalRow = sheet.addRow(['', 'Tổng', ...monthIdx.flatMap((i) => [grandPlanM[i] || null, grandActM[i] || null]), grandPlan || null, grandAct || null]);
+  applyNumberFormats(totalRow, numFmt);
+  styleBodyRow(totalRow, { isTotal: true });
+  sheet.mergeCells(totalRow.number, 1, totalRow.number, 2);
+
+  const factoryM = monthIdx.map((i) => Number(factoryPlan[i] || 0) || 0);
+  const factoryTotal = factoryM.reduce((s, v) => s + v, 0);
+  const factoryRow = sheet.addRow(['', 'Sản lượng Nhà máy giao', ...monthIdx.flatMap((i) => [factoryM[i] > 0 ? factoryM[i] : null, null]), factoryTotal || null, null]);
+  applyNumberFormats(factoryRow, numFmt);
+  styleBodyRow(factoryRow, { zebra: false });
+  factoryRow.font = { bold: true, color: { argb: 'FF7C2D12' } };
+  sheet.mergeCells(factoryRow.number, 1, factoryRow.number, 2);
+
+  const balPlanM = monthIdx.map((i) => (grandPlanM[i] || 0) - (factoryM[i] || 0));
+  const balActM = monthIdx.map((i) => (grandActM[i] || 0) - (factoryM[i] || 0));
+  const balRow = sheet.addRow(['', 'Cân đối', ...monthIdx.flatMap((i) => [balPlanM[i] !== 0 ? balPlanM[i] : null, balActM[i] !== 0 ? balActM[i] : null]), (grandPlan - factoryTotal) || null, (grandAct - factoryTotal) || null]);
+  applyNumberFormats(balRow, numFmt);
+  styleBodyRow(balRow, { zebra: false });
+  balRow.font = { bold: true };
+  sheet.mergeCells(balRow.number, 1, balRow.number, 2);
+
+  setColumnWidths(sheet, [12, 16, ...Array.from({ length: 12 }, () => [10, 10]).flat(), 10, 10]);
+  finalizeSheetView(sheet, headerRowIndex);
+  // Ensure title merges right after widths (ncol used by styleTitleRow already)
+  void ncol;
+}
+
 const SHEET_NAMES = {
   summary: 'Tong quan',
+  summary_matrix: 'Bao cao tong hop',
   original: 'KH goc',
   adjusted: 'KH dieu chinh',
   harvest: 'Thu hoach',
@@ -613,6 +897,7 @@ export async function downloadReportsExcel(opts) {
     agencies,
     harvestAlertDays,
     appSettings,
+    agencyNameByCode,
     filters: { yearFilter, agencyFilterLabel, batchLabel },
   } = opts;
 
@@ -638,11 +923,15 @@ export async function downloadReportsExcel(opts) {
     harvestAlertDays,
     filterLine,
     factoryPlanKgByMonth: getFactoryPlanKgByMonth(appSettings),
+    agencyNameByCode,
   };
 
   switch (reportType) {
     case 'summary':
       buildSummary(sheet, ctx);
+      break;
+    case 'summary_matrix':
+      buildSummaryMatrix(sheet, ctx);
       break;
     case 'original':
       buildOriginal(sheet, ctx);

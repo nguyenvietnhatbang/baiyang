@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { Download, Maximize2 } from 'lucide-react';
+import { Download, Maximize2, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,13 +15,90 @@ import ReportOriginal from '@/components/reports/ReportOriginal';
 import ReportAdjusted from '@/components/reports/ReportAdjusted';
 import ReportHarvest from '@/components/reports/ReportHarvest';
 import ReportDailyProductionPlan from '@/components/reports/ReportDailyProductionPlan';
+import ReportSummaryMatrix from '@/components/reports/ReportSummaryMatrix';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { calcOriginalYieldKg } from '@/lib/calculateYield';
 
 const MONTHS = ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'];
 
+function SearchableInlineSelect({ value, onChange, options, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) setQ('');
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointerDown = (e) => {
+      const root = rootRef.current;
+      if (!root) return;
+      if (!root.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [open, rootRef]);
+
+  const normalized = q.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!normalized) return options;
+    return options.filter((o) => String(o.label || '').toLowerCase().includes(normalized));
+  }, [options, normalized]);
+
+  const cur = options.find((o) => String(o.value) === String(value)) || null;
+
+  return (
+    <div ref={rootRef} className="relative">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setOpen((v) => !v)}
+        className={`h-8 w-[18rem] justify-between px-2 text-xs font-medium ${!cur ? 'text-muted-foreground' : ''}`}
+      >
+        <span className="truncate">{cur?.label || placeholder}</span>
+        <ChevronsUpDown className="w-4 h-4 opacity-50" aria-hidden />
+      </Button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-[18rem] rounded-md border border-border bg-popover shadow-md overflow-hidden">
+          <div className="p-2 border-b border-border">
+            <Input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Gõ để tìm..."
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="max-h-72 overflow-auto">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-muted-foreground">Không có kết quả</div>
+            ) : (
+              filtered.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-muted/40 ${String(o.value) === String(value) ? 'bg-muted/30 font-bold' : ''}`}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                >
+                  {o.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const REPORT_TYPE_ITEMS = [
   { value: 'summary', label: '📊 Tổng quan + Biểu đồ' },
+  { value: 'summary_matrix', label: '📑 Báo cáo tổng hợp' },
   { value: 'original', label: '📋 Kế hoạch ban đầu (gốc)' },
   { value: 'adjusted', label: '🔄 Kế hoạch điều chỉnh' },
   { value: 'harvest', label: '🚜 Kế hoạch thu & Thực thu' },
@@ -61,6 +138,7 @@ export default function Reports() {
   const { harvestAlertDays, appSettings } = useAuth();
   const [ponds, setPonds] = useState([]);
   const [harvests, setHarvests] = useState([]);
+  const [agencyNameByCode, setAgencyNameByCode] = useState(() => new Map());
   const [loading, setLoading] = useState(true);
   const [reportType, setReportType] = useState('summary');
   const [agencyFilter, setAgencyFilter] = useState('all');
@@ -68,6 +146,7 @@ export default function Reports() {
   const [dateFrom, setDateFrom] = useState(`${new Date().getFullYear()}-01-01`);
   const [dateTo, setDateTo] = useState(`${new Date().getFullYear()}-12-31`);
   const [cycleSearch, setCycleSearch] = useState('');
+  const [cycleIdFilter, setCycleIdFilter] = useState('all');
   const [exportGranularity, setExportGranularity] = useState('agency');
   const [exporting, setExporting] = useState(false);
   const [expandedReport, setExpandedReport] = useState(null);
@@ -77,17 +156,26 @@ export default function Reports() {
     Promise.all([
       base44.entities.Pond.listWithHouseholds('-updated_date', 500),
       base44.entities.HarvestRecord.list('-harvest_date', 500),
+      base44.entities.Agency.list('-created_at', 500),
     ])
-      .then(([p, h]) => {
+      .then(([p, h, a]) => {
         if (cancelled) return;
         setPonds(p || []);
         setHarvests(h || []);
+        const m = new Map();
+        (a || []).forEach((row) => {
+          const code = row?.code != null ? String(row.code).trim() : '';
+          const name = row?.name != null ? String(row.name).trim() : '';
+          if (code) m.set(code, name || code);
+        });
+        setAgencyNameByCode(m);
       })
       .catch((e) => {
         console.error(e);
         if (!cancelled) {
           setPonds([]);
           setHarvests([]);
+          setAgencyNameByCode(new Map());
           toast.error('Không tải được dữ liệu báo cáo.');
         }
       })
@@ -135,14 +223,34 @@ export default function Reports() {
 
   const allCycleRows = useMemo(() => toCycleRows(filteredPonds), [filteredPonds]);
 
+  const cycleFilterOptions = useMemo(() => {
+    const items = [{ value: 'all', label: 'Tất cả chu kỳ' }];
+    const seen = new Set();
+    allCycleRows.forEach((r) => {
+      const id = r?.pond_cycle_id;
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      const lb = [r.pond_code, r.name || '', r.stock_date ? `Thả ${r.stock_date}` : '', r.owner_name || '']
+        .filter(Boolean)
+        .join(' — ')
+        .trim();
+      items.push({ value: id, label: lb || String(id) });
+    });
+    return items.sort((a, b) => String(a.label).localeCompare(String(b.label), 'vi'));
+  }, [allCycleRows]);
+
   const scopedCycleRows = useMemo(() => {
     const q = cycleSearch.trim().toLowerCase();
-    if (!q) return allCycleRows;
-    return allCycleRows.filter((r) => {
+    let rows = allCycleRows;
+    if (cycleIdFilter !== 'all') {
+      rows = rows.filter((r) => String(r.pond_cycle_id) === String(cycleIdFilter));
+    }
+    if (!q) return rows;
+    return rows.filter((r) => {
       const key = [r.pond_code, r.code, r.name, r.stock_date, r.owner_name].filter(Boolean).join(' ').toLowerCase();
       return key.includes(q);
     });
-  }, [allCycleRows, cycleSearch]);
+  }, [allCycleRows, cycleSearch, cycleIdFilter]);
 
   const scopedCycleIds = useMemo(() => new Set(scopedCycleRows.map((r) => r.pond_cycle_id).filter(Boolean)), [scopedCycleRows]);
   const scopedPondIds = useMemo(() => new Set(scopedCycleRows.map((r) => r.pond_id).filter(Boolean)), [scopedCycleRows]);
@@ -165,8 +273,12 @@ export default function Reports() {
   const agencies = agencyFilter === 'all' ? allAgencies : allAgencies.filter((a) => a === agencyFilter);
   const cycleFilterLabel = useMemo(() => {
     const q = cycleSearch.trim();
+    if (cycleIdFilter !== 'all') {
+      const lb = cycleFilterOptions.find((x) => String(x.value) === String(cycleIdFilter))?.label;
+      return lb ? `Chu kỳ: ${lb}` : 'Chu kỳ đã chọn';
+    }
     return q ? `Tên/ngày thả chứa "${q}"` : 'Tất cả chu kỳ';
-  }, [cycleSearch]);
+  }, [cycleSearch, cycleIdFilter, cycleFilterOptions]);
   const agencyFilterLabel = agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter;
 
   const handleExportExcel = async () => {
@@ -181,6 +293,7 @@ export default function Reports() {
         agencies,
         harvestAlertDays,
         appSettings,
+        agencyNameByCode,
         filters: {
           yearFilter,
           agencyFilterLabel,
@@ -303,12 +416,12 @@ export default function Reports() {
           </SelectContent>
         </Select>
         <div className="flex flex-col gap-1 min-w-[12rem] max-w-xs">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Tìm chu kỳ</span>
-          <Input
-            className="h-8 text-xs"
-            placeholder="Tên chu kỳ / ngày thả / mã ao"
-            value={cycleSearch}
-            onChange={(e) => setCycleSearch(e.target.value)}
+          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Chu kỳ</span>
+          <SearchableInlineSelect
+            value={cycleIdFilter}
+            onChange={setCycleIdFilter}
+            options={cycleFilterOptions}
+            placeholder="Chọn chu kỳ (gõ để tìm)"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -432,7 +545,23 @@ export default function Reports() {
         </div>
       )}
 
-      {reportType !== 'summary' && (
+      {reportType === 'summary_matrix' && (
+        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border">
+            <h3 className="font-semibold text-foreground">Báo cáo tổng hợp</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Kế hoạch (theo ngày thu dự kiến) vs Thực hiện (theo ngày thu thực tế) theo tháng.</p>
+          </div>
+          <ReportSummaryMatrix
+            ponds={scopedCycleRows}
+            harvests={filteredHarvests}
+            agencies={agencies}
+            appSettings={appSettings}
+            agencyNameByCode={agencyNameByCode}
+          />
+        </div>
+      )}
+
+      {reportType !== 'summary' && reportType !== 'summary_matrix' && (
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
             <div>
@@ -449,8 +578,8 @@ export default function Reports() {
               Mở rộng
             </Button>
           </div>
-          {reportType === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} />}
-          {reportType === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} />}
+          {reportType === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
+          {reportType === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
           {reportType === 'harvest' && <ReportHarvest ponds={scopedCycleRows} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
           {reportType === 'daily_plan' && <ReportDailyProductionPlan ponds={scopedCycleRows} dateFrom={dateFrom} dateTo={dateTo} />}
         </div>
@@ -474,8 +603,8 @@ export default function Reports() {
             </p>
           </DialogHeader>
           <div className="flex-1 overflow-auto px-0 py-0">
-            {expandedReport === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} />}
-            {expandedReport === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} />}
+            {expandedReport === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
+            {expandedReport === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
             {expandedReport === 'harvest' && <ReportHarvest ponds={scopedCycleRows} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
             {expandedReport === 'daily_plan' && <ReportDailyProductionPlan ponds={scopedCycleRows} dateFrom={dateFrom} dateTo={dateTo} />}
           </div>

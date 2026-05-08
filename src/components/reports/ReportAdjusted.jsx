@@ -9,7 +9,12 @@ import { uniquePhysicalPondCount, uniquePhysicalPondTotalArea } from '@/lib/repo
 import { calculateYieldFromPond } from '@/lib/calculateYield';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
 
-const MONTHS = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
+const MONTHS = Array.from({ length: 12 }, (_, i) => `Tháng ${i + 1}`);
+
+function systemCodeFromAgencyCode(agencyCode) {
+  const digits = String(agencyCode || '').replace(/\D/g, '');
+  return digits ? digits : String(agencyCode || '').trim();
+}
 
 function parseDate(dateValue) {
   if (!dateValue) return null;
@@ -33,7 +38,7 @@ function monthIdxFromRange(fromDate, toDate) {
   return Array.from({ length: end - start + 1 }, (_, i) => start + i);
 }
 
-export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appSettings }) {
+export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appSettings, agencyNameByCode }) {
   const fromDate = parseDate(dateFrom);
   const toDate = parseDate(dateTo);
   const factoryPlan = getFactoryPlanKgByMonth(appSettings);
@@ -86,7 +91,8 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
     );
     const monthTH = monthCC.map((v, i) => v + monthCT[i]);
 
-    return { agency, ponds: agencyPonds, pondCount, totalArea, totalCC, totalCT, totalTH, monthCC, monthCT, monthTH };
+    const agencyName = agencyNameByCode instanceof Map ? (agencyNameByCode.get(String(agency)) || agency) : agency;
+    return { agency, agencyName, ponds: agencyPonds, pondCount, totalArea, totalCC, totalCT, totalTH, monthCC, monthCT, monthTH };
   });
 
   const grandTotalPonds = rows.reduce((s, r) => s + r.pondCount, 0);
@@ -102,118 +108,119 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
   const factoryTotalTH = factoryMonthTH.reduce((s, x) => s + (Number(x) || 0), 0);
   const deltaTotalTH = grandTotalTH - factoryTotalTH;
 
-  const renderKgCell = (value, highlight = false) => (
-    <td className={`px-2 py-2 text-right text-xs ${highlight ? 'font-bold text-foreground' : 'text-foreground'}`}>
-      {value > 0 ? value.toLocaleString() : ''}
+  const renderNumCell = (value, { bold = false, border = false, cls = '' } = {}) => (
+    <td className={`px-2 py-2 text-right text-xs ${bold ? 'font-bold' : ''} ${cls} ${border ? 'border-r border-border' : ''}`}>
+      {Number(value) > 0 ? Number(value).toLocaleString() : ''}
     </td>
   );
 
-  const renderDeltaCell = (value) => {
+  const renderSignedCell = (value, { border = false } = {}) => {
     const n = Number(value || 0);
-    const isOk = n >= 0;
-    const cls = isOk ? 'text-green-700' : 'text-red-700';
-    const label = n === 0 ? '' : (n > 0 ? `Thừa ${n.toLocaleString()}` : `Thiếu ${Math.abs(n).toLocaleString()}`);
+    const cls = n >= 0 ? 'text-green-700' : 'text-red-700';
     return (
-      <td className={`px-2 py-2 text-right text-xs font-bold ${cls} border-r border-border`}>
-        {label}
+      <td className={`px-2 py-2 text-right text-xs font-bold ${cls} ${border ? 'border-r border-border' : ''}`}>
+        {n !== 0 ? Math.round(n).toLocaleString() : ''}
       </td>
     );
   };
 
   return (
     <div>
-      <div className="px-5 py-3 bg-muted/30 border-b border-border text-xs text-muted-foreground">
+      <div className="px-5 py-3.5 bg-muted/30 border-b border-border text-sm text-muted-foreground font-semibold">
         Bảng sắp xếp theo dạng tháng: mỗi tháng gồm <strong>CC</strong>, <strong>CT</strong>, <strong>TH</strong> (tổng) cho kế hoạch điều chỉnh.
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
+        <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-muted/60 border-b border-border">
-              <th
-                className="sticky left-0 bg-muted/60 text-left px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap border-r border-border"
-                rowSpan={2}
-              >
+              <th className="text-center px-3 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+                Mã hệ thống
+              </th>
+              <th className="text-left px-3 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
                 Hệ thống
               </th>
-              <th className="text-center px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
-                Số ao
+              <th className="text-center px-3 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+                Số lượng ao nuôi
               </th>
-              <th className="text-center px-3 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+              <th className="text-center px-3 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
                 Diện tích (m²)
               </th>
               {visibleMonthIdx.map((mi) => (
-                <th key={mi} className="text-center px-2 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap border-r border-border" colSpan={3}>
+                <th key={mi} className="text-center px-2 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" colSpan={3}>
                   {MONTHS[mi]}
                 </th>
               ))}
-              <th className="text-center px-2 py-2 font-semibold text-muted-foreground uppercase whitespace-nowrap" colSpan={3}>Tổng KH ĐC</th>
+              <th className="text-center px-2 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap" colSpan={3}>Tổng</th>
             </tr>
             <tr className="bg-muted/40 border-b border-border">
               {visibleMonthIdx.map((mi) => (
                 <Fragment key={mi}>
-                  <th className="text-right px-2 py-2 font-medium text-blue-600 whitespace-nowrap">CC</th>
-                  <th className="text-right px-2 py-2 font-medium text-muted-foreground whitespace-nowrap">CT</th>
-                  <th className="text-right px-2 py-2 font-medium text-foreground whitespace-nowrap border-r border-border">TH</th>
+                  <th className="text-right px-2 py-2.5 font-bold text-blue-700 whitespace-nowrap">CC</th>
+                  <th className="text-right px-2 py-2.5 font-bold text-slate-600 whitespace-nowrap">CT</th>
+                  <th className="text-right px-2 py-2.5 font-extrabold text-slate-900 whitespace-nowrap border-r border-border">TH</th>
                 </Fragment>
               ))}
-              <th className="text-right px-2 py-2 font-medium text-blue-600 whitespace-nowrap">CC</th>
-              <th className="text-right px-2 py-2 font-medium text-muted-foreground whitespace-nowrap">CT</th>
-              <th className="text-right px-2 py-2 font-medium text-foreground whitespace-nowrap">TH</th>
+              <th className="text-right px-2 py-2.5 font-bold text-blue-700 whitespace-nowrap">CC</th>
+              <th className="text-right px-2 py-2.5 font-bold text-slate-600 whitespace-nowrap">CT</th>
+              <th className="text-right px-2 py-2.5 font-extrabold text-slate-900 whitespace-nowrap">TH</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={3 + visibleMonthIdx.length * 3 + 3} className="text-center py-8 text-muted-foreground">
+                <td colSpan={4 + visibleMonthIdx.length * 3 + 3} className="text-center py-8 text-muted-foreground">
                   Chưa có dữ liệu
                 </td>
               </tr>
             ) : (
               rows.map((r) => (
                 <tr key={r.agency} className="hover:bg-muted/20">
-                  <td className="sticky left-0 bg-card px-4 py-2.5 font-semibold text-primary border-r border-border whitespace-nowrap">{r.agency}</td>
-                  <td className="px-3 py-2.5 text-center">{r.pondCount > 0 ? r.pondCount : ''}</td>
+                  <td className="px-3 py-2.5 text-center font-semibold text-slate-700 border-r border-border whitespace-nowrap">
+                    {systemCodeFromAgencyCode(r.agency)}
+                  </td>
+                  <td className="px-3 py-2.5 text-left font-semibold text-primary border-r border-border whitespace-nowrap">
+                    {r.agencyName}
+                  </td>
+                  <td className="px-3 py-2.5 text-center border-r border-border">{r.pondCount > 0 ? r.pondCount : ''}</td>
                   <td className="px-3 py-2.5 text-right border-r border-border">{r.totalArea > 0 ? r.totalArea.toLocaleString() : ''}</td>
                   {visibleMonthIdx.map((mi, i) => (
                     <Fragment key={mi}>
-                      {renderKgCell(r.monthCC[i])}
-                      {renderKgCell(r.monthCT[i])}
-                      <td className="px-2 py-2 text-right text-xs font-semibold text-foreground border-r border-border">
-                        {r.monthTH[i] > 0 ? r.monthTH[i].toLocaleString() : ''}
-                      </td>
+                      {renderNumCell(r.monthCC[i])}
+                      {renderNumCell(r.monthCT[i])}
+                      {renderNumCell(r.monthTH[i], { bold: true, border: true })}
                     </Fragment>
                   ))}
-                  {renderKgCell(r.totalCC)}
-                  {renderKgCell(r.totalCT)}
-                  {renderKgCell(r.totalTH, true)}
+                  {renderNumCell(r.totalCC)}
+                  {renderNumCell(r.totalCT)}
+                  {renderNumCell(r.totalTH, { bold: true })}
                 </tr>
               ))
             )}
 
             <tr className="bg-primary/5 font-bold border-t-2 border-primary/20">
-              <td className="sticky left-0 bg-primary/5 px-4 py-3 font-bold text-foreground border-r border-border">TỔNG CỘNG</td>
-              <td className="px-3 py-3 text-center">{grandTotalPonds}</td>
+              <td className="px-3 py-3 text-center font-bold text-foreground border-r border-border">—</td>
+              <td className="px-3 py-3 text-left font-bold text-foreground border-r border-border">Tổng</td>
+              <td className="px-3 py-3 text-center border-r border-border">{grandTotalPonds}</td>
               <td className="px-3 py-3 text-right border-r border-border">{grandTotalArea > 0 ? grandTotalArea.toLocaleString() : ''}</td>
               {visibleMonthIdx.map((mi, i) => (
                 <Fragment key={mi}>
-                  {renderKgCell(grandMonthCC[i])}
-                  {renderKgCell(grandMonthCT[i])}
-                  <td className="px-2 py-3 text-right text-xs font-bold text-foreground border-r border-border">
-                    {grandMonthTH[i] > 0 ? grandMonthTH[i].toLocaleString() : ''}
-                  </td>
+                  {renderNumCell(grandMonthCC[i])}
+                  {renderNumCell(grandMonthCT[i])}
+                  {renderNumCell(grandMonthTH[i], { bold: true, border: true })}
                 </Fragment>
               ))}
-              {renderKgCell(grandTotalCC)}
-              {renderKgCell(grandTotalCT)}
-              <td className="px-2 py-3 text-right text-xs font-bold text-foreground">{grandTotalTH > 0 ? grandTotalTH.toLocaleString() : ''}</td>
+              {renderNumCell(grandTotalCC)}
+              {renderNumCell(grandTotalCT)}
+              {renderNumCell(grandTotalTH, { bold: true })}
             </tr>
 
             <tr className="bg-amber-50/40 border-t border-border">
-              <td className="sticky left-0 bg-amber-50/40 px-4 py-2.5 font-bold text-foreground border-r border-border whitespace-nowrap">
-                KẾ HOẠCH NHÀ MÁY
+              <td className="px-3 py-2.5 text-center font-bold text-foreground border-r border-border">—</td>
+              <td className="px-3 py-2.5 text-left font-bold text-foreground border-r border-border whitespace-nowrap">
+                Sản lượng Nhà máy giao
               </td>
-              <td className="px-3 py-2.5 text-center">—</td>
+              <td className="px-3 py-2.5 text-center border-r border-border">—</td>
               <td className="px-3 py-2.5 text-right border-r border-border">—</td>
               {visibleMonthIdx.map((mi, i) => (
                 <Fragment key={mi}>
@@ -230,23 +237,22 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
             </tr>
 
             <tr className="bg-amber-50/40">
-              <td className="sticky left-0 bg-amber-50/40 px-4 py-2.5 font-bold text-foreground border-r border-border whitespace-nowrap">
-                THỪA / THIẾU
+              <td className="px-3 py-2.5 text-center font-bold text-foreground border-r border-border">—</td>
+              <td className="px-3 py-2.5 text-left font-bold text-foreground border-r border-border whitespace-nowrap">
+                Cân đối
               </td>
-              <td className="px-3 py-2.5 text-center">—</td>
+              <td className="px-3 py-2.5 text-center border-r border-border">—</td>
               <td className="px-3 py-2.5 text-right border-r border-border">—</td>
               {visibleMonthIdx.map((mi, i) => (
                 <Fragment key={mi}>
                   <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
                   <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
-                  {renderDeltaCell(deltaMonthTH[i])}
+                  {renderSignedCell(deltaMonthTH[i], { border: true })}
                 </Fragment>
               ))}
               <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
               <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
-              <td className={`px-2 py-2 text-right text-xs font-bold ${deltaTotalTH >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                {deltaTotalTH === 0 ? '' : (deltaTotalTH > 0 ? `Thừa ${deltaTotalTH.toLocaleString()}` : `Thiếu ${Math.abs(deltaTotalTH).toLocaleString()}`)}
-              </td>
+              {renderSignedCell(deltaTotalTH)}
             </tr>
           </tbody>
         </table>

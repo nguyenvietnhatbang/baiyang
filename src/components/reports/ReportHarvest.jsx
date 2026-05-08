@@ -60,6 +60,17 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
 
   const physicalPondTotal = uniquePhysicalPondCount(activePonds);
 
+  const ownerSummary = (() => {
+    const owners = [...new Set(activePonds.map((p) => (p?.owner_name ? String(p.owner_name).trim() : '')).filter(Boolean))].sort((a, b) =>
+      a.localeCompare(b, 'vi')
+    );
+    if (owners.length === 0) return '';
+    const maxShow = 4;
+    const head = owners.slice(0, maxShow).join(', ');
+    const more = owners.length > maxShow ? ` (+${owners.length - maxShow})` : '';
+    return `Chủ hộ: ${head}${more}`;
+  })();
+
   const headers = [
     { label: 'Mã ao', className: 'text-left' },
     { label: 'Chủ hộ', className: 'text-left' },
@@ -78,13 +89,13 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs border-collapse">
+      <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="bg-muted/60 border-b border-border">
             {headers.map(h => (
               <th
                 key={h.label}
-                className={`${h.className} px-4 py-3 font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap`}
+                className={`${h.className} px-4 py-3.5 font-bold text-slate-700 uppercase tracking-wide whitespace-nowrap`}
               >
                 {h.label}
               </th>
@@ -106,6 +117,16 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
             const agPct = agPlanned > 0 && agActual > 0 ? Math.round(((agActual - agPlanned) / agPlanned) * 100) : null;
             const agArea = uniquePhysicalPondTotalArea(agencyPonds);
             const agPhysical = uniquePhysicalPondCount(agencyPonds);
+            const agOwners = (() => {
+              const owners = [...new Set(agencyPonds.map((p) => (p?.owner_name ? String(p.owner_name).trim() : '')).filter(Boolean))].sort((a, b) =>
+                a.localeCompare(b, 'vi')
+              );
+              if (owners.length === 0) return '—';
+              const maxShow = 2;
+              const head = owners.slice(0, maxShow).join(', ');
+              const more = owners.length > maxShow ? ` (+${owners.length - maxShow})` : '';
+              return `${head}${more}`;
+            })();
 
             return [
               <tr
@@ -113,32 +134,46 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                 className="bg-muted/40 cursor-pointer hover:bg-muted/60 border-t border-border"
                 onClick={() => toggleAgency(agency)}
               >
-                <td className="px-4 py-2.5" colSpan={7}>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                <td className="px-4 py-3 font-bold text-primary whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    {isOpen ? (
+                      <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    )}
                     <span className="font-bold text-primary text-sm">{agency}</span>
-                    <span className="text-muted-foreground font-normal text-xs">
-                      ({agPhysical} ao · {agencyPonds.length} chu kỳ · Σ {agArea ? `${agArea.toLocaleString()} m²` : '—'})
-                    </span>
-                    <span className="text-blue-600 font-semibold text-xs">{agencyPonds.filter(p => p.status === 'CC').length} CC</span>
-                    <span className="text-muted-foreground text-xs">/</span>
-                    <span className="text-muted-foreground text-xs">{agencyPonds.filter(p => p.status === 'CT').length} CT</span>
                   </div>
                 </td>
-                <td className="px-4 py-2.5 text-right font-semibold text-foreground">{agPlanned > 0 ? agPlanned.toLocaleString() : '—'}</td>
-                <td className="px-4 py-2.5 text-right font-bold text-green-700">{agActual > 0 ? agActual.toLocaleString() : '—'}</td>
-                <td className={`px-4 py-2.5 text-right font-semibold ${agRemaining > 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                <td className="px-4 py-3 text-foreground font-semibold whitespace-nowrap" title={agOwners}>
+                  {agOwners}
+                </td>
+                <td className="px-4 py-3 text-right text-muted-foreground whitespace-nowrap">
+                  {agArea ? agArea.toLocaleString() : '—'}
+                </td>
+                <td className="px-4 py-3 text-center whitespace-nowrap">
+                  <span className="text-blue-600 font-semibold text-xs">{agencyPonds.filter((p) => p.status === 'CC').length} CC</span>
+                  <span className="text-muted-foreground text-xs"> / </span>
+                  <span className="text-muted-foreground text-xs">{agencyPonds.filter((p) => p.status === 'CT').length} CT</span>
+                </td>
+                <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">
+                  {agPhysical} ao · {agencyPonds.length} chu kỳ
+                </td>
+                <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">—</td>
+                <td className="px-4 py-3 text-center text-muted-foreground whitespace-nowrap">—</td>
+                <td className="px-4 py-3 text-right font-bold text-foreground">{agPlanned > 0 ? agPlanned.toLocaleString() : '—'}</td>
+                <td className="px-4 py-3 text-right font-extrabold text-green-700">{agActual > 0 ? agActual.toLocaleString() : '—'}</td>
+                <td className={`px-4 py-3 text-right font-bold ${agRemaining > 0 ? 'text-blue-700' : 'text-muted-foreground'}`}>
                   {agPlanned > 0 ? agRemaining.toLocaleString() : '—'}
                 </td>
-                <td className="px-4 py-2.5 text-center text-muted-foreground">—</td>
-                <td className="px-4 py-2.5 text-center">
+                <td className="px-4 py-3 text-center text-muted-foreground">—</td>
+                <td className="px-4 py-3 text-center">
                   {agActual > 0 && agPlanned > 0 ? (
                     <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${agPct >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                       {agPct >= 0 ? '+' : ''}{agPct}%
                     </span>
                   ) : '—'}
                 </td>
-                <td />
+                <td className="px-4 py-3 text-muted-foreground">—</td>
               </tr>,
 
               ...(isOpen ? agencyPonds.map(p => {
@@ -150,28 +185,28 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                       'bg-slate-100 text-slate-600';
                 return (
                   <tr key={p.id} className="hover:bg-muted/20">
-                    <td className="px-4 py-2.5 pl-10 font-semibold text-primary whitespace-nowrap">{p.code}</td>
-                    <td className="px-4 py-2.5 text-foreground whitespace-nowrap">{p.owner_name}</td>
-                    <td className="px-4 py-2.5 text-right text-muted-foreground">{p.area != null ? Number(p.area).toLocaleString() : '—'}</td>
-                    <td className="px-4 py-2.5 text-center">
+                    <td className="px-4 py-3 pl-10 font-bold text-primary whitespace-nowrap">{p.code}</td>
+                    <td className="px-4 py-3 text-foreground font-semibold whitespace-nowrap">{p.owner_name}</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">{p.area != null ? Number(p.area).toLocaleString() : '—'}</td>
+                    <td className="px-4 py-3 text-center">
                       {p.status === 'CC'
                         ? <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">CC</span>
                         : <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">CT</span>
                       }
                     </td>
-                    <td className="px-4 py-2.5 text-center">
+                    <td className="px-4 py-3 text-center">
                       <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${stClass}`}>{stLabel}</span>
                     </td>
-                    <td className="px-4 py-2.5 text-center whitespace-nowrap text-muted-foreground">{formatDateDisplay(plannedHarvestDateForDisplay(p))}</td>
-                    <td className="px-4 py-2.5 text-center whitespace-nowrap text-muted-foreground">{formatDateDisplay(actualHarvestDate)}</td>
-                    <td className="px-4 py-2.5 text-right font-medium">{planned > 0 ? planned.toLocaleString() : '—'}</td>
-                    <td className="px-4 py-2.5 text-right font-bold text-green-700">
+                    <td className="px-4 py-3 text-center whitespace-nowrap text-muted-foreground">{formatDateDisplay(plannedHarvestDateForDisplay(p))}</td>
+                    <td className="px-4 py-3 text-center whitespace-nowrap text-muted-foreground">{formatDateDisplay(actualHarvestDate)}</td>
+                    <td className="px-4 py-3 text-right font-bold">{planned > 0 ? planned.toLocaleString() : '—'}</td>
+                    <td className="px-4 py-3 text-right font-extrabold text-green-700">
                       {totalActual > 0 ? totalActual.toLocaleString() : <span className="text-muted-foreground font-normal">Chưa thu</span>}
                     </td>
-                    <td className={`px-4 py-2.5 text-right font-medium ${remaining > 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                    <td className={`px-4 py-3 text-right font-bold ${remaining > 0 ? 'text-blue-700' : 'text-muted-foreground'}`}>
                       {remaining !== null ? remaining.toLocaleString() : '—'}
                     </td>
-                    <td className="px-4 py-2.5 text-center">
+                    <td className="px-4 py-3 text-center">
                       {(() => {
                         let f = p.fcr;
                         if (f == null && p.total_feed_used > 0) {
@@ -186,14 +221,14 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                         ) : '—';
                       })()}
                     </td>
-                    <td className="px-4 py-2.5 text-center">
+                    <td className="px-4 py-3 text-center">
                       {totalActual > 0 && planned > 0 ? (
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${pct >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                           {pct >= 0 ? '+' : ''}{pct}%
                         </span>
                       ) : '—'}
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-muted-foreground">{lotCodes || '—'}</td>
+                    <td className="px-4 py-3 font-mono text-muted-foreground">{lotCodes || '—'}</td>
                   </tr>
                 );
               }) : [])
@@ -201,14 +236,19 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
           })}
 
           <tr className="bg-primary/5 border-t-2 border-primary/20 font-bold text-sm">
-            <td className="px-4 py-3 text-foreground font-bold" colSpan={7}>TỔNG CỘNG — {physicalPondTotal} ao · {activePonds.length} chu kỳ</td>
-            <td className="px-4 py-3 text-right text-foreground">{grandPlanned > 0 ? grandPlanned.toLocaleString() : '—'}</td>
-            <td className="px-4 py-3 text-right text-green-700">{grandActual > 0 ? grandActual.toLocaleString() : '—'}</td>
-            <td className={`px-4 py-3 text-right ${grandRemaining > 0 ? 'text-blue-600' : 'text-muted-foreground'}`}>
+            <td className="px-4 py-3.5 text-foreground font-extrabold" colSpan={7}>
+              <div className="flex flex-col gap-0.5">
+                <div>TỔNG CỘNG — {physicalPondTotal} ao · {activePonds.length} chu kỳ</div>
+                {ownerSummary ? <div className="text-xs font-semibold text-muted-foreground">{ownerSummary}</div> : null}
+              </div>
+            </td>
+            <td className="px-4 py-3.5 text-right text-foreground font-extrabold">{grandPlanned > 0 ? grandPlanned.toLocaleString() : '—'}</td>
+            <td className="px-4 py-3.5 text-right text-green-700 font-extrabold">{grandActual > 0 ? grandActual.toLocaleString() : '—'}</td>
+            <td className={`px-4 py-3.5 text-right font-extrabold ${grandRemaining > 0 ? 'text-blue-700' : 'text-muted-foreground'}`}>
               {grandPlanned > 0 ? grandRemaining.toLocaleString() : '—'}
             </td>
-            <td className="px-4 py-3 text-center">—</td>
-            <td className="px-4 py-3 text-center">
+            <td className="px-4 py-3.5 text-center">—</td>
+            <td className="px-4 py-3.5 text-center">
               {grandActual > 0 && grandPlanned > 0 ? (
                 <span className={`px-2 py-0.5 rounded text-xs font-bold ${grandActual >= grandPlanned ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {Math.round(((grandActual - grandPlanned) / grandPlanned) * 100) >= 0 ? '+' : ''}
