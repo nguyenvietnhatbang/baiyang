@@ -180,6 +180,7 @@ const defaultAppSettingsRow = {
   id: 1,
   harvest_alert_days: 7,
   bypass_rls: true,
+  factory_plan_kg_by_month: [],
   default_ph_min: 6.5,
   default_ph_max: 8.5,
   default_temp_min: 25,

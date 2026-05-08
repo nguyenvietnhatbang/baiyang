@@ -6,11 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Save } from 'lucide-react';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
-import { getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
+import { getFactoryPlanKgByMonth, getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
 
 export default function Settings() {
   const { user, refreshAppSettings, harvestAlertDays, appSettings } = useAuth();
   const w0 = getWaterThresholdDefaults(appSettings);
+  const fp0 = getFactoryPlanKgByMonth(appSettings);
 
   const [days, setDays] = useState(String(harvestAlertDays));
   const [phMin, setPhMin] = useState(String(w0.ph_min));
@@ -25,6 +26,7 @@ export default function Settings() {
   const [no2Max, setNo2Max] = useState(String(w0.no2_max));
   const [h2sMin, setH2sMin] = useState(String(w0.h2s_min));
   const [h2sMax, setH2sMax] = useState(String(w0.h2s_max));
+  const [factoryPlan, setFactoryPlan] = useState(fp0.map((x) => String(x ?? 0)));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [ok, setOk] = useState(false);
@@ -47,6 +49,7 @@ export default function Settings() {
     setNo2Max(String(w.no2_max));
     setH2sMin(String(w.h2s_min));
     setH2sMax(String(w.h2s_max));
+    setFactoryPlan(getFactoryPlanKgByMonth(appSettings).map((x) => String(x ?? 0)));
   }, [appSettings]);
 
   if (user?.role !== 'admin') {
@@ -104,12 +107,23 @@ export default function Settings() {
       setError('H2S tối thiểu không được lớn hơn H2S tối đa');
       return;
     }
+
+    const fp = factoryPlan.map((x) => {
+      const v = Number(String(x || '').replace(/,/g, ''));
+      return Number.isFinite(v) && v >= 0 ? Math.round(v) : 0;
+    });
+    if (fp.length !== 12) {
+      setError('Kế hoạch nhà máy phải đủ 12 tháng (T1..T12).');
+      return;
+    }
+
     setError('');
     setOk(false);
     setSaving(true);
     try {
       await base44.entities.AppSettings.update({
         harvest_alert_days: Math.round(n),
+        factory_plan_kg_by_month: fp,
         default_ph_min: pLo,
         default_ph_max: pHi,
         default_temp_min: tLo,
@@ -156,6 +170,35 @@ export default function Settings() {
             Ao có ngày thu dự kiến trong khoảng này được coi là &quot;Sắp thu&quot;
           </p>
           <Input type="number" min={0} max={365} value={days} onChange={(e) => setDays(e.target.value)} className="mt-1 w-32" />
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <h3 className="text-sm font-bold text-foreground mb-3">Kế hoạch nhà máy (kg/tháng)</h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Dùng để cảnh báo sản lượng thừa/thiếu theo tháng trong các báo cáo kế hoạch.
+          </p>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+            {Array.from({ length: 12 }, (_, i) => (
+              <div key={i}>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase">{`T${i + 1} (kg)`}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={factoryPlan[i] ?? '0'}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFactoryPlan((prev) => {
+                      const next = [...prev];
+                      next[i] = v;
+                      return next;
+                    });
+                  }}
+                  className="mt-1"
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="border-t border-border pt-4">

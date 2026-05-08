@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { originalHarvestDateForReport } from '@/lib/planReportHelpers';
 import { uniquePhysicalPondCount, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
 import { calculateYieldFromPond, calcOriginalYieldKg } from '@/lib/calculateYield';
+import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
 
 /** Alias — tránh ReferenceError nếu bundle cũ / nhánh code còn gọi tên cũ */
 const calcOriginalYield = (p) => calcOriginalYieldKg(p);
@@ -36,9 +37,10 @@ function monthIdxFromRange(fromDate, toDate) {
   return Array.from({ length: end - start + 1 }, (_, i) => start + i);
 }
 
-export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo }) {
+export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo, appSettings }) {
   const fromDate = parseDate(dateFrom);
   const toDate = parseDate(dateTo);
+  const factoryPlan = getFactoryPlanKgByMonth(appSettings);
   const monthIdx = (() => {
     const set = new Set();
     ponds.forEach((p) => {
@@ -107,12 +109,28 @@ export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo }) {
   const grandMonthCC = visibleMonthIdx.map((_, i) => allAgencyRows.reduce((s, r) => s + (r.monthCC[i] || 0), 0));
   const grandMonthCT = visibleMonthIdx.map((_, i) => allAgencyRows.reduce((s, r) => s + (r.monthCT[i] || 0), 0));
   const grandMonthTH = grandMonthCC.map((v, i) => v + grandMonthCT[i]);
+  const factoryMonthTH = visibleMonthIdx.map((mi) => Number(factoryPlan[mi] || 0));
+  const deltaMonthTH = grandMonthTH.map((v, i) => v - factoryMonthTH[i]);
+  const factoryTotalTH = factoryMonthTH.reduce((s, x) => s + (Number(x) || 0), 0);
+  const deltaTotalTH = grandTotalAll - factoryTotalTH;
 
   const renderKgCell = (value, highlight = false) => (
     <td className={`px-2 py-2 text-right text-xs ${highlight ? 'font-bold text-foreground' : 'text-foreground'}`}>
       {value > 0 ? value.toLocaleString() : ''}
     </td>
   );
+
+  const renderDeltaCell = (value) => {
+    const n = Number(value || 0);
+    const isOk = n >= 0;
+    const cls = isOk ? 'text-green-700' : 'text-red-700';
+    const label = n === 0 ? '' : (n > 0 ? `Thừa ${n.toLocaleString()}` : `Thiếu ${Math.abs(n).toLocaleString()}`);
+    return (
+      <td className={`px-2 py-2 text-right text-xs font-bold ${cls} border-r border-border`}>
+        {label}
+      </td>
+    );
+  };
 
   return (
     <div>
@@ -232,6 +250,50 @@ export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo }) {
               {renderKgCell(grandTotalCC)}
               {renderKgCell(grandTotalCT)}
               <td className="px-2 py-3 text-right text-xs font-bold text-foreground">{grandTotalAll > 0 ? grandTotalAll.toLocaleString() : ''}</td>
+            </tr>
+
+            <tr className="bg-amber-50/40 border-t border-border">
+              <td className="sticky left-0 bg-amber-50/40 px-4 py-2.5 font-bold text-foreground border-r border-border whitespace-nowrap">
+                KẾ HOẠCH NHÀ MÁY
+              </td>
+              <td className="px-3 py-2.5 text-center">—</td>
+              <td className="px-3 py-2.5 border-r border-border">—</td>
+              <td className="px-3 py-2.5 text-center border-r border-border">—</td>
+              <td className="px-3 py-2.5 text-right border-r border-border">—</td>
+              {visibleMonthIdx.map((mi, i) => (
+                <Fragment key={mi}>
+                  <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
+                  <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
+                  <td className="px-2 py-2 text-right text-xs font-bold text-amber-700 border-r border-border">
+                    {factoryMonthTH[i] > 0 ? factoryMonthTH[i].toLocaleString() : ''}
+                  </td>
+                </Fragment>
+              ))}
+              <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
+              <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
+              <td className="px-2 py-2 text-right text-xs font-bold text-amber-700">{factoryTotalTH > 0 ? factoryTotalTH.toLocaleString() : ''}</td>
+            </tr>
+
+            <tr className="bg-amber-50/40">
+              <td className="sticky left-0 bg-amber-50/40 px-4 py-2.5 font-bold text-foreground border-r border-border whitespace-nowrap">
+                THỪA / THIẾU
+              </td>
+              <td className="px-3 py-2.5 text-center">—</td>
+              <td className="px-3 py-2.5 border-r border-border">—</td>
+              <td className="px-3 py-2.5 text-center border-r border-border">—</td>
+              <td className="px-3 py-2.5 text-right border-r border-border">—</td>
+              {visibleMonthIdx.map((mi, i) => (
+                <Fragment key={mi}>
+                  <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
+                  <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
+                  {renderDeltaCell(deltaMonthTH[i])}
+                </Fragment>
+              ))}
+              <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
+              <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
+              <td className={`px-2 py-2 text-right text-xs font-bold ${deltaTotalTH >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                {deltaTotalTH === 0 ? '' : (deltaTotalTH > 0 ? `Thừa ${deltaTotalTH.toLocaleString()}` : `Thiếu ${Math.abs(deltaTotalTH).toLocaleString()}`)}
+              </td>
             </tr>
           </tbody>
         </table>

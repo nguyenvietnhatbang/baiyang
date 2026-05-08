@@ -7,6 +7,7 @@ const AuthContext = createContext();
 const settingsFallback = {
   id: 1,
   harvest_alert_days: 7,
+  factory_plan_kg_by_month: [],
   bypass_rls: true,
   default_ph_min: 6.5,
   default_ph_max: 8.5,

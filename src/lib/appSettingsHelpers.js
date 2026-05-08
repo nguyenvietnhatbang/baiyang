@@ -32,3 +32,29 @@ export function getWaterThresholdDefaults(settings) {
     h2s_max: d(settings?.default_h2s_max, 0.02),
   };
 }
+
+/**
+ * Kế hoạch nhà máy theo tháng (kg). Chuẩn hoá thành mảng 12 phần tử [T1..T12].
+ * @param {{ factory_plan_kg_by_month?: unknown } | null | undefined} settings
+ */
+export function getFactoryPlanKgByMonth(settings) {
+  const raw = settings?.factory_plan_kg_by_month;
+  const out = Array.from({ length: 12 }, () => 0);
+  if (!raw) return out;
+  const arr = Array.isArray(raw) ? raw : (typeof raw === 'string' ? safeParseJsonArray(raw) : null);
+  if (!arr) return out;
+  for (let i = 0; i < 12; i += 1) {
+    const v = Number(arr[i]);
+    out[i] = Number.isFinite(v) && v >= 0 ? v : 0;
+  }
+  return out;
+}
+
+function safeParseJsonArray(s) {
+  try {
+    const v = JSON.parse(s);
+    return Array.isArray(v) ? v : null;
+  } catch {
+    return null;
+  }
+}

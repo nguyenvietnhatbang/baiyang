@@ -6,6 +6,7 @@
 import ExcelJS from 'exceljs';
 import { originalHarvestDateForReport, plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { classifyHarvestStatus, harvestStatusLabel } from '@/lib/harvestAlerts';
+import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
 import {
   harvestRecordsForCycleRow,
   latestActualHarvestDate,
@@ -135,7 +136,7 @@ function finalizeSheetView(sheet, headerRowIndex) {
 
 /** --- Builders --- */
 
-function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
+function buildOriginal(sheet, { granularity, ponds, agencies, filterLine, factoryPlanKgByMonth }) {
   const title = 'Kế hoạch ban đầu (gốc)';
   const monthIdx = activeMonthIdxFromRows(
     ponds,
@@ -143,6 +144,7 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
     (p) => calcOriginalYield(p)
   );
   const monthLabels = monthIdx.map((i) => MONTHS[i]);
+  const factoryPlan = Array.isArray(factoryPlanKgByMonth) ? factoryPlanKgByMonth : Array.from({ length: 12 }, () => 0);
   if (granularity === 'agency') {
     const headers = ['Hệ thống', 'Số ao CC', 'Số ao CT', 'Tổng ao', 'KH CC (kg)', 'KH CT (kg)', 'KH Tổng (kg)', ...monthLabels];
     addSheetCommonTop(sheet, { title, filterLine, headers });
@@ -183,6 +185,23 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
     const totalRow = sheet.addRow(['TỔNG CỘNG', grandCC, grandCT, uniquePhysicalPondCount(ponds), gCCkg, gCTkg, gAll, ...gMonths]);
     applyNumberFormats(totalRow, numFmt);
     styleBodyRow(totalRow, { isTotal: true });
+
+    // Kế hoạch nhà máy + chênh lệch (TH - Factory)
+    const fMonths = monthIdx.map((i) => Number(factoryPlan[i] || 0) || 0);
+    const fTotal = fMonths.reduce((s, v) => s + v, 0);
+    const deltaMonths = gMonths.map((v, i) => (Number(v || 0) || 0) - (Number(fMonths[i] || 0) || 0));
+    const deltaTotal = (Number(gAll || 0) || 0) - (Number(fTotal || 0) || 0);
+
+    const factoryRow = sheet.addRow(['KẾ HOẠCH NHÀ MÁY', null, null, null, null, null, fTotal || null, ...fMonths.map((x) => (x > 0 ? x : null))]);
+    applyNumberFormats(factoryRow, numFmt);
+    styleBodyRow(factoryRow, { zebra: false });
+    factoryRow.font = { bold: true, color: { argb: 'FF7C2D12' } };
+
+    const deltaRow = sheet.addRow(['THỪA/THIẾU (KH - NM)', null, null, null, null, null, deltaTotal || null, ...deltaMonths.map((x) => (x !== 0 ? x : null))]);
+    applyNumberFormats(deltaRow, numFmt);
+    styleBodyRow(deltaRow, { zebra: false });
+    deltaRow.font = { bold: true };
+
     setColumnWidths(sheet, [22, 10, 10, 10, 14, 14, 14, ...monthLabels.map(() => 11)]);
   } else {
     const headers = [
@@ -230,7 +249,7 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine }) {
   finalizeSheetView(sheet, 4);
 }
 
-function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
+function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine, factoryPlanKgByMonth }) {
   const title = 'Kế hoạch điều chỉnh';
   const adjustedHarvestDate = (p) => plannedHarvestDateForDisplay(p);
   const monthIdx = [...new Set([
@@ -238,6 +257,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
     ...activeMonthIdxFromRows(ponds, (p) => adjustedHarvestDate(p), (p) => p.expected_yield || 0),
   ])].sort((a, b) => a - b);
   const monthLabels = monthIdx.map((i) => MONTHS[i]);
+  const factoryPlan = Array.isArray(factoryPlanKgByMonth) ? factoryPlanKgByMonth : Array.from({ length: 12 }, () => 0);
   if (granularity === 'agency') {
     const monthHeaders = monthLabels.flatMap((m) => [`${m} CC`, `${m} CT`, `${m} TH`]);
     const headers = ['Hệ thống', 'Số ao', 'Diện tích (m²)', ...monthHeaders, 'Tổng CC', 'Tổng CT', 'Tổng TH'];
@@ -294,6 +314,40 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine }) {
     ]);
     applyNumberFormats(totalRow, numFmt);
     styleBodyRow(totalRow, { isTotal: true });
+
+    const fMonths = monthIdx.map((i) => Number(factoryPlan[i] || 0) || 0);
+    const fTotal = fMonths.reduce((s, v) => s + v, 0);
+    const deltaMonths = grandMonthTH.map((v, i) => (Number(v || 0) || 0) - (Number(fMonths[i] || 0) || 0));
+    const deltaTotal = (Number(grandTotalTH || 0) || 0) - (Number(fTotal || 0) || 0);
+    const fTriplets = monthIdx.flatMap((_, i) => [null, null, fMonths[i] > 0 ? fMonths[i] : null]);
+    const dTriplets = monthIdx.flatMap((_, i) => [null, null, deltaMonths[i] !== 0 ? deltaMonths[i] : null]);
+
+    const factoryRow = sheet.addRow([
+      'KẾ HOẠCH NHÀ MÁY',
+      null,
+      null,
+      ...fTriplets,
+      null,
+      null,
+      fTotal || null,
+    ]);
+    applyNumberFormats(factoryRow, numFmt);
+    styleBodyRow(factoryRow, { zebra: false });
+    factoryRow.font = { bold: true, color: { argb: 'FF7C2D12' } };
+
+    const deltaRow = sheet.addRow([
+      'THỪA/THIẾU (KH - NM)',
+      null,
+      null,
+      ...dTriplets,
+      null,
+      null,
+      deltaTotal || null,
+    ]);
+    applyNumberFormats(deltaRow, numFmt);
+    styleBodyRow(deltaRow, { zebra: false });
+    deltaRow.font = { bold: true };
+
     setColumnWidths(sheet, [20, 10, 14, ...monthLabels.flatMap(() => [10, 10, 10]), 12, 12, 12]);
   } else {
     const headers = [
@@ -558,6 +612,7 @@ export async function downloadReportsExcel(opts) {
     harvests,
     agencies,
     harvestAlertDays,
+    appSettings,
     filters: { yearFilter, agencyFilterLabel, batchLabel },
   } = opts;
 
@@ -575,7 +630,15 @@ export async function downloadReportsExcel(opts) {
   const sheetName = SHEET_NAMES[reportType] || 'Bao cao';
   const sheet = workbook.addWorksheet(sheetName, { properties: { defaultRowHeight: 18 } });
 
-  const ctx = { granularity, ponds, agencies, harvests, harvestAlertDays, filterLine };
+  const ctx = {
+    granularity,
+    ponds,
+    agencies,
+    harvests,
+    harvestAlertDays,
+    filterLine,
+    factoryPlanKgByMonth: getFactoryPlanKgByMonth(appSettings),
+  };
 
   switch (reportType) {
     case 'summary':

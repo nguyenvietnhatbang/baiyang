@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Fish, ClipboardList, BarChart3, 
-  Building2, ChevronRight, ChevronLeft, Menu, Settings, LogOut, UserPlus,
+  Building2, Factory, ChevronRight, ChevronLeft, Menu, Settings, LogOut, UserPlus,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/AuthContext';
@@ -11,6 +11,7 @@ const baseNavItems = [
   { path: '/ponds', icon: Fish, label: 'Quản lý ao' },
   { path: '/logs', icon: ClipboardList, label: 'Nhật ký' },
   { path: '/reports', icon: BarChart3, label: 'Báo cáo' },
+  { path: '/factory-plan', icon: Factory, label: 'Kế hoạch nhà máy' },
   { path: '/agencies', icon: Building2, label: 'Đại lý' },
 ];
 

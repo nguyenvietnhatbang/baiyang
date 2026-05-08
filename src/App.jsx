@@ -19,6 +19,7 @@ import Reports from './pages/Reports';
 import Agencies from './pages/Agencies';
 import Households from './pages/Households';
 import Settings from './pages/Settings';
+import FactoryPlan from './pages/FactoryPlan';
 import FieldLayout from '@/pages/field/FieldLayout';
 import FieldHome from '@/pages/field/FieldHome';
 import FieldLogPage from '@/pages/field/FieldLogPage';
@@ -58,6 +59,7 @@ function App() {
                   <Route path="/agencies" element={<Agencies />} />
                   <Route path="/households" element={<Households />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/factory-plan" element={<FactoryPlan />} />
                   <Route path="/admin" element={<AdminUsers />} />
                 </Route>
               </Route>

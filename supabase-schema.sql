@@ -23,12 +23,17 @@ on conflict (code) do nothing;
 create table if not exists public.app_settings (
   id smallint primary key default 1 check (id = 1),
   harvest_alert_days int not null default 7,
+  -- Kế hoạch nhà máy theo tháng (kg). Lưu dạng mảng 12 phần tử [T1..T12]
+  factory_plan_kg_by_month jsonb not null default '[]'::jsonb,
   bypass_rls boolean not null default true,
   updated_at timestamptz not null default timezone('utc', now())
 );
 
 insert into public.app_settings (id, harvest_alert_days, bypass_rls) values (1, 7, true)
 on conflict (id) do nothing;
+
+alter table public.app_settings
+  add column if not exists factory_plan_kg_by_month jsonb not null default '[]'::jsonb;
 
 -- ---------------------------------------------------------------------------
 -- Seasons / vụ

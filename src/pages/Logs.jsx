@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { QrCode, ClipboardList, Camera, ChevronRight, ChevronLeft, Filter, Plus, Edit, Trash2 } from 'lucide-react';
+import { ClipboardList, Camera, ChevronRight, ChevronLeft, Filter, Plus, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import QRScanner from '@/components/scanner/QRScanner';
@@ -12,8 +12,8 @@ import PondLogEditDialog from '@/components/ponds/PondLogEditDialog';
 import PondLogCreateDialog from '@/components/ponds/PondLogCreateDialog';
 import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
 import { pickActiveCycle, cycleLabelForPondLog } from '@/lib/pondCycleHelpers';
-import { format } from 'date-fns';
 import { formatDateDisplay } from '@/lib/dateFormat';
+import { differenceInDays, parseISO } from 'date-fns';
 
 function cellDash(v) {
   if (v === null || v === undefined || v === '') return '—';
@@ -49,6 +49,7 @@ export default function Logs() {
   const [logDateFrom, setLogDateFrom] = useState('');
   const [logDateTo, setLogDateTo] = useState('');
   const [agencyFilter, setAgencyFilter] = useState('all');
+  const [householdFilter, setHouseholdFilter] = useState('all');
   const [cycleFilter, setCycleFilter] = useState('all');
 
   const loadData = async () => {
@@ -99,6 +100,32 @@ export default function Logs() {
     () => [{ value: 'all', label: 'Tất cả đại lý' }, ...agencyCodes.map((a) => ({ value: a, label: a }))],
     [agencyCodes]
   );
+
+  const householdFilterItems = useMemo(() => {
+    const items = [{ value: 'all', label: 'Tất cả hộ nuôi' }];
+    const map = new Map();
+    ponds.forEach((p) => {
+      const h = p?.households;
+      if (!h?.id) return;
+      if (!map.has(h.id)) {
+        map.set(h.id, {
+          id: h.id,
+          name: (h.name && String(h.name).trim()) || '—',
+          agency: p.agency_code || '',
+        });
+      }
+    });
+    const arr = [...map.values()].sort((a, b) => {
+      const aa = a.agency.localeCompare(b.agency, 'vi');
+      if (aa !== 0) return aa;
+      return a.name.localeCompare(b.name, 'vi');
+    });
+    arr.forEach((h) => {
+      const prefix = h.agency ? `${h.agency} — ` : '';
+      items.push({ value: h.id, label: `${prefix}${h.name}` });
+    });
+    return items;
+  }, [ponds]);
 
   const pondFilterItems = useMemo(() => {
     const items = [{ value: 'all', label: 'Tất cả các ao' }];
@@ -153,13 +180,17 @@ export default function Logs() {
       if (!pond) return false;
       if (activePond && log.pond_id !== activePond.id) return false;
       if (agencyFilter !== 'all' && (pond.agency_code || '') !== agencyFilter) return false;
+      if (householdFilter !== 'all') {
+        const hid = pond?.household_id || pond?.households?.id || null;
+        if (String(hid || '') !== String(householdFilter)) return false;
+      }
       if (cycleFilter !== 'all') {
         const cid = log.pond_cycle_id || pickActiveCycle(pond.pond_cycles)?.id;
         if (cid !== cycleFilter) return false;
       }
       return inDateScope(log.log_date, logDateFrom, logDateTo, monthFilter);
     });
-  }, [logs, pondById, activePond, agencyFilter, cycleFilter, logDateFrom, logDateTo, monthFilter]);
+  }, [logs, pondById, activePond, agencyFilter, householdFilter, cycleFilter, logDateFrom, logDateTo, monthFilter]);
 
   const filteredHarvests = useMemo(() => {
     return harvests.filter((h) => {
@@ -167,13 +198,70 @@ export default function Logs() {
       if (!pond) return false;
       if (activePond && h.pond_id !== activePond.id) return false;
       if (agencyFilter !== 'all' && (pond.agency_code || '') !== agencyFilter) return false;
+      if (householdFilter !== 'all') {
+        const hid = pond?.household_id || pond?.households?.id || null;
+        if (String(hid || '') !== String(householdFilter)) return false;
+      }
       if (cycleFilter !== 'all') {
         const cid = h.pond_cycle_id || pickActiveCycle(pond.pond_cycles)?.id;
         if (cid !== cycleFilter) return false;
       }
       return inDateScope(h.harvest_date, logDateFrom, logDateTo, monthFilter);
     });
-  }, [harvests, pondById, activePond, agencyFilter, cycleFilter, logDateFrom, logDateTo, monthFilter]);
+  }, [harvests, pondById, activePond, agencyFilter, householdFilter, cycleFilter, logDateFrom, logDateTo, monthFilter]);
+
+  const growthByLogId = useMemo(() => {
+    const groups = new Map(); // cycleId -> logs[]
+    for (const l of logs || []) {
+      const cid = l?.pond_cycle_id;
+      if (!cid) continue;
+      if (!groups.has(cid)) groups.set(cid, []);
+      groups.get(cid).push(l);
+    }
+    const out = new Map(); // logId -> growthPerDay
+    for (const [cid, arr] of groups.entries()) {
+      const sorted = [...arr].sort((a, b) => {
+        const da = String(a.log_date || '');
+        const db = String(b.log_date || '');
+        if (da !== db) return da.localeCompare(db);
+        return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+      });
+      let prev = null;
+      for (const cur of sorted) {
+        const w = Number(cur?.avg_weight);
+        if (!cur?.id) continue;
+        if (!Number.isFinite(w) || w <= 0) {
+          out.set(cur.id, null);
+          continue;
+        }
+        if (!prev) {
+          out.set(cur.id, null);
+          prev = cur;
+          continue;
+        }
+        const prevW = Number(prev?.avg_weight);
+        const d0 = String(prev?.log_date || '').slice(0, 10);
+        const d1 = String(cur?.log_date || '').slice(0, 10);
+        let days = 0;
+        try {
+          days = differenceInDays(parseISO(d1), parseISO(d0));
+        } catch {
+          days = 0;
+        }
+        if (!Number.isFinite(prevW) || prevW <= 0) {
+          out.set(cur.id, null);
+          prev = cur;
+          continue;
+        }
+        const diff = w - prevW;
+        const denom = days > 0 ? days : 1;
+        const perDay = diff / denom;
+        out.set(cur.id, Number.isFinite(perDay) ? perDay : null);
+        prev = cur;
+      }
+    }
+    return out;
+  }, [logs]);
 
   const summary = useMemo(() => {
     const nLogs = filteredLogs.length;
@@ -322,7 +410,7 @@ export default function Logs() {
         {/* Bộ lọc */}
         <div>
           <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Bộ lọc</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             <Input
               type="date"
               className="h-9 text-xs"
@@ -357,6 +445,20 @@ export default function Logs() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={householdFilter} onValueChange={setHouseholdFilter}>
+              <SelectTrigger className="h-9 text-xs">
+                <SelectValue>
+                  {householdFilter === 'all'
+                    ? 'Tất cả hộ nuôi'
+                    : householdFilterItems.find((x) => x.value === householdFilter)?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="max-h-64">
+                {householdFilterItems.map((it) => (
+                  <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={cycleFilter} onValueChange={setCycleFilter}>
               <SelectTrigger className="h-9 text-xs">
                 <SelectValue placeholder="Chu kỳ">
@@ -371,13 +473,14 @@ export default function Logs() {
             </Select>
           </div>
           <div className="flex gap-2 mt-2">
-            {(logDateFrom || logDateTo || monthFilter !== 'all' || activePond || agencyFilter !== 'all' || cycleFilter !== 'all') && (
+            {(logDateFrom || logDateTo || monthFilter !== 'all' || activePond || agencyFilter !== 'all' || householdFilter !== 'all' || cycleFilter !== 'all') && (
               <Button variant="outline" size="sm" className="h-9 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => { 
                 setLogDateFrom(''); 
                 setLogDateTo(''); 
                 setMonthFilter('all'); 
                 setActivePond(null); 
                 setAgencyFilter('all'); 
+                setHouseholdFilter('all');
                 setCycleFilter('all'); 
               }}>
                 Xóa bộ lọc
@@ -406,7 +509,7 @@ export default function Logs() {
               </p>
             </div>
             <div className="rounded-lg border border-amber-200 p-2 bg-amber-50/50">
-              <p className="text-[9px] font-bold text-amber-600 uppercase tracking-wide">Hao hụt</p>
+              <p className="text-[9px] font-bold text-amber-600 uppercase tracking-wide">Hao hụt (con)</p>
               <p className="text-base font-bold text-amber-700 mt-0.5">
                 {summary.sumDead.toLocaleString()}
               </p>
@@ -480,7 +583,7 @@ export default function Logs() {
                 aria-label="Bảng nhật ký — cuộn ngang để xem đủ cột"
                 className="overflow-x-auto overscroll-x-contain touch-pan-x scroll-smooth min-h-[360px] max-w-full"
               >
-                <table className="w-full text-xs sm:text-sm min-w-[1680px] border-collapse">
+                <table className="w-full text-xs sm:text-sm min-w-[1820px] border-collapse">
                   <thead>
                     <tr className="bg-muted/30 border-b border-border">
                       <th className="sticky left-0 z-10 w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] bg-muted/95 backdrop-blur-sm text-left px-2 sm:px-3 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-r border-border/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
@@ -501,7 +604,8 @@ export default function Logs() {
                       <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">NO2</th>
                       <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">H2S</th>
                       <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[6rem]">MÀU NC</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">TL TB</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">TL TB (G)</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8.5rem]">TĂNG TRƯỞNG (G/NGÀY)</th>
                       <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8rem]">THUỐC</th>
                       <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8rem]">GHI CHÚ</th>
                       <th className="sticky right-0 z-10 bg-muted/95 backdrop-blur-sm px-2 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap w-24 border-l border-border/80 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.06)]">
@@ -557,6 +661,15 @@ export default function Logs() {
                           </td>
                           <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">
                             {log.avg_weight != null && log.avg_weight !== '' ? `${log.avg_weight}` : '—'}
+                          </td>
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right whitespace-nowrap">
+                            {(() => {
+                              const g = growthByLogId.get(log.id);
+                              if (g == null || !Number.isFinite(g)) return <span className="text-slate-400">—</span>;
+                              const rounded = Math.round(g * 10) / 10;
+                              const cls = rounded >= 0 ? 'text-emerald-700 font-bold' : 'text-red-700 font-bold';
+                              return <span className={cls}>{rounded.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>;
+                            })()}
                           </td>
                           <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[10rem]">
                             <div className="truncate" title={log.medicine_used || ''}>

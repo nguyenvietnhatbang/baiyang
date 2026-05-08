@@ -58,7 +58,7 @@ function toCycleRows(ponds) {
 }
 
 export default function Reports() {
-  const { harvestAlertDays } = useAuth();
+  const { harvestAlertDays, appSettings } = useAuth();
   const [ponds, setPonds] = useState([]);
   const [harvests, setHarvests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -180,6 +180,7 @@ export default function Reports() {
         harvests: filteredHarvests,
         agencies,
         harvestAlertDays,
+        appSettings,
         filters: {
           yearFilter,
           agencyFilterLabel,
@@ -448,8 +449,8 @@ export default function Reports() {
               Mở rộng
             </Button>
           </div>
-          {reportType === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} />}
-          {reportType === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} />}
+          {reportType === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} />}
+          {reportType === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} />}
           {reportType === 'harvest' && <ReportHarvest ponds={scopedCycleRows} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
           {reportType === 'daily_plan' && <ReportDailyProductionPlan ponds={scopedCycleRows} dateFrom={dateFrom} dateTo={dateTo} />}
         </div>
@@ -473,8 +474,8 @@ export default function Reports() {
             </p>
           </DialogHeader>
           <div className="flex-1 overflow-auto px-0 py-0">
-            {expandedReport === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} />}
-            {expandedReport === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} />}
+            {expandedReport === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} />}
+            {expandedReport === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} />}
             {expandedReport === 'harvest' && <ReportHarvest ponds={scopedCycleRows} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
             {expandedReport === 'daily_plan' && <ReportDailyProductionPlan ponds={scopedCycleRows} dateFrom={dateFrom} dateTo={dateTo} />}
           </div>

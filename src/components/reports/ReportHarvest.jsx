@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { classifyHarvestStatus, harvestStatusLabel } from '@/lib/harvestAlerts';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { formatDateDisplay } from '@/lib/dateFormat';
 import {
   harvestRecordsForCycleRow,
   latestActualHarvestDate,
@@ -62,7 +63,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
   const headers = [
     { label: 'Mã ao', className: 'text-left' },
     { label: 'Chủ hộ', className: 'text-left' },
-    { label: 'Diện tích', className: 'text-right' },
+    { label: 'Diện tích (m²)', className: 'text-right' },
     { label: 'Trạng thái', className: 'text-center' },
     { label: 'Thu hoạch', className: 'text-center' },
     { label: 'Ngày thu DK', className: 'text-center' },
@@ -151,7 +152,7 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                   <tr key={p.id} className="hover:bg-muted/20">
                     <td className="px-4 py-2.5 pl-10 font-semibold text-primary whitespace-nowrap">{p.code}</td>
                     <td className="px-4 py-2.5 text-foreground whitespace-nowrap">{p.owner_name}</td>
-                    <td className="px-4 py-2.5 text-right text-muted-foreground">{p.area != null ? `${p.area} m²` : '—'}</td>
+                    <td className="px-4 py-2.5 text-right text-muted-foreground">{p.area != null ? Number(p.area).toLocaleString() : '—'}</td>
                     <td className="px-4 py-2.5 text-center">
                       {p.status === 'CC'
                         ? <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">CC</span>
@@ -161,8 +162,8 @@ export default function ReportHarvest({ ponds, harvests, harvestAlertDays = 7 })
                     <td className="px-4 py-2.5 text-center">
                       <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${stClass}`}>{stLabel}</span>
                     </td>
-                    <td className="px-4 py-2.5 text-center whitespace-nowrap text-muted-foreground">{plannedHarvestDateForDisplay(p) || '—'}</td>
-                    <td className="px-4 py-2.5 text-center whitespace-nowrap text-muted-foreground">{actualHarvestDate || '—'}</td>
+                    <td className="px-4 py-2.5 text-center whitespace-nowrap text-muted-foreground">{formatDateDisplay(plannedHarvestDateForDisplay(p))}</td>
+                    <td className="px-4 py-2.5 text-center whitespace-nowrap text-muted-foreground">{formatDateDisplay(actualHarvestDate)}</td>
                     <td className="px-4 py-2.5 text-right font-medium">{planned > 0 ? planned.toLocaleString() : '—'}</td>
                     <td className="px-4 py-2.5 text-right font-bold text-green-700">
                       {totalActual > 0 ? totalActual.toLocaleString() : <span className="text-muted-foreground font-normal">Chưa thu</span>}
