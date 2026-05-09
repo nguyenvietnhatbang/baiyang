@@ -73,6 +73,7 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
     dead_fish: deadFish,
     withdrawal_days: Number(form.withdrawal_days) || null,
     avg_weight: Number(form.avg_weight) || null,
+    growth_g: form.growth_g === '' || form.growth_g == null ? null : Number(form.growth_g) || null,
   });
 
   const prevExpectedYield = cycle.expected_yield;

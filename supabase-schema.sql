@@ -248,6 +248,7 @@ create table if not exists public.pond_logs (
   withdrawal_days numeric,
   disease_notes text,
   avg_weight numeric,
+  growth_g numeric,
   notes text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
@@ -255,6 +256,9 @@ create table if not exists public.pond_logs (
 
 alter table if exists public.pond_logs
   add column if not exists stocked_fish numeric not null default 0;
+
+alter table if exists public.pond_logs
+  add column if not exists growth_g numeric;
 
 create table if not exists public.harvest_records (
   id uuid primary key default gen_random_uuid(),

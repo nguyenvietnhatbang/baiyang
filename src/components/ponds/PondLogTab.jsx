@@ -22,7 +22,7 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
     ph: '', temperature: '', do: '', nh3: '', no2: '', h2s: '',
     water_color: '', feed_code: '', feed_amount: '', stocked_fish: 0,
     dead_fish: 0, medicine_used: '', medicine_dosage: '',
-    withdrawal_days: '', disease_notes: '', avg_weight: '', notes: '',
+    withdrawal_days: '', disease_notes: '', avg_weight: '', growth_g: '', notes: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -144,6 +144,10 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
         <div>
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trọng lượng TB ước tính (g)</Label>
           <Input type="number" value={form.avg_weight} onChange={e => setForm({...form, avg_weight: e.target.value})} className="mt-1" />
+        </div>
+        <div>
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tăng trưởng (g)</Label>
+          <Input type="number" value={form.growth_g} onChange={e => setForm({...form, growth_g: e.target.value})} className="mt-1" placeholder="Nhập tay" />
         </div>
       </div>
 

@@ -133,40 +133,40 @@ export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo, appS
         Bảng sắp xếp theo dạng tháng: mỗi tháng gồm <strong>CC</strong>, <strong>CT</strong>, <strong>TH</strong> (tổng).
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse">
+      <div className="overflow-x-auto max-w-full pb-2">
+        <table className="w-full min-w-max text-sm font-semibold border-collapse">
           <thead>
             <tr className="bg-muted/60 border-b border-border">
-              <th className="text-center px-3 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+              <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
                 Mã hệ thống
               </th>
-              <th className="text-left px-3 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+              <th className="text-left px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
                 Hệ thống
               </th>
-              <th className="text-center px-3 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+              <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
                 Số lượng ao nuôi
               </th>
-              <th className="text-center px-3 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+              <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
                 Diện tích (m²)
               </th>
               {visibleMonthIdx.map((mi) => (
-                <th key={mi} className="text-center px-2 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" colSpan={3}>
+                <th key={mi} className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" colSpan={3}>
                   {MONTHS[mi]}
                 </th>
               ))}
-              <th className="text-center px-2 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap" colSpan={3}>Tổng</th>
+              <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap" colSpan={3}>Tổng</th>
             </tr>
             <tr className="bg-muted/40 border-b border-border">
               {visibleMonthIdx.map((mi) => (
                 <Fragment key={mi}>
-                  <th className="text-right px-2 py-2.5 font-bold text-blue-700 whitespace-nowrap">CC</th>
-                  <th className="text-right px-2 py-2.5 font-bold text-slate-600 whitespace-nowrap">CT</th>
-                  <th className="text-right px-2 py-2.5 font-extrabold text-slate-900 whitespace-nowrap border-r border-border">TH</th>
+                  <th className="text-right px-2 py-1.5 font-bold text-blue-700 whitespace-nowrap">CC</th>
+                  <th className="text-right px-2 py-1.5 font-bold text-slate-600 whitespace-nowrap">CT</th>
+                  <th className="text-right px-2 py-1.5 font-extrabold text-slate-900 whitespace-nowrap border-r border-border">TH</th>
                 </Fragment>
               ))}
-              <th className="text-right px-2 py-2.5 font-bold text-blue-700 whitespace-nowrap">CC</th>
-              <th className="text-right px-2 py-2.5 font-bold text-slate-600 whitespace-nowrap">CT</th>
-              <th className="text-right px-2 py-2.5 font-extrabold text-slate-900 whitespace-nowrap">TH</th>
+              <th className="text-right px-2 py-1.5 font-bold text-blue-700 whitespace-nowrap">CC</th>
+              <th className="text-right px-2 py-1.5 font-bold text-slate-600 whitespace-nowrap">CT</th>
+              <th className="text-right px-2 py-1.5 font-extrabold text-slate-900 whitespace-nowrap">TH</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -179,14 +179,14 @@ export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo, appS
             ) : (
               allAgencyRows.map((r) => (
                 <tr key={r.agency} className="hover:bg-muted/20">
-                  <td className="px-3 py-2.5 text-center font-semibold text-slate-700 border-r border-border whitespace-nowrap">
+                  <td className="px-2 py-2 text-center font-semibold text-slate-700 border-r border-border whitespace-nowrap">
                     {systemCodeFromAgencyCode(r.agency)}
                   </td>
-                  <td className="px-3 py-2.5 text-left font-semibold text-primary border-r border-border whitespace-nowrap">
+                  <td className="px-2 py-2 text-left font-semibold text-primary border-r border-border whitespace-nowrap">
                     {r.agencyName}
                   </td>
-                  <td className="px-3 py-2.5 text-center border-r border-border">{r.pondCount > 0 ? r.pondCount : ''}</td>
-                  <td className="px-3 py-2.5 text-right border-r border-border">{r.totalArea > 0 ? r.totalArea.toLocaleString() : ''}</td>
+                  <td className="px-2 py-2 text-center border-r border-border whitespace-nowrap">{r.pondCount > 0 ? r.pondCount : ''}</td>
+                  <td className="px-2 py-2 text-right border-r border-border whitespace-nowrap">{r.totalArea > 0 ? r.totalArea.toLocaleString() : ''}</td>
                   {visibleMonthIdx.map((mi, i) => (
                     <Fragment key={mi}>
                       {renderNumCell(r.monthCC[i])}

@@ -581,7 +581,7 @@ export default function Reports() {
           {reportType === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
           {reportType === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
           {reportType === 'harvest' && <ReportHarvest ponds={scopedCycleRows} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
-          {reportType === 'daily_plan' && <ReportDailyProductionPlan ponds={scopedCycleRows} dateFrom={dateFrom} dateTo={dateTo} />}
+          {reportType === 'daily_plan' && <ReportDailyProductionPlan ponds={scopedCycleRows} harvests={filteredHarvests} agencyNameByCode={agencyNameByCode} />}
         </div>
       )}
 
@@ -606,7 +606,7 @@ export default function Reports() {
             {expandedReport === 'original' && <ReportOriginal ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
             {expandedReport === 'adjusted' && <ReportAdjusted ponds={scopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
             {expandedReport === 'harvest' && <ReportHarvest ponds={scopedCycleRows} harvests={filteredHarvests} harvestAlertDays={harvestAlertDays} />}
-            {expandedReport === 'daily_plan' && <ReportDailyProductionPlan ponds={scopedCycleRows} dateFrom={dateFrom} dateTo={dateTo} />}
+            {expandedReport === 'daily_plan' && <ReportDailyProductionPlan ponds={scopedCycleRows} harvests={filteredHarvests} agencyNameByCode={agencyNameByCode} />}
           </div>
         </DialogContent>
       </Dialog>

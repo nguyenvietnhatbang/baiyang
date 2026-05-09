@@ -53,6 +53,7 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
     stocked_fish: '',
     dead_fish: '',
     avg_weight: '',
+    growth_g: '',
     medicine_used: '',
     medicine_dosage: '',
     withdrawal_end_date: '',
@@ -81,6 +82,7 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
       stocked_fish: log.stocked_fish ?? '',
       dead_fish: log.dead_fish ?? '',
       avg_weight: log.avg_weight ?? '',
+      growth_g: log.growth_g ?? '',
       medicine_used: log.medicine_used || '',
       medicine_dosage: log.medicine_dosage || '',
       withdrawal_end_date: addDaysToDate(log.log_date || '', log.withdrawal_days),
@@ -118,6 +120,8 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
     };
   }, [open, log?.id, log?.pond_cycle_id]);
 
+  // growth_g là nhập tay, không tự tính
+
   const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
 
   const toNumOrNull = (v) => {
@@ -148,6 +152,7 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
         stocked_fish: toNumOrNull(form.stocked_fish) ?? 0,
         dead_fish: toNumOrNull(form.dead_fish) ?? 0,
         avg_weight: toNumOrNull(form.avg_weight),
+        growth_g: toNumOrNull(form.growth_g),
         medicine_used: form.medicine_used?.trim() || null,
         medicine_dosage: form.medicine_dosage?.trim() || null,
         withdrawal_days: calcWithdrawalDays(form.log_date, form.withdrawal_end_date),
@@ -282,6 +287,10 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
             <div>
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL TB ước tính (g)</Label>
               <Input className="mt-1 h-9 text-sm" type="number" value={form.avg_weight} onChange={set('avg_weight')} />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tăng trưởng (g)</Label>
+              <Input className="mt-1 h-9 text-sm" type="number" value={form.growth_g} onChange={set('growth_g')} placeholder="Nhập tay" />
             </div>
           </div>
 

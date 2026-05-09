@@ -77,6 +77,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
     stocked_fish: 0,
     dead_fish: 0,
     avg_weight: '',
+    growth_g: '',
     medicine_used: '',
     medicine_dosage: '',
     withdrawal_end_date: '',
@@ -86,6 +87,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [expectedHarvestDate, setExpectedHarvestDate] = useState('');
+  // growth_g là nhập tay, không tự tính trong form
 
   useEffect(() => {
     if (!open) return;
@@ -104,6 +106,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
       stocked_fish: 0,
       dead_fish: 0,
       avg_weight: '',
+      growth_g: '',
       medicine_used: '',
       medicine_dosage: '',
       withdrawal_end_date: '',
@@ -119,6 +122,8 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
     if (!resolvedCycleId) return null;
     return cycles.find((c) => String(c.id) === resolvedCycleId) || null;
   }, [cycles, resolvedCycleId]);
+
+  // growth_g là nhập tay, không tự tính
 
   const cycleYieldBreakdown = useMemo(() => {
     if (!selectedCycle) return { cc: 0, ct: 0, th: 0 };
@@ -180,6 +185,7 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
         stocked_fish: toNumOrNull(form.stocked_fish) ?? 0,
         dead_fish: toNumOrNull(form.dead_fish) ?? 0,
         avg_weight: toNumOrNull(form.avg_weight),
+        growth_g: toNumOrNull(form.growth_g),
         medicine_used: form.medicine_used?.trim() || null,
         medicine_dosage: form.medicine_dosage?.trim() || null,
         withdrawal_days: calcWithdrawalDays(form.log_date, form.withdrawal_end_date),
@@ -379,6 +385,10 @@ export default function PondLogCreateDialog({ open, onClose, pond, onSaved }) {
               <div>
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL TB ước tính (g)</Label>
                 <Input className="mt-1" type="number" value={form.avg_weight} onChange={set('avg_weight')} />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tăng trưởng (g)</Label>
+                <Input className="mt-1" type="number" value={form.growth_g} onChange={set('growth_g')} placeholder="Nhập tay" />
               </div>
             </div>
           </div>

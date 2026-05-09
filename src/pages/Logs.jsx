@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ClipboardList, Camera, ChevronRight, ChevronLeft, Filter, Plus, Edit, Trash2 } from 'lucide-react';
+import { ClipboardList, Camera, ChevronRight, ChevronLeft, Filter, Plus, Edit, Trash2, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import QRScanner from '@/components/scanner/QRScanner';
@@ -29,6 +29,78 @@ function inDateScope(logDate, logDateFrom, logDateTo, monthFilter) {
     return logDate.slice(0, 7) === monthFilter;
   }
   return true;
+}
+
+function SearchableSelect({ value, onChange, options, placeholder = 'Chọn...', disabled }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) setSearch('');
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e) => {
+      const root = rootRef.current;
+      if (!root) return;
+      if (!root.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [open]);
+
+  const q = search.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!q) return options;
+    return options.filter((o) => String(o.label || '').toLowerCase().includes(q));
+  }, [options, q]);
+
+  const cur = options.find((o) => String(o.value) === String(value)) || null;
+
+  return (
+    <div ref={rootRef} className="relative">
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className={`h-9 w-full justify-between px-2 font-normal text-sm ${!cur ? 'text-muted-foreground' : ''}`}
+      >
+        <span className="truncate text-left">{cur?.label || placeholder}</span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+      </Button>
+      {open && !disabled && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-[12rem] rounded-lg border border-border bg-popover shadow-md">
+          <div className="p-2 border-b border-border">
+            <Input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Gõ để tìm..." className="h-8 text-sm" />
+          </div>
+          <div className="max-h-80 overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <div className="px-2 py-2 text-xs text-muted-foreground">Không có kết quả</div>
+            ) : (
+              filtered.map((o) => (
+                <button
+                  key={String(o.value)}
+                  type="button"
+                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground ${
+                    String(o.value) === String(value) ? 'bg-accent/60' : ''
+                  }`}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                >
+                  {o.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Logs() {
@@ -128,7 +200,7 @@ export default function Logs() {
   }, [ponds]);
 
   const pondFilterItems = useMemo(() => {
-    const items = [{ value: 'all', label: 'Tất cả các ao' }];
+    const items = [{ value: 'none', label: 'Chọn ao nuôi...' }];
     const sorted = [...ponds].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
     sorted.forEach(p => {
       const cycle = pickActiveCycle(p.pond_cycles);
@@ -342,31 +414,15 @@ export default function Logs() {
         <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Chọn ao để ghi nhật ký</Label>
         <div className="flex gap-2">
           <div className="flex-1 min-w-0">
-            <Select 
-              value={activePond?.id || 'none'} 
-              onValueChange={(v) => {
-                if (v === 'none') {
-                  setActivePond(null);
-                } else {
-                  const pond = ponds.find(p => p.id === v);
-                  setActivePond(pond);
-                }
+            <SearchableSelect
+              value={activePond?.id || 'none'}
+              onChange={(v) => {
+                if (v === 'none') setActivePond(null);
+                else setActivePond(ponds.find((p) => p.id === v) || null);
               }}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="Chọn ao nuôi...">
-                  {activePond ? `${activePond.code} — ${activePond.owner_name}` : 'Chọn ao nuôi...'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-80">
-                <SelectItem value="none">Chọn ao nuôi...</SelectItem>
-                {pondFilterItems.slice(1).map((it) => (
-                  <SelectItem key={it.value} value={it.value} className="text-xs">
-                    {it.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={pondFilterItems}
+              placeholder="Chọn ao nuôi..."
+            />
           </div>
           <Button 
             onClick={() => setShowCamera(true)} 
@@ -605,7 +661,7 @@ export default function Logs() {
                       <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">H2S</th>
                       <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[6rem]">MÀU NC</th>
                       <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">TL TB (G)</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8.5rem]">TĂNG TRƯỞNG (G/NGÀY)</th>
+                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8.5rem]">TĂNG TRƯỞNG (G)</th>
                       <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8rem]">THUỐC</th>
                       <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8rem]">GHI CHÚ</th>
                       <th className="sticky right-0 z-10 bg-muted/95 backdrop-blur-sm px-2 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap w-24 border-l border-border/80 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.06)]">
@@ -665,6 +721,12 @@ export default function Logs() {
                           <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right whitespace-nowrap">
                             {(() => {
                               const g = growthByLogId.get(log.id);
+                              const manual = log?.growth_g;
+                              const manualN = manual == null || manual === '' ? null : Number(manual);
+                              if (Number.isFinite(manualN)) {
+                                const cls = manualN >= 0 ? 'text-emerald-700 font-bold' : 'text-red-700 font-bold';
+                                return <span className={cls}>{(Math.round(manualN * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>;
+                              }
                               if (g == null || !Number.isFinite(g)) return <span className="text-slate-400">—</span>;
                               const rounded = Math.round(g * 10) / 10;
                               const cls = rounded >= 0 ? 'text-emerald-700 font-bold' : 'text-red-700 font-bold';

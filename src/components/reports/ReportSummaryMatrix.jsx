@@ -74,96 +74,96 @@ export default function ReportSummaryMatrix({ ponds, harvests, agencies, appSett
   const renderNum = (v) => (Number(v) > 0 ? Number(v).toLocaleString() : '');
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm border-collapse">
+    <div className="overflow-x-auto max-w-full pb-2">
+      <table className="w-full min-w-max text-sm font-semibold border-collapse">
         <thead>
           <tr className="bg-muted/60 border-b border-border">
-            <th className="text-center px-3 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+            <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
               Mã hệ thống
             </th>
-            <th className="text-left px-3 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+            <th className="text-left px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
               Hệ thống
             </th>
             {MONTHS.map((m) => (
-              <th key={m} className="text-center px-2 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" colSpan={2}>
+              <th key={m} className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" colSpan={2}>
                 {m}
               </th>
             ))}
-            <th className="text-center px-2 py-3 font-extrabold text-slate-700 uppercase whitespace-nowrap" colSpan={2}>
+            <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap" colSpan={2}>
               Tổng
             </th>
           </tr>
           <tr className="bg-muted/40 border-b border-border">
             {MONTHS.map((m) => (
               <Fragment key={m}>
-                <th className="text-center px-2 py-2.5 font-bold text-slate-600 whitespace-nowrap">Kế hoạch</th>
-                <th className="text-center px-2 py-2.5 font-bold text-slate-600 whitespace-nowrap border-r border-border">Thực hiện</th>
+                <th className="text-center px-2 py-1.5 font-bold text-slate-600 whitespace-nowrap">Kế hoạch</th>
+                <th className="text-center px-2 py-1.5 font-bold text-slate-600 whitespace-nowrap border-r border-border">Thực hiện</th>
               </Fragment>
             ))}
-            <th className="text-center px-2 py-2.5 font-bold text-slate-600 whitespace-nowrap">Kế hoạch</th>
-            <th className="text-center px-2 py-2.5 font-bold text-slate-600 whitespace-nowrap">Thực hiện</th>
+            <th className="text-center px-2 py-1.5 font-bold text-slate-600 whitespace-nowrap">Kế hoạch</th>
+            <th className="text-center px-2 py-1.5 font-bold text-slate-600 whitespace-nowrap">Thực hiện</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
           {rows.map((r) => (
             <tr key={r.agency} className="hover:bg-muted/20">
-              <td className="px-3 py-2 text-center font-semibold text-slate-700 border-r border-border whitespace-nowrap">
+              <td className="px-2 py-1.5 text-center font-semibold text-slate-700 border-r border-border whitespace-nowrap">
                 {systemCodeFromAgencyCode(r.agency)}
               </td>
-              <td className="px-3 py-2 text-left font-semibold text-primary border-r border-border whitespace-nowrap">
+              <td className="px-2 py-1.5 text-left font-semibold text-primary border-r border-border whitespace-nowrap">
                 {r.agencyName}
               </td>
               {MONTHS.map((m, i) => (
                 <Fragment key={m}>
-                  <td className="px-2 py-2 text-right">{renderNum(r.plannedMonth[i])}</td>
-                  <td className="px-2 py-2 text-right border-r border-border">{renderNum(r.actualMonth[i])}</td>
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">{renderNum(r.plannedMonth[i])}</td>
+                  <td className="px-2 py-1.5 text-right border-r border-border whitespace-nowrap">{renderNum(r.actualMonth[i])}</td>
                 </Fragment>
               ))}
-              <td className="px-2 py-2 text-right font-bold">{renderNum(r.totalPlan)}</td>
-              <td className="px-2 py-2 text-right font-bold">{renderNum(r.totalAct)}</td>
+              <td className="px-2 py-1.5 text-right font-bold whitespace-nowrap">{renderNum(r.totalPlan)}</td>
+              <td className="px-2 py-1.5 text-right font-bold whitespace-nowrap">{renderNum(r.totalAct)}</td>
             </tr>
           ))}
 
           <tr className="bg-primary/5 font-bold border-t-2 border-primary/20">
-            <td className="px-3 py-2 text-left border-r border-border" colSpan={2}>Tổng</td>
+            <td className="px-2 py-2 text-left border-r border-border" colSpan={2}>Tổng</td>
             {MONTHS.map((m, i) => (
               <Fragment key={m}>
-                <td className="px-2 py-2 text-right">{renderNum(grandPlannedMonth[i])}</td>
-                <td className="px-2 py-2 text-right border-r border-border">{renderNum(grandActualMonth[i])}</td>
+                <td className="px-2 py-2 text-right whitespace-nowrap">{renderNum(grandPlannedMonth[i])}</td>
+                <td className="px-2 py-2 text-right border-r border-border whitespace-nowrap">{renderNum(grandActualMonth[i])}</td>
               </Fragment>
             ))}
-            <td className="px-2 py-2 text-right font-bold">{renderNum(grandPlanned)}</td>
-            <td className="px-2 py-2 text-right font-bold">{renderNum(grandActual)}</td>
+            <td className="px-2 py-2 text-right font-bold whitespace-nowrap">{renderNum(grandPlanned)}</td>
+            <td className="px-2 py-2 text-right font-bold whitespace-nowrap">{renderNum(grandActual)}</td>
           </tr>
 
           <tr className="bg-amber-50/40 border-t border-border">
-            <td className="px-3 py-2 text-left font-bold border-r border-border whitespace-nowrap" colSpan={2}>Sản lượng Nhà máy giao</td>
+            <td className="px-2 py-2 text-left font-bold border-r border-border whitespace-nowrap" colSpan={2}>Sản lượng Nhà máy giao</td>
             {MONTHS.map((m, i) => (
               <Fragment key={m}>
-                <td className="px-2 py-2 text-right font-bold text-amber-700">{renderNum(factoryMonth[i])}</td>
+                <td className="px-2 py-2 text-right font-bold text-amber-700 whitespace-nowrap">{renderNum(factoryMonth[i])}</td>
                 <td className="px-2 py-2 text-right border-r border-border text-muted-foreground"></td>
               </Fragment>
             ))}
-            <td className="px-2 py-2 text-right font-bold text-amber-700">{renderNum(factoryTotal)}</td>
+            <td className="px-2 py-2 text-right font-bold text-amber-700 whitespace-nowrap">{renderNum(factoryTotal)}</td>
             <td className="px-2 py-2 text-right text-muted-foreground"></td>
           </tr>
 
           <tr className="bg-amber-50/40">
-            <td className="px-3 py-2 text-left font-bold border-r border-border whitespace-nowrap" colSpan={2}>Cân đối</td>
+            <td className="px-2 py-2 text-left font-bold border-r border-border whitespace-nowrap" colSpan={2}>Cân đối</td>
             {MONTHS.map((m, i) => (
               <Fragment key={m}>
-                <td className={`px-2 py-2 text-right font-bold ${balancePlanMonth[i] >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                <td className={`px-2 py-2 text-right font-bold whitespace-nowrap ${balancePlanMonth[i] >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                   {balancePlanMonth[i] !== 0 ? Math.round(balancePlanMonth[i]).toLocaleString() : ''}
                 </td>
-                <td className={`px-2 py-2 text-right font-bold border-r border-border ${balanceActMonth[i] >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                <td className={`px-2 py-2 text-right font-bold border-r border-border whitespace-nowrap ${balanceActMonth[i] >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                   {balanceActMonth[i] !== 0 ? Math.round(balanceActMonth[i]).toLocaleString() : ''}
                 </td>
               </Fragment>
             ))}
-            <td className={`px-2 py-2 text-right font-bold ${balancePlanTotal >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+            <td className={`px-2 py-2 text-right font-bold whitespace-nowrap ${balancePlanTotal >= 0 ? 'text-green-700' : 'text-red-700'}`}>
               {balancePlanTotal !== 0 ? Math.round(balancePlanTotal).toLocaleString() : ''}
             </td>
-            <td className={`px-2 py-2 text-right font-bold ${balanceActTotal >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+            <td className={`px-2 py-2 text-right font-bold whitespace-nowrap ${balanceActTotal >= 0 ? 'text-green-700' : 'text-red-700'}`}>
               {balanceActTotal !== 0 ? Math.round(balanceActTotal).toLocaleString() : ''}
             </td>
           </tr>

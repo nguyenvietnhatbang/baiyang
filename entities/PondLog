@@ -81,6 +81,10 @@
       "type": "number",
       "description": "Tr\u1ecdng l\u01b0\u1ee3ng trung b\u00ecnh \u01b0\u1edbc t\u00ednh (g)"
     },
+    "growth_g": {
+      "type": "number",
+      "description": "T\u0103ng tr\u01b0\u1edfng nh\u1eadp tay (g)"
+    },
     "notes": {
       "type": "string",
       "description": "Ghi ch\u00fa kh\u00e1c"
