@@ -8,6 +8,7 @@ import HarvestChart from '@/components/dashboard/HarvestChart';
 import { Link } from 'react-router-dom';
 import { differenceInDays, parseISO } from 'date-fns';
 import { useAuth } from '@/lib/AuthContext';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 
 export default function Dashboard() {
   const { harvestAlertDays } = useAuth();
@@ -28,8 +29,9 @@ export default function Dashboard() {
 
   const today = new Date();
   const urgentPonds = activePonds.filter(p => {
-    if (!p.expected_harvest_date) return false;
-    return differenceInDays(parseISO(p.expected_harvest_date), today) <= harvestAlertDays;
+    const dk = plannedHarvestDateForDisplay(p);
+    if (!dk) return false;
+    return differenceInDays(parseISO(dk), today) <= harvestAlertDays;
   });
 
   const withdrawalAlerts = ponds.filter(p => {
@@ -199,7 +201,8 @@ export default function Dashboard() {
             </thead>
             <tbody className="divide-y divide-border">
               {activePonds.slice(0, 8).map(p => {
-                const diff = p.expected_harvest_date ? differenceInDays(parseISO(p.expected_harvest_date), today) : null;
+                const dk = plannedHarvestDateForDisplay(p);
+                const diff = dk ? differenceInDays(parseISO(dk), today) : null;
                 return (
                   <tr key={p.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-medium text-primary whitespace-nowrap">{p.code}</td>
@@ -216,9 +219,9 @@ export default function Dashboard() {
                       ) : <span className="text-muted-foreground">—</span>}
                     </td>
                     <td className="px-4 py-3 text-center text-xs">
-                      {p.expected_harvest_date ? (
+                      {dk ? (
                         <span className={diff !== null && diff <= harvestAlertDays ? 'text-red-600 font-bold' : 'text-foreground'}>
-                          {p.expected_harvest_date}
+                          {dk}
                           {diff !== null && diff <= 0 && <span className="ml-1 text-red-500 text-xs">(Quá hạn)</span>}
                         </span>
                       ) : '—'}

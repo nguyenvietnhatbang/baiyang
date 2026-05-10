@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
 import PondStatusBadge from '@/components/ponds/PondStatusBadge';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { Input } from '@/components/ui/input';
 
 /** Hero: gradient teal, gọn để ưu tiên danh sách ao. */
@@ -221,9 +222,9 @@ export default function FieldHome() {
                         Đại lý{' '}
                         <span className="font-semibold text-stone-800">{p.agency_code || '—'}</span>
                       </span>
-                      {p.expected_harvest_date && (
+                      {dk && (
                         <span className={isOverdue || isUrgent ? 'text-red-600 font-semibold' : 'text-stone-600'}>
-                          Thu <span className="font-medium text-stone-800">{p.expected_harvest_date}</span>
+                          Thu <span className="font-medium text-stone-800">{dk}</span>
                           {isOverdue && ' · QH'}
                         </span>
                       )}

@@ -1,5 +1,6 @@
 import { Fragment, useMemo } from 'react';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `Tháng ${i + 1}`);
 
@@ -35,7 +36,7 @@ export default function ReportSummaryMatrix({ ponds, harvests, agencies, appSett
       const actualMonth = Array.from({ length: 12 }, () => 0);
 
       agencyPonds.forEach((p) => {
-        const miPlan = monthIdxFromDate(p.expected_harvest_date);
+        const miPlan = monthIdxFromDate(plannedHarvestDateForDisplay(p));
         if (miPlan != null) plannedMonth[miPlan] += Number(p.expected_yield) || 0;
 
         const hs = harvestByCycleId.get(p.pond_cycle_id) || [];
@@ -74,7 +75,7 @@ export default function ReportSummaryMatrix({ ponds, harvests, agencies, appSett
   const renderNum = (v) => (Number(v) > 0 ? Number(v).toLocaleString() : '');
 
   return (
-    <div className="overflow-x-auto max-w-full pb-2">
+    <div className="overflow-x-auto max-w-full pb-2 [&_table]:border-2 [&_table]:border-slate-400 [&_th]:border-2 [&_th]:border-slate-400 [&_td]:border-2 [&_td]:border-slate-400 dark:[&_table]:border-slate-500 dark:[&_th]:border-slate-500 dark:[&_td]:border-slate-500">
       <table className="w-full min-w-max text-sm font-semibold border-collapse">
         <thead>
           <tr className="bg-muted/60 border-b border-border">
@@ -104,7 +105,7 @@ export default function ReportSummaryMatrix({ ponds, harvests, agencies, appSett
             <th className="text-center px-2 py-1.5 font-bold text-slate-600 whitespace-nowrap">Thực hiện</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
+        <tbody>
           {rows.map((r) => (
             <tr key={r.agency} className="hover:bg-muted/20">
               <td className="px-2 py-1.5 text-center font-semibold text-slate-700 border-r border-border whitespace-nowrap">

@@ -26,13 +26,6 @@ const changes = [
     ]
   },
   {
-    file: 'src/components/reports/ReportHarvest.jsx',
-    changes: [
-      'Cải thiện logic filter harvest records',
-      'Ưu tiên sử dụng pond_cycle_id'
-    ]
-  },
-  {
     file: 'src/components/ponds/PondHarvestTab.jsx',
     changes: [
       'Cập nhật PondCycle.actual_yield khi ghi nhận thu hoạch',

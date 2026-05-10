@@ -5,15 +5,8 @@
 
 import ExcelJS from 'exceljs';
 import { originalHarvestDateForReport, plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
-import { classifyHarvestStatus, harvestStatusLabel } from '@/lib/harvestAlerts';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
-import {
-  harvestRecordsForCycleRow,
-  latestActualHarvestDate,
-  totalActualYieldForCycleRow,
-  uniquePhysicalPondCount,
-  uniquePhysicalPondTotalArea,
-} from '@/lib/reportPondDedupe';
+import { totalActualYieldForCycleRow, uniquePhysicalPondCount, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `T${i + 1}`);
 const MONTH_LABELS_LONG = Array.from({ length: 12 }, (_, i) => `Tháng ${i + 1}`);
@@ -516,137 +509,6 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine, factor
   if (granularity !== 'agency') finalizeSheetView(sheet, 4);
 }
 
-function buildHarvest(sheet, { granularity, ponds, harvests, harvestAlertDays, filterLine, agencyNameByCode }) {
-  const title = 'Kế hoạch thu & Thực thu';
-  const active = ponds.filter((p) => p.status === 'CC' || plannedHarvestDateForDisplay(p));
-  if (granularity === 'agency') {
-    const headers = [
-      'Mã hệ thống',
-      'Hệ thống',
-      'Hộ nuôi',
-      'Ao nuôi',
-      'Chu kỳ',
-      'Diện tích',
-      'Kế hoạch thu (ngày thu kế)',
-      'Ngày thu thực tế',
-      'Sản lượng Kế hoạch',
-      'Sản lượng thực tế',
-      'Tổng lượng thức ăn',
-      'FCR',
-      'Ghi chú',
-    ];
-    addSheetCommonTop(sheet, { title: 'BÁO CÁO THU HOẠCH', filterLine, headers });
-    const numFmt = ['', '', '', '', '', '0.00', 'yyyy-mm-dd', 'yyyy-mm-dd', '#,##0', '#,##0', '#,##0', '0.00', ''];
-
-    const codes = [...new Set(active.map((p) => p.agency_code || '(Chưa phân)'))].sort((a, b) => a.localeCompare(b));
-    codes.forEach((agency, idx) => {
-      const ap = active.filter((p) => (p.agency_code || '(Chưa phân)') === agency);
-      const plannedKg = ap.reduce((s, p) => s + (p.expected_yield || 0), 0);
-      const actualKg = ap.reduce((s, p) => s + totalActualYieldForCycleRow(p, harvests), 0);
-      const feedKg = ap.reduce((s, p) => s + (Number(p.total_feed_used) || 0), 0);
-      const fcr = actualKg > 0 && feedKg > 0 ? feedKg / actualKg : null;
-      const sysCode = systemCodeFromAgencyCode(agency);
-      const sysName = agencyNameByCode instanceof Map ? (agencyNameByCode.get(String(agency)) || agency) : agency;
-
-      const row = sheet.addRow([
-        sysCode || null,
-        sysName || agency,
-        null,
-        null,
-        null,
-        uniquePhysicalPondTotalArea(ap) || null,
-        null,
-        null,
-        plannedKg || null,
-        actualKg || null,
-        feedKg || null,
-        fcr,
-        null,
-      ]);
-      applyNumberFormats(row, numFmt);
-      styleBodyRow(row, { zebra: idx % 2 === 1 });
-    });
-
-    const totalPlanned = active.reduce((s, p) => s + (p.expected_yield || 0), 0);
-    const totalActual = active.reduce((s, p) => s + totalActualYieldForCycleRow(p, harvests), 0);
-    const totalFeed = active.reduce((s, p) => s + (Number(p.total_feed_used) || 0), 0);
-    const totalFcr = totalActual > 0 && totalFeed > 0 ? totalFeed / totalActual : null;
-    const totalRow = sheet.addRow([
-      null,
-      'Tổng',
-      null,
-      null,
-      null,
-      uniquePhysicalPondTotalArea(active) || null,
-      null,
-      null,
-      totalPlanned || null,
-      totalActual || null,
-      totalFeed || null,
-      totalFcr,
-      null,
-    ]);
-    applyNumberFormats(totalRow, numFmt);
-    styleBodyRow(totalRow, { isTotal: true });
-    setColumnWidths(sheet, [12, 16, 16, 12, 10, 10, 18, 14, 14, 14, 16, 8, 18]);
-  } else {
-    const headers = [
-      'Đại lý',
-      'Mã ao',
-      'Chủ hộ',
-      'Diện tích (m²)',
-      'Trạng thái ao',
-      'Nhóm thu hoạch',
-      'Ngày thu DK',
-      'Ngày thu TT',
-      'KH thu (kg)',
-      'Đã thu (kg)',
-      'Còn tồn (kg)',
-      'FCR',
-      'Mã lô',
-    ];
-    addSheetCommonTop(sheet, { title, filterLine, headers });
-    const sorted = [...active].sort((a, b) => {
-      const ac = a.agency_code || '';
-      const bc = b.agency_code || '';
-      if (ac !== bc) return ac.localeCompare(bc);
-      return String(a.code).localeCompare(String(b.code));
-    });
-    const numFmt = ['', '', '', '0.00', '', '', 'yyyy-mm-dd', 'yyyy-mm-dd', '#,##0', '#,##0', '#,##0', '0.00', ''];
-    sorted.forEach((p, idx) => {
-      const pondHarvests = harvestRecordsForCycleRow(p, harvests);
-      const totalAct = pondHarvests.reduce((s, h) => s + (h.actual_yield || 0), 0);
-      const planned = p.expected_yield || 0;
-      const remaining = planned > 0 ? Math.max(0, planned - totalAct) : null;
-      const hStatus = classifyHarvestStatus(p, totalAct, harvestAlertDays);
-      const ttRaw = latestActualHarvestDate(pondHarvests);
-      const lots = pondHarvests
-        .map((h) => h.lot_code)
-        .filter(Boolean)
-        .join('; ');
-      const row = sheet.addRow([
-        p.agency_code || '',
-        p.code,
-        p.owner_name || '',
-        p.area != null ? Number(p.area) : null,
-        p.status || '',
-        harvestStatusLabel(hStatus),
-        plannedHarvestDateForDisplay(p) ? new Date(plannedHarvestDateForDisplay(p)) : null,
-        ttRaw ? new Date(ttRaw) : null,
-        planned || null,
-        totalAct || null,
-        remaining,
-        p.fcr != null ? Number(p.fcr) : null,
-        lots,
-      ]);
-      applyNumberFormats(row, numFmt);
-      styleBodyRow(row, { zebra: idx % 2 === 1 });
-    });
-    setColumnWidths(sheet, [14, 12, 20, 11, 8, 18, 12, 12, 14, 14, 14, 8, 20]);
-  }
-  finalizeSheetView(sheet, 4);
-}
-
 function buildSummary(sheet, { granularity, ponds, harvests, agencies, filterLine }) {
   const title = 'Tổng quan (theo bộ lọc)';
   const calcOrig = calcOriginalYield;
@@ -872,12 +734,11 @@ const SHEET_NAMES = {
   summary_matrix: 'Bao cao tong hop',
   original: 'KH goc',
   adjusted: 'KH dieu chinh',
-  harvest: 'Thu hoach',
 };
 
 /**
  * @param {Object} opts
- * @param {'summary'|'original'|'adjusted'|'harvest'} opts.reportType
+ * @param {'summary'|'summary_matrix'|'original'|'adjusted'|'daily_plan'} opts.reportType
  * @param {'agency'|'pond'} opts.granularity
  * @param {Array} opts.ponds — đã lọc (batchFilteredPonds)
  * @param {Array} opts.harvests — đã lọc (filteredHarvests)
@@ -887,6 +748,7 @@ const SHEET_NAMES = {
  * @param {string} opts.filters.yearFilter
  * @param {string} opts.filters.agencyFilterLabel
  * @param {string} opts.filters.batchLabel
+ * @param {string} [opts.filters.monthFilterLabel]
  */
 export async function downloadReportsExcel(opts) {
   const {
@@ -898,10 +760,11 @@ export async function downloadReportsExcel(opts) {
     harvestAlertDays,
     appSettings,
     agencyNameByCode,
-    filters: { yearFilter, agencyFilterLabel, batchLabel },
+    filters: { yearFilter, agencyFilterLabel, batchLabel, monthFilterLabel = 'Cả năm' },
   } = opts;
 
   const filterLine = [
+    `Tháng (lọc): ${monthFilterLabel}`,
     `Năm thu (lọc): ${yearFilter}`,
     `Đại lý: ${agencyFilterLabel}`,
     `Chu kỳ: ${batchLabel}`,
@@ -938,9 +801,6 @@ export async function downloadReportsExcel(opts) {
       break;
     case 'adjusted':
       buildAdjusted(sheet, ctx);
-      break;
-    case 'harvest':
-      buildHarvest(sheet, ctx);
       break;
     default:
       buildSummary(sheet, ctx);

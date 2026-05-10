@@ -6,6 +6,7 @@ import { submitPondLogEntry } from '@/lib/pondLogSubmit';
 import { POND_LOG_ENV_RANGES, pondLogEnvOutOfRange } from '@/lib/pondLogEnvRanges';
 import { useAuth } from '@/lib/AuthContext';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -225,9 +226,8 @@ export default function FieldLogPage() {
   }
 
   const today = new Date();
-  const harvestDiff = cycle.expected_harvest_date
-    ? differenceInDays(parseISO(cycle.expected_harvest_date), today)
-    : null;
+  const harvestDk = plannedHarvestDateForDisplay(cycle);
+  const harvestDiff = harvestDk ? differenceInDays(parseISO(harvestDk), today) : null;
   const harvestUrgent = harvestDiff !== null && harvestDiff <= (harvestAlertDays ?? 7);
   const harvestOverdue = harvestDiff !== null && harvestDiff < 0;
   const inWithdrawal =
@@ -320,7 +320,7 @@ export default function FieldLogPage() {
                 harvestOverdue ? 'text-red-600' : harvestUrgent ? 'text-amber-700' : 'text-stone-900'
               }`}
             >
-              {cycle.expected_harvest_date || '—'}
+              {harvestDk || '—'}
               {harvestOverdue && ' (quá hạn)'}
               {harvestUrgent && !harvestOverdue && ' (sắp tới)'}
             </dd>

@@ -1,10 +1,12 @@
 import PondStatusBadge from './PondStatusBadge';
 import { differenceInDays, parseISO } from 'date-fns';
 import { formatDateDisplay } from '@/lib/dateFormat';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 
 export default function PondMobileCard({ pond, checked, onCheck, onClick, harvestAlertDays = 7 }) {
   const today = new Date();
-  const diff = pond.expected_harvest_date ? differenceInDays(parseISO(pond.expected_harvest_date), today) : null;
+  const dk = plannedHarvestDateForDisplay(pond);
+  const diff = dk ? differenceInDays(parseISO(dk), today) : null;
   const isHarvested = pond?.harvest_done === true || (Number(pond?.actual_yield) || 0) > 0;
   const isUrgent = !isHarvested && diff !== null && diff <= harvestAlertDays;
   const isOverdue = diff !== null && diff < 0;
@@ -59,9 +61,9 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
 
       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
         <span>Đại lý: <span className="font-medium text-foreground">{pond.agency_code || '—'}</span></span>
-        {pond.expected_harvest_date && (
+        {dk && (
           <span className={isUrgent ? 'text-red-600 font-bold' : ''}>
-            Thu: {formatDateDisplay(pond.expected_harvest_date)}
+            Thu: {formatDateDisplay(dk)}
             {isOverdue && ' (QH)'}
           </span>
         )}

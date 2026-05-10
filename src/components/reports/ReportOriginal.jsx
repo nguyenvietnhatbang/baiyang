@@ -133,7 +133,7 @@ export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo, appS
         Bảng sắp xếp theo dạng tháng: mỗi tháng gồm <strong>CC</strong>, <strong>CT</strong>, <strong>TH</strong> (tổng).
       </div>
 
-      <div className="overflow-x-auto max-w-full pb-2">
+      <div className="overflow-x-auto max-w-full pb-2 [&_table]:border-2 [&_table]:border-slate-400 [&_th]:border-2 [&_th]:border-slate-400 [&_td]:border-2 [&_td]:border-slate-400 dark:[&_table]:border-slate-500 dark:[&_th]:border-slate-500 dark:[&_td]:border-slate-500">
         <table className="w-full min-w-max text-sm font-semibold border-collapse">
           <thead>
             <tr className="bg-muted/60 border-b border-border">
@@ -169,7 +169,7 @@ export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo, appS
               <th className="text-right px-2 py-1.5 font-extrabold text-slate-900 whitespace-nowrap">TH</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody>
             {allAgencyRows.length === 0 ? (
               <tr>
                 <td colSpan={4 + visibleMonthIdx.length * 3 + 3} className="text-center py-8 text-muted-foreground">

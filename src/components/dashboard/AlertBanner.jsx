@@ -1,12 +1,14 @@
 import { AlertTriangle, Clock, Pill, ChevronRight } from 'lucide-react';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { Link } from 'react-router-dom';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 
 function AlertItem({ pond, type }) {
   const today = new Date();
   
   if (type === 'harvest') {
-    const diff = differenceInDays(parseISO(pond.expected_harvest_date), today);
+    const dk = plannedHarvestDateForDisplay(pond);
+    const diff = differenceInDays(parseISO(dk), today);
     const isOverdue = diff < 0;
     const colorClass = isOverdue 
       ? 'bg-red-50 border-red-200 text-red-800' 
@@ -23,7 +25,7 @@ function AlertItem({ pond, type }) {
           <span className="text-xs ml-2 opacity-75">
             {isOverdue 
               ? `Quá hạn ${Math.abs(diff)} ngày` 
-              : `Thu hoạch trong ${diff} ngày (${format(parseISO(pond.expected_harvest_date), 'dd/MM')})`
+              : `Thu hoạch trong ${diff} ngày (${format(parseISO(dk), 'dd/MM')})`
             }
           </span>
         </div>
@@ -59,8 +61,9 @@ export default function AlertBanner({ ponds, harvestAlertDays = 7 }) {
   const alerts = [];
 
   ponds.forEach(p => {
-    if (p.status === 'CC' && p.expected_harvest_date) {
-      const diff = differenceInDays(parseISO(p.expected_harvest_date), today);
+    const dk = plannedHarvestDateForDisplay(p);
+    if (p.status === 'CC' && dk) {
+      const diff = differenceInDays(parseISO(dk), today);
       if (diff <= harvestAlertDays) alerts.push({ pond: p, type: 'harvest', diff });
     }
     if (p.withdrawal_end_date) {

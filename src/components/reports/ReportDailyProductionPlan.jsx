@@ -70,7 +70,7 @@ export default function ReportDailyProductionPlan({ ponds, harvests, agencyNameB
   }, [rows]);
 
   return (
-    <div className="overflow-x-auto max-w-full pb-2">
+    <div className="overflow-x-auto max-w-full pb-2 [&_table]:border-2 [&_table]:border-slate-400 [&_th]:border-2 [&_th]:border-slate-400 [&_td]:border-2 [&_td]:border-slate-400 dark:[&_table]:border-slate-500 dark:[&_th]:border-slate-500 dark:[&_td]:border-slate-500">
       <table className="w-full min-w-max text-sm font-semibold border-collapse">
         <thead>
           <tr className="bg-muted/60 border-b border-border">
@@ -95,7 +95,7 @@ export default function ReportDailyProductionPlan({ ponds, harvests, agencyNameB
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
+        <tbody>
           {rows.map((r) => (
             <tr key={r.id} className="hover:bg-muted/20">
               <td className="px-2 py-2 text-center font-bold">{r.sysCode}</td>

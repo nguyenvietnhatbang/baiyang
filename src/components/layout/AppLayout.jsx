@@ -6,6 +6,7 @@ import { base44 } from '@/api/base44Client';
 import { differenceInDays, parseISO } from 'date-fns';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/lib/AuthContext';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 
 export default function AppLayout() {
   const { harvestAlertDays, user, logout } = useAuth();
@@ -20,8 +21,9 @@ export default function AppLayout() {
       let count = 0;
       ponds.forEach((p) => {
         if (p.status !== 'CC') return;
-        if (p.expected_harvest_date) {
-          const diff = differenceInDays(parseISO(p.expected_harvest_date), today);
+        const dk = plannedHarvestDateForDisplay(p);
+        if (dk) {
+          const diff = differenceInDays(parseISO(dk), today);
           if (diff <= harvestAlertDays) count++;
         }
         if (p.withdrawal_end_date) {

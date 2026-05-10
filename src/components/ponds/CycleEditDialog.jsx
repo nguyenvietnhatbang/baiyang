@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Save, Trash2, AlertTriangle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
+import { calculateYield } from '@/lib/calculateYield';
 
 const STATUS_ITEMS = [
   { value: 'CC', label: 'CC — Có cá' },
@@ -30,6 +31,7 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
     current_fish: '',
     expected_harvest_date: '',
     withdrawal_end_date: '',
+    expected_yield: '',
     notes: '',
   });
   const [loading, setLoading] = useState(false);
@@ -78,6 +80,7 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
             current_fish: c?.current_fish ?? c?.total_fish ?? '',
             expected_harvest_date: c?.expected_harvest_date || '',
             withdrawal_end_date: c?.withdrawal_end_date || '',
+            expected_yield: c?.expected_yield != null && c?.expected_yield !== '' ? String(c.expected_yield) : '',
             notes: c?.notes || '',
           });
         }
@@ -104,11 +107,28 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
     return Math.round((cur * (sr / 100) * tw) / 1000);
   }, [form.current_fish, form.survival_rate, form.target_weight]);
 
+  /** SL gợi ý từ tổng cá đăng ký (kế hoạch ban đầu). */
+  const computedYieldFromTotalFish = useMemo(() => {
+    const tf = form.total_fish === '' ? NaN : Number(form.total_fish);
+    const sr = Number(form.survival_rate);
+    const tw = Number(form.target_weight);
+    const y = calculateYield(tf, sr, tw);
+    return y > 0 ? y : null;
+  }, [form.total_fish, form.survival_rate, form.target_weight]);
+
   const handleSave = async () => {
     if (!cycleId) return;
     setSaving(true);
     setError('');
     try {
+      const manualYield = form.expected_yield === '' ? null : Number(form.expected_yield);
+      const nextExpectedYield =
+        manualYield != null && Number.isFinite(manualYield) && manualYield >= 0
+          ? Math.round(manualYield)
+          : computedExpectedYield != null
+            ? computedExpectedYield
+            : computedYieldFromTotalFish;
+
       await base44.entities.PondCycle.update(cycleId, {
         name: form.name?.trim() || null,
         status: form.status || 'CT',
@@ -121,7 +141,7 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
         target_weight: form.target_weight === '' ? null : Number(form.target_weight),
         initial_expected_harvest_date: form.initial_expected_harvest_date || null,
         current_fish: form.current_fish === '' ? null : Number(form.current_fish),
-        expected_yield: computedExpectedYield ?? null,
+        expected_yield: nextExpectedYield ?? null,
         expected_harvest_date: form.expected_harvest_date || null,
         withdrawal_end_date: form.withdrawal_end_date || null,
         notes: form.notes?.trim() || null,
@@ -212,6 +232,23 @@ export default function CycleEditDialog({ open, onClose, cycleId, onSaved }) {
                       <div>
                         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL giống (g)</Label>
                         <Input className="mt-1" type="number" step="0.1" {...f('seed_weight')} />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">SL dự kiến (kg)</Label>
+                        <Input
+                          className="mt-1"
+                          type="number"
+                          min={0}
+                          step="1"
+                          {...f('expected_yield')}
+                          placeholder="Nhập hoặc để trống để tính tự động"
+                        />
+                        {computedYieldFromTotalFish != null && (
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            Gợi ý từ tổng cá đăng ký:{' '}
+                            <span className="font-semibold text-foreground">{computedYieldFromTotalFish.toLocaleString()} kg</span>
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

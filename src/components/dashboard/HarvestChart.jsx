@@ -1,4 +1,5 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 
 export default function HarvestChart({ ponds }) {
   // Build monthly planned vs actual data
@@ -7,13 +8,14 @@ export default function HarvestChart({ ponds }) {
   months.forEach(m => { monthlyData[m] = { month: m, keHoach: 0, thucTe: 0 }; });
 
   ponds.forEach(p => {
-    if (p.expected_harvest_date) {
-      const m = months[new Date(p.expected_harvest_date).getMonth()];
+    const dk = plannedHarvestDateForDisplay(p);
+    if (dk) {
+      const m = months[new Date(dk).getMonth()];
       if (m && monthlyData[m]) monthlyData[m].keHoach += (p.expected_yield || 0);
     }
     if (p.actual_yield) {
-      const m = p.expected_harvest_date 
-        ? months[new Date(p.expected_harvest_date).getMonth()]
+      const m = dk
+        ? months[new Date(dk).getMonth()]
         : months[new Date().getMonth()];
       if (m && monthlyData[m]) monthlyData[m].thucTe += p.actual_yield;
     }

@@ -60,10 +60,7 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
   }, [pond.id, cycle?.id]);
 
   useEffect(() => {
-    // Mặc định: nếu đã có phiếu thu, chỉ hiện lịch sử (ẩn form) để tránh nhập nhầm lại.
-    // Người dùng bấm "Ghi thu hoạch mới" để mở form.
-    setShowEntryForm(records.length === 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setShowEntryForm(true);
   }, [cycle?.id]);
 
   const lastHarvestSummary = records.length > 0
@@ -175,9 +172,6 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
         notes: '',
       });
 
-      // Ẩn form sau khi ghi thành công
-      setShowEntryForm(false);
-      
     } catch (e) {
       console.error('Lỗi ghi thu hoạch:', e);
       alert(`❌ Lỗi: ${e.message || 'Không thể ghi nhận thu hoạch. Vui lòng thử lại.'}`);
@@ -225,7 +219,7 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
             className={showEntryForm ? '' : 'bg-primary text-white'}
             onClick={() => setShowEntryForm((v) => !v)}
           >
-            {showEntryForm ? 'Ẩn form' : 'Ghi thu hoạch mới'}
+            {showEntryForm ? 'Ẩn form nhập' : 'Hiện form nhập'}
           </Button>
         )}
       </div>
