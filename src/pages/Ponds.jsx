@@ -36,7 +36,7 @@ import {
 import { getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { pondQrPayload } from '@/lib/fieldAuthHelpers';
-import { plannedHarvestDateForDisplay, plannedYieldForDisplay } from '@/lib/planReportHelpers';
+import { plannedHarvestDateForDisplay, plannedYieldForDisplay, plannedYieldAdjustedForTable } from '@/lib/planReportHelpers';
 import { calculateCurrentYield } from '@/lib/calculateYield';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HouseholdsPanel } from '@/components/households/HouseholdsPanel';
@@ -124,41 +124,43 @@ const POND_STATUS_FILTER_ITEMS = [
   { value: 'CT', label: 'CT - Chưa thả' },
 ];
 
-const CYCLE_COLUMNS = [
+/** Thứ tự bảng Chu kỳ (khớp màn hình quản lý); cột Thao tác luôn cuối (render sticky riêng). */
+const CYCLE_COLUMNS_BASE = [
+  { key: 'agency_code', label: 'ĐẠI LÝ' },
+  { key: 'owner_name', label: 'CHỦ HỘ' },
   { key: 'pond_code', label: 'MÃ AO' },
   { key: 'cycle_name', label: 'CHU KỲ' },
-  { key: 'owner_name', label: 'CHỦ HỘ' },
-  { key: 'agency_code', label: 'ĐẠI LÝ' },
   { key: 'status', label: 'TRẠNG THÁI' },
   { key: 'stock_date', label: 'NGÀY THẢ' },
   { key: 'total_fish', label: 'SỐ CÁ BAN ĐẦU' },
   { key: 'stocked_fish_added', label: 'SỐ CÁ THẢ THÊM' },
   { key: 'current_fish', label: 'SỐ CÁ HIỆN TẠI' },
-  { key: 'expected_yield', label: 'SL DỰ KIẾN (KG)' },
-  { key: 'expected_harvest_date', label: 'THU HOẠCH DK' },
-  { key: 'total_feed_used', label: 'TỔNG THỨC ĂN (KG)' },
+  { key: 'expected_yield', label: 'SẢN LƯỢNG DỰ KIẾN' },
+  { key: 'actual_yield', label: 'SẢN LƯỢNG ĐÃ THU' },
+  { key: 'yield_need_harvest', label: 'SẢN LƯỢNG CẦN PHẢI THU' },
+  { key: 'expected_harvest_date', label: 'THU HOẠCH DỰ KIẾN' },
+  { key: 'total_feed_used', label: 'TỔNG THỨC ĂN' },
   { key: 'fcr', label: 'FCR' },
   { key: 'alerts', label: 'CẢNH BÁO' },
   { key: 'actions', label: '' },
 ];
 
-/** Cột thu hoạch để so sánh — chèn trước SL dự kiến (tab Chu kỳ + Chu kì đã thu) */
-const HARVEST_COMPARE_COLUMNS = [
-  { key: 'actual_yield', label: 'SL THỰC TẾ (KG)' },
-  { key: 'yield_need_harvest', label: 'SL CẦN PHẢI THU' },
+const HARVESTED_TAB_FISH_COLUMNS = [
   { key: 'fish_harvested', label: 'SỐ CÁ ĐÃ THU' },
   { key: 'fish_remaining', label: 'SỐ CÁ CÒN PHẢI THU' },
 ];
 
-function insertHarvestCompareColumns(base) {
-  const idx = base.findIndex((c) => c.key === 'expected_yield');
-  if (idx < 0) return [...base, ...HARVEST_COMPARE_COLUMNS];
-  return [...base.slice(0, idx), ...HARVEST_COMPARE_COLUMNS, ...base.slice(idx)];
+function insertColumnsBeforeKey(base, beforeKey, toInsert) {
+  const idx = base.findIndex((c) => c.key === beforeKey);
+  if (idx < 0) return [...base, ...toInsert];
+  return [...base.slice(0, idx), ...toInsert, ...base.slice(idx)];
 }
 
 function cycleColumnDefsForMainTab(mainTab) {
-  if (mainTab === 'cycles' || mainTab === 'cyclesHarvested') return insertHarvestCompareColumns(CYCLE_COLUMNS);
-  return CYCLE_COLUMNS;
+  if (mainTab === 'cyclesHarvested') {
+    return insertColumnsBeforeKey(CYCLE_COLUMNS_BASE, 'expected_harvest_date', HARVESTED_TAB_FISH_COLUMNS);
+  }
+  return CYCLE_COLUMNS_BASE;
 }
 
 const DEFAULT_VISIBLE_COLUMNS = {
@@ -207,12 +209,12 @@ function computeFishHarvestCounts(row, ticketSumByCycleId) {
   return { fish_harvested: null, fish_remaining: null };
 }
 
-/** SL cần phải thu (kg) = max(0, SL dự kiến − SL thực tế). Không có SL dự kiến → null. */
-function computeYieldNeedHarvestKg(expectedYield, actualYield) {
-  const exp = Number(expectedYield);
-  const act = Number(actualYield) || 0;
-  if (!Number.isFinite(exp) || exp <= 0) return null;
-  return Math.max(0, exp - act);
+/** SL cần phải thu (kg) = max(0, cột kế hoạch − cột đã thu). Không có kế hoạch (10) → null. */
+function computeYieldNeedFromPlanMinusActual(planKg, actualKg) {
+  const p = Number(planKg);
+  const a = Number(actualKg) || 0;
+  if (!Number.isFinite(p) || p <= 0) return null;
+  return Math.max(0, p - a);
 }
 
 /**
@@ -539,11 +541,13 @@ export default function Ponds() {
 
   const cycleRows = useMemo(() => {
     const ticketFishByCycle = new Map();
+    const harvestKgByCycle = new Map();
     for (const h of harvestRecords || []) {
       const cid = h?.pond_cycle_id;
       if (!cid) continue;
       const k = String(cid);
       ticketFishByCycle.set(k, (ticketFishByCycle.get(k) || 0) + (Number(h.fish_count_harvested) || 0));
+      harvestKgByCycle.set(k, (harvestKgByCycle.get(k) || 0) + (Number(h.actual_yield) || 0));
     }
 
     const rows = [];
@@ -581,7 +585,8 @@ export default function Ponds() {
         rows.push({
           ...base,
           ...fish,
-          yield_need_harvest: computeYieldNeedHarvestKg(base.expected_yield, base.actual_yield),
+          actual_harvest_display_kg: null,
+          yield_need_harvest: null,
         });
       } else {
         cycles.forEach((c, idx) => {
@@ -601,7 +606,7 @@ export default function Ponds() {
             total_fish: c.total_fish ?? null,
             stocked_fish_added: stockedFishByCycle[c.id] ?? 0,
             current_fish: c.current_fish ?? c.total_fish ?? null,
-            expected_yield: plannedYieldForDisplay(c),
+            expected_yield: plannedYieldAdjustedForTable(c),
             fcr_yield_basis: (() => {
               const e = Number(c.expected_yield);
               if (Number.isFinite(e) && e > 0) return e;
@@ -617,10 +622,14 @@ export default function Ponds() {
             raw: p,
           };
           const fish = computeFishHarvestCounts(base, ticketFishByCycle);
+          const fromRec = harvestKgByCycle.get(String(c.id)) || 0;
+          const fromCyc = Number(c.actual_yield) || 0;
+          const actualHarvestKg = Math.max(fromRec, fromCyc);
           rows.push({
             ...base,
             ...fish,
-            yield_need_harvest: computeYieldNeedHarvestKg(base.expected_yield, base.actual_yield),
+            actual_harvest_display_kg: actualHarvestKg,
+            yield_need_harvest: computeYieldNeedFromPlanMinusActual(base.expected_yield, actualHarvestKg),
           });
         });
       }
@@ -706,6 +715,10 @@ export default function Ponds() {
     const rows = filteredRows || [];
     const pondSet = new Set(rows.map((r) => r.pond_id).filter(Boolean));
     const sum = (key) => rows.reduce((s, r) => s + (Number(r[key]) || 0), 0);
+    const sumActualHarvestKg = rows.reduce(
+      (s, r) => s + (Number(r.actual_harvest_display_kg) || Number(r.actual_yield) || 0),
+      0
+    );
     return {
       ponds: pondSet.size,
       cycles: rows.filter((r) => r.cycle_id).length,
@@ -714,7 +727,7 @@ export default function Ponds() {
       sum_current_fish: sum('current_fish'),
       sum_expected_yield: sum('expected_yield'),
       sum_total_feed_used: sum('total_feed_used'),
-      sum_actual_yield: sum('actual_yield'),
+      sum_actual_yield: sumActualHarvestKg,
     };
   }, [filteredRows]);
 
@@ -737,6 +750,10 @@ export default function Ponds() {
     const rows = filteredHarvestedRows || [];
     const pondSet = new Set(rows.map((r) => r.pond_id).filter(Boolean));
     const sum = (key) => rows.reduce((s, r) => s + (Number(r[key]) || 0), 0);
+    const sumActualHarvestKg = rows.reduce(
+      (s, r) => s + (Number(r.actual_harvest_display_kg) || Number(r.actual_yield) || 0),
+      0
+    );
     return {
       ponds: pondSet.size,
       cycles: rows.filter((r) => r.cycle_id).length,
@@ -745,7 +762,7 @@ export default function Ponds() {
       sum_current_fish: sum('current_fish'),
       sum_expected_yield: sum('expected_yield'),
       sum_total_feed_used: sum('total_feed_used'),
-      sum_actual_yield: sum('actual_yield'),
+      sum_actual_yield: sumActualHarvestKg,
     };
   }, [filteredHarvestedRows]);
 

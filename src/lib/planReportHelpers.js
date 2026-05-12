@@ -30,6 +30,24 @@ export function plannedHarvestDateForDisplay(pond) {
 }
 
 /**
+ * SL dự kiến trên bảng Chu kỳ (cột kế hoạch): ưu tiên `expected_yield` trên chu kỳ
+ * (cập nhật khi điều chỉnh số cá qua nhật ký); không có thì ước theo cá hiện tại, rồi KH ban đầu (total_fish).
+ * Cột «Sản lượng cần phải thu» = max(0, cột này − sản lượng đã thu).
+ */
+export function plannedYieldAdjustedForTable(cycle) {
+  if (!cycle) return null;
+  const raw = cycle.expected_yield;
+  if (raw != null && raw !== '' && Number.isFinite(Number(raw)) && Number(raw) > 0) {
+    return Math.round(Number(raw));
+  }
+  const cur = calculateCurrentYield(cycle);
+  if (Number.isFinite(cur) && cur > 0) return Math.round(cur);
+  const orig = calcOriginalYieldKg(cycle);
+  if (orig > 0) return Math.round(orig);
+  return null;
+}
+
+/**
  * SL dự kiến (kg) hiển thị: nếu expected_yield trùng công thức theo số cá hiện tại → coi như chưa chỉnh SL,
  * hiển thị kế hoạch ban đầu (đăng ký total_fish). Nếu expected_yield lệch công thức đó → hiển thị số điều chỉnh.
  */

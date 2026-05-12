@@ -236,7 +236,8 @@ export default function PondCycleListTabPanel({
                 fcr: r.fcr,
                 agency_code: r.agency_code,
                 harvest_done: r.harvest_done,
-                actual_yield: r.actual_yield,
+                actual_yield:
+                  r.actual_harvest_display_kg != null ? r.actual_harvest_display_kg : r.actual_yield,
                 yield_need_harvest: r.yield_need_harvest,
                 fish_harvested: r.fish_harvested,
                 fish_remaining: r.fish_remaining,
@@ -252,7 +253,7 @@ export default function PondCycleListTabPanel({
 
       <div className="hidden sm:block bg-card rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[1000px]">
+          <table className="w-full text-sm min-w-[1200px]">
             <thead>
               <tr className="bg-muted/30 border-b border-border">
                 <th className="px-4 py-3 w-8 whitespace-nowrap" />
@@ -312,10 +313,12 @@ export default function PondCycleListTabPanel({
                           />
                         )}
                       </td>
+                      {visibleCols.agency_code && (
+                        <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">{r.agency_code || '—'}</td>
+                      )}
+                      {visibleCols.owner_name && <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{r.owner_name}</td>}
                       {visibleCols.pond_code && <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{r.pond_code}</td>}
                       {visibleCols.cycle_name && <td className="px-4 py-3 text-slate-600 font-medium whitespace-nowrap">{r.cycle_name}</td>}
-                      {visibleCols.owner_name && <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{r.owner_name}</td>}
-                      {visibleCols.agency_code && <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">{r.agency_code || '—'}</td>}
                       {visibleCols.status && (
                         <td className="px-4 py-3 whitespace-nowrap">
                           <PondStatusBadge status={r.status} />
@@ -341,11 +344,20 @@ export default function PondCycleListTabPanel({
                           {r.current_fish != null && !Number.isNaN(Number(r.current_fish)) ? Number(r.current_fish).toLocaleString() : '—'}
                         </td>
                       )}
+                      {visibleCols.expected_yield && (
+                        <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
+                          {r.expected_yield != null ? Number(r.expected_yield).toLocaleString() : '—'}
+                        </td>
+                      )}
                       {defKeys.has('actual_yield') && visibleCols.actual_yield && (
                         <td className="px-4 py-3 text-right font-bold text-green-700 whitespace-nowrap">
-                          {r.actual_yield != null && Number.isFinite(Number(r.actual_yield))
-                            ? Number(r.actual_yield).toLocaleString()
-                            : '—'}
+                          {(() => {
+                            const v =
+                              r.actual_harvest_display_kg != null
+                                ? Number(r.actual_harvest_display_kg)
+                                : Number(r.actual_yield);
+                            return Number.isFinite(v) && v > 0 ? v.toLocaleString() : '—';
+                          })()}
                         </td>
                       )}
                       {defKeys.has('yield_need_harvest') && visibleCols.yield_need_harvest && (
@@ -367,11 +379,6 @@ export default function PondCycleListTabPanel({
                           {r.fish_remaining != null && !Number.isNaN(Number(r.fish_remaining))
                             ? Number(r.fish_remaining).toLocaleString()
                             : '—'}
-                        </td>
-                      )}
-                      {visibleCols.expected_yield && (
-                        <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
-                          {r.expected_yield != null ? Number(r.expected_yield).toLocaleString() : '—'}
                         </td>
                       )}
                       {visibleCols.expected_harvest_date && (
