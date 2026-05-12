@@ -46,31 +46,33 @@ export default function WaterColorCombobox({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        className={cn('w-full', triggerClassName)}
-        render={
-          <Button
-            type="button"
-            variant="outline"
-            id={id}
-            disabled={disabled}
-            className={cn(
-              'h-9 w-full justify-between px-2 font-normal text-sm',
-              !value?.trim() && 'text-muted-foreground',
-              className
-            )}
-          />
-        }
-      >
-        <span className="truncate text-left">{display}</span>
-        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[var(--anchor-width)] min-w-[12rem] max-w-[min(100vw-1rem,var(--available-width))] p-0"
-        align="start"
-        sideOffset={4}
-      >
+    <div className={cn('relative w-full min-w-0', triggerClassName)}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          className="flex w-full min-w-0"
+          render={
+            <Button
+              type="button"
+              variant="outline"
+              id={id}
+              disabled={disabled}
+              className={cn(
+                'h-9 w-full min-w-0 justify-between px-2 font-normal text-sm',
+                !value?.trim() && 'text-muted-foreground',
+                className
+              )}
+            />
+          }
+        >
+          <span className="truncate text-left">{display}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+        </PopoverTrigger>
+        <PopoverContent
+          disablePortal
+          className="w-[var(--anchor-width)] min-w-[12rem] max-w-[min(100vw-1rem,var(--available-width))] p-0"
+          align="start"
+          sideOffset={4}
+        >
         <div className="flex flex-col gap-0 p-1">
           <Input
             autoFocus
@@ -120,6 +122,7 @@ export default function WaterColorCombobox({
           </div>
         </div>
       </PopoverContent>
-    </Popover>
+      </Popover>
+    </div>
   );
 }

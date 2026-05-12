@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ClipboardList, Camera, ChevronRight, ChevronLeft, Filter, Plus, Edit, Trash2, ChevronsUpDown } from 'lucide-react';
+import { ClipboardList, Camera, ChevronRight, ChevronLeft, Filter, Plus, Edit, Trash2, ChevronsUpDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import QRScanner from '@/components/scanner/QRScanner';
@@ -14,6 +14,7 @@ import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
 import { pickActiveCycle, cycleLabelForPondLog } from '@/lib/pondCycleHelpers';
 import { formatDateDisplay } from '@/lib/dateFormat';
 import { differenceInDays, parseISO } from 'date-fns';
+import { SearchableMultiFilterPopover } from '@/components/ponds/PondTableFilterControls';
 
 function cellDash(v) {
   if (v === null || v === undefined || v === '') return '—';
@@ -22,12 +23,13 @@ function cellDash(v) {
 
 function inDateScope(logDate, logDateFrom, logDateTo, monthFilter) {
   if (!logDate) return false;
-  if (logDateFrom && logDateTo) {
-    return logDate >= logDateFrom && logDate <= logDateTo;
+  const d = String(logDate).trim().slice(0, 10);
+  const hasAnyDate = Boolean((logDateFrom || '').trim() || (logDateTo || '').trim());
+  if (monthFilter !== 'all' && !hasAnyDate) {
+    return String(logDate).slice(0, 7) === monthFilter;
   }
-  if (monthFilter !== 'all') {
-    return logDate.slice(0, 7) === monthFilter;
-  }
+  if (logDateFrom && d < logDateFrom) return false;
+  if (logDateTo && d > logDateTo) return false;
   return true;
 }
 
@@ -120,9 +122,9 @@ export default function Logs() {
   const [monthFilter, setMonthFilter] = useState('all');
   const [logDateFrom, setLogDateFrom] = useState('');
   const [logDateTo, setLogDateTo] = useState('');
-  const [agencyFilter, setAgencyFilter] = useState('all');
-  const [householdFilter, setHouseholdFilter] = useState('all');
-  const [cycleFilter, setCycleFilter] = useState('all');
+  const [agencyFilters, setAgencyFilters] = useState(() => new Set());
+  const [householdFilters, setHouseholdFilters] = useState(() => new Set());
+  const [cycleFilters, setCycleFilters] = useState(() => new Set());
 
   const loadData = async () => {
     const [p, l, h] = await Promise.all([
@@ -168,13 +170,12 @@ export default function Logs() {
     [ponds]
   );
 
-  const agencyFilterItems = useMemo(
-    () => [{ value: 'all', label: 'Tất cả đại lý' }, ...agencyCodes.map((a) => ({ value: a, label: a }))],
+  const agencyMultiOptions = useMemo(
+    () => agencyCodes.map((a) => ({ key: String(a), label: String(a) })),
     [agencyCodes]
   );
 
-  const householdFilterItems = useMemo(() => {
-    const items = [{ value: 'all', label: 'Tất cả hộ nuôi' }];
+  const householdMultiOptions = useMemo(() => {
     const map = new Map();
     ponds.forEach((p) => {
       const h = p?.households;
@@ -192,11 +193,10 @@ export default function Logs() {
       if (aa !== 0) return aa;
       return a.name.localeCompare(b.name, 'vi');
     });
-    arr.forEach((h) => {
+    return arr.map((h) => {
       const prefix = h.agency ? `${h.agency} — ` : '';
-      items.push({ value: h.id, label: `${prefix}${h.name}` });
+      return { key: String(h.id), label: `${prefix}${h.name}` };
     });
-    return items;
   }, [ponds]);
 
   const pondFilterItems = useMemo(() => {
@@ -214,18 +214,18 @@ export default function Logs() {
     return items;
   }, [ponds]);
 
-  const cycleFilterItems = useMemo(() => {
-    const items = [{ value: 'all', label: 'Tất cả chu kỳ' }];
+  const cycleMultiOptions = useMemo(() => {
     const seen = new Set();
+    const items = [];
     const relevantPonds = activePond ? [activePond] : ponds;
-    
+
     for (const p of relevantPonds) {
       const cycles = p.pond_cycles || [];
       for (const c of cycles) {
         if (!c?.id || seen.has(c.id)) continue;
         seen.add(c.id);
         const title = (c.name && String(c.name).trim()) || (c.stock_date ? `Thả ${c.stock_date}` : 'Chu kỳ');
-        items.push({ value: c.id, label: `${p.code} — ${title}` });
+        items.push({ key: String(c.id), label: `${p.code} — ${title}` });
       }
     }
     return items.sort((a, b) => String(a.label).localeCompare(String(b.label), 'vi'));
@@ -251,36 +251,36 @@ export default function Logs() {
       const pond = pondById.get(log.pond_id);
       if (!pond) return false;
       if (activePond && log.pond_id !== activePond.id) return false;
-      if (agencyFilter !== 'all' && (pond.agency_code || '') !== agencyFilter) return false;
-      if (householdFilter !== 'all') {
+      if (agencyFilters.size > 0 && !agencyFilters.has(String(pond.agency_code || ''))) return false;
+      if (householdFilters.size > 0) {
         const hid = pond?.household_id || pond?.households?.id || null;
-        if (String(hid || '') !== String(householdFilter)) return false;
+        if (!hid || !householdFilters.has(String(hid))) return false;
       }
-      if (cycleFilter !== 'all') {
+      if (cycleFilters.size > 0) {
         const cid = log.pond_cycle_id || pickActiveCycle(pond.pond_cycles)?.id;
-        if (cid !== cycleFilter) return false;
+        if (!cid || !cycleFilters.has(String(cid))) return false;
       }
       return inDateScope(log.log_date, logDateFrom, logDateTo, monthFilter);
     });
-  }, [logs, pondById, activePond, agencyFilter, householdFilter, cycleFilter, logDateFrom, logDateTo, monthFilter]);
+  }, [logs, pondById, activePond, agencyFilters, householdFilters, cycleFilters, logDateFrom, logDateTo, monthFilter]);
 
   const filteredHarvests = useMemo(() => {
     return harvests.filter((h) => {
       const pond = pondById.get(h.pond_id);
       if (!pond) return false;
       if (activePond && h.pond_id !== activePond.id) return false;
-      if (agencyFilter !== 'all' && (pond.agency_code || '') !== agencyFilter) return false;
-      if (householdFilter !== 'all') {
+      if (agencyFilters.size > 0 && !agencyFilters.has(String(pond.agency_code || ''))) return false;
+      if (householdFilters.size > 0) {
         const hid = pond?.household_id || pond?.households?.id || null;
-        if (String(hid || '') !== String(householdFilter)) return false;
+        if (!hid || !householdFilters.has(String(hid))) return false;
       }
-      if (cycleFilter !== 'all') {
+      if (cycleFilters.size > 0) {
         const cid = h.pond_cycle_id || pickActiveCycle(pond.pond_cycles)?.id;
-        if (cid !== cycleFilter) return false;
+        if (!cid || !cycleFilters.has(String(cid))) return false;
       }
       return inDateScope(h.harvest_date, logDateFrom, logDateTo, monthFilter);
     });
-  }, [harvests, pondById, activePond, agencyFilter, householdFilter, cycleFilter, logDateFrom, logDateTo, monthFilter]);
+  }, [harvests, pondById, activePond, agencyFilters, householdFilters, cycleFilters, logDateFrom, logDateTo, monthFilter]);
 
   const growthByLogId = useMemo(() => {
     const groups = new Map(); // cycleId -> logs[]
@@ -356,12 +356,6 @@ export default function Logs() {
   const displayLogs = useMemo(() => {
     return [...filteredLogs].sort((a, b) => String(b.log_date).localeCompare(String(a.log_date)));
   }, [filteredLogs]);
-
-  const clearDateMonth = () => {
-    setLogDateFrom('');
-    setLogDateTo('');
-    setMonthFilter('all');
-  };
 
   const handleCreateLog = (pond) => {
     const cycle = pickActiveCycle(pond.pond_cycles);
@@ -466,79 +460,117 @@ export default function Logs() {
         {/* Bộ lọc */}
         <div>
           <Label className="text-sm font-extrabold text-slate-600 uppercase tracking-wide mb-2 block">Bộ lọc</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            <Input
-              type="date"
-              className="h-10 text-sm font-semibold"
-              placeholder="Từ ngày"
-              value={logDateFrom}
-              onChange={(e) => { setLogDateFrom(e.target.value); setMonthFilter('all'); }}
-            />
-            <Input
-              type="date"
-              className="h-10 text-sm font-semibold"
-              placeholder="Đến ngày"
-              value={logDateTo}
-              onChange={(e) => { setLogDateTo(e.target.value); setMonthFilter('all'); }}
-            />
-            <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); setLogDateFrom(''); setLogDateTo(''); }}>
-              <SelectTrigger className="h-10 text-sm font-semibold">
-                <SelectValue placeholder="Tháng" />
-              </SelectTrigger>
-              <SelectContent>
-                {monthFilterItems.map((it) => (
-                  <SelectItem key={it.value} value={it.value} className="text-sm font-semibold">{it.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={agencyFilter} onValueChange={setAgencyFilter}>
-              <SelectTrigger className="h-10 text-sm font-semibold">
-                <SelectValue>{agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {agencyFilterItems.map((it) => (
-                  <SelectItem key={it.value} value={it.value} className="text-sm font-semibold">{it.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={householdFilter} onValueChange={setHouseholdFilter}>
-              <SelectTrigger className="h-10 text-sm font-semibold">
-                <SelectValue>
-                  {householdFilter === 'all'
-                    ? 'Tất cả hộ nuôi'
-                    : householdFilterItems.find((x) => x.value === householdFilter)?.label}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-64">
-                {householdFilterItems.map((it) => (
-                  <SelectItem key={it.value} value={it.value} className="text-sm font-semibold">{it.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={cycleFilter} onValueChange={setCycleFilter}>
-              <SelectTrigger className="h-10 text-sm font-semibold">
-                <SelectValue placeholder="Chu kỳ">
-                  {cycleFilter === 'all' ? 'Tất cả chu kỳ' : cycleFilterItems.find((x) => x.value === cycleFilter)?.label}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-64">
-                {cycleFilterItems.map((it) => (
-                  <SelectItem key={it.value} value={it.value} className="text-sm font-semibold">{it.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-end gap-2 sm:gap-3">
+              <div className="flex flex-col gap-0.5 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)]">
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Từ ngày (nhật ký)</span>
+                <Input
+                  type="date"
+                  className="h-10 text-sm font-semibold"
+                  value={logDateFrom}
+                  onChange={(e) => {
+                    setLogDateFrom(e.target.value);
+                    setMonthFilter('all');
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-0.5 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)]">
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Đến ngày (nhật ký)</span>
+                <Input
+                  type="date"
+                  className="h-10 text-sm font-semibold"
+                  value={logDateTo}
+                  onChange={(e) => {
+                    setLogDateTo(e.target.value);
+                    setMonthFilter('all');
+                  }}
+                />
+              </div>
+              {(logDateFrom || logDateTo) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-10 gap-1 text-sm font-bold shrink-0"
+                  onClick={() => {
+                    setLogDateFrom('');
+                    setLogDateTo('');
+                  }}
+                >
+                  <X className="h-4 w-4 shrink-0" aria-hidden />
+                  Xóa ngày
+                </Button>
+              )}
+              <div className="flex flex-col gap-0.5 min-w-[10.5rem] flex-1 basis-[min(100%,12rem)]">
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Theo tháng</span>
+                <Select
+                  value={monthFilter}
+                  onValueChange={(v) => {
+                    setMonthFilter(v);
+                    setLogDateFrom('');
+                    setLogDateTo('');
+                  }}
+                >
+                  <SelectTrigger className="h-10 text-sm font-semibold">
+                    <SelectValue placeholder="Tháng" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {monthFilterItems.map((it) => (
+                      <SelectItem key={it.value} value={it.value} className="text-sm font-semibold">
+                        {it.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex w-full min-w-0 flex-wrap items-end gap-2 sm:gap-3">
+              <SearchableMultiFilterPopover
+                label="Đại lý"
+                options={agencyMultiOptions}
+                selectedKeys={agencyFilters}
+                setSelectedKeys={setAgencyFilters}
+                buttonClassName="w-full min-w-0 sm:w-44"
+              />
+              <SearchableMultiFilterPopover
+                label="Hộ nuôi"
+                options={householdMultiOptions}
+                selectedKeys={householdFilters}
+                setSelectedKeys={setHouseholdFilters}
+                buttonClassName="w-full min-w-0 sm:w-52 sm:min-w-[12rem]"
+              />
+              <SearchableMultiFilterPopover
+                label="Chu kỳ"
+                options={cycleMultiOptions}
+                selectedKeys={cycleFilters}
+                setSelectedKeys={setCycleFilters}
+                buttonClassName="w-full min-w-0 sm:w-52 sm:min-w-[12rem]"
+              />
+            </div>
           </div>
           <div className="flex gap-2 mt-2">
-            {(logDateFrom || logDateTo || monthFilter !== 'all' || activePond || agencyFilter !== 'all' || householdFilter !== 'all' || cycleFilter !== 'all') && (
-              <Button variant="outline" size="sm" className="h-10 text-sm font-bold text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => { 
-                setLogDateFrom(''); 
-                setLogDateTo(''); 
-                setMonthFilter('all'); 
-                setActivePond(null); 
-                setAgencyFilter('all'); 
-                setHouseholdFilter('all');
-                setCycleFilter('all'); 
-              }}>
+            {(logDateFrom ||
+              logDateTo ||
+              monthFilter !== 'all' ||
+              activePond ||
+              agencyFilters.size > 0 ||
+              householdFilters.size > 0 ||
+              cycleFilters.size > 0) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 text-sm font-bold text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                onClick={() => {
+                  setLogDateFrom('');
+                  setLogDateTo('');
+                  setMonthFilter('all');
+                  setActivePond(null);
+                  setAgencyFilters(new Set());
+                  setHouseholdFilters(new Set());
+                  setCycleFilters(new Set());
+                }}
+              >
                 Xóa bộ lọc
               </Button>
             )}

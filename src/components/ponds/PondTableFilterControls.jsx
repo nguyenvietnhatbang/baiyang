@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Search, ChevronsUpDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
-function SearchableMultiFilterPopover({
+/**
+ * Lọc đa chọn: gõ tìm + checkbox. Dùng panel absolute trong ô relative (không Popover/portal)
+ * để menu luôn nằm sát nút, tránh lệch trái trên layout có sidebar / scroll.
+ */
+export function SearchableMultiFilterPopover({
   label,
   options,
   selectedKeys,
@@ -14,9 +17,21 @@ function SearchableMultiFilterPopover({
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
+  const rootRef = useRef(null);
 
   useEffect(() => {
     if (!open) setQ('');
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e) => {
+      const root = rootRef.current;
+      if (!root || root.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [open]);
 
   const filtered = useMemo(() => {
@@ -42,66 +57,69 @@ function SearchableMultiFilterPopover({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        className={cn('shrink-0', buttonClassName)}
-        render={
-          <Button type="button" variant="outline" className={cn('justify-between gap-1 min-h-10 h-auto py-2 text-base font-semibold', buttonClassName)} />
-        }
+    <div ref={rootRef} className={cn('relative shrink-0 min-w-0', buttonClassName)}>
+      <Button
+        type="button"
+        variant="outline"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full min-w-0 justify-between gap-1 min-h-10 h-auto py-2 text-base font-semibold"
       >
         <span className="truncate text-left">{summary}</span>
         <ChevronsUpDown className="h-5 w-5 shrink-0 opacity-50" aria-hidden />
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[min(22rem,calc(100vw-1.5rem))] max-w-[min(22rem,var(--available-width))] p-0"
-        align="start"
-        sideOffset={4}
-      >
-        <div className="flex flex-col gap-1 border-b border-border p-2">
-          <Input
-            autoFocus
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={`Tìm ${label.toLowerCase()}…`}
-            className="h-10 text-base font-semibold"
-            onKeyDown={(e) => e.stopPropagation()}
-          />
-        </div>
-        <div className="max-h-64 overflow-y-auto p-1">
-          {filtered.length === 0 ? (
-            <p className="px-2 py-3 text-sm font-semibold text-muted-foreground text-center">Không có mục phù hợp</p>
-          ) : (
-            filtered.map((opt) => {
-              const checked = selectedKeys.has(String(opt.key));
-              return (
-                <button
-                  key={String(opt.key)}
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-base font-semibold hover:bg-accent"
-                  onClick={() => toggle(opt.key)}
-                >
-                  <span
-                    className={cn(
-                      'flex h-4 w-4 shrink-0 items-center justify-center rounded border border-input',
-                      checked && 'border-primary bg-primary text-primary-foreground'
-                    )}
-                    aria-hidden
+      </Button>
+      {open && (
+        <div
+          className="absolute left-0 top-[calc(100%+4px)] z-[200] flex w-full min-w-[12rem] flex-col overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10"
+          role="dialog"
+        >
+          <div className="flex flex-col gap-1 border-b border-border p-2">
+            <Input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={`Tìm ${label.toLowerCase()}…`}
+              className="h-10 text-base font-semibold"
+              onKeyDown={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <p className="px-2 py-3 text-sm font-semibold text-muted-foreground text-center">Không có mục phù hợp</p>
+            ) : (
+              filtered.map((opt) => {
+                const checked = selectedKeys.has(String(opt.key));
+                return (
+                  <button
+                    key={String(opt.key)}
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-base font-semibold hover:bg-accent"
+                    onClick={() => toggle(opt.key)}
                   >
-                    {checked ? '✓' : ''}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{opt.label}</span>
-                </button>
-              );
-            })
-          )}
+                    <span
+                      className={cn(
+                        'flex h-4 w-4 shrink-0 items-center justify-center rounded border border-input',
+                        checked && 'border-primary bg-primary text-primary-foreground'
+                      )}
+                      aria-hidden
+                    >
+                      {checked ? '✓' : ''}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{opt.label}</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <div className="border-t border-border p-1">
+            <Button type="button" variant="ghost" size="sm" className="h-10 w-full text-sm font-bold" onClick={() => setSelectedKeys(new Set())}>
+              Bỏ chọn
+            </Button>
+          </div>
         </div>
-        <div className="border-t border-border p-1">
-          <Button type="button" variant="ghost" size="sm" className="h-10 w-full text-sm font-bold" onClick={() => setSelectedKeys(new Set())}>
-            Bỏ chọn
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 }
 
