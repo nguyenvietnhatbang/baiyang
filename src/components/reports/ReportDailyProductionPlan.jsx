@@ -8,23 +8,27 @@ function systemCodeFromAgencyCode(agencyCode) {
   return digits ? digits : String(agencyCode || '').trim();
 }
 
-function groupHarvestsByCycleId(harvests) {
-  const m = new Map();
-  (harvests || []).forEach((h) => {
-    if (!h?.pond_cycle_id) return;
-    if (!m.has(h.pond_cycle_id)) m.set(h.pond_cycle_id, []);
-    m.get(h.pond_cycle_id).push(h);
-  });
-  return m;
-}
-
 export default function ReportDailyProductionPlan({ ponds, harvests, agencyNameByCode }) {
+  const pondRowCountByPondId = useMemo(() => {
+    const m = new Map();
+    for (const r of ponds || []) {
+      const k = r.pond_id != null ? String(r.pond_id) : '';
+      if (!k) continue;
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+    return m;
+  }, [ponds]);
+
   const rows = useMemo(() => {
     const active = (ponds || []).filter((p) => p?.status === 'CC' || plannedHarvestDateForDisplay(p));
     const mapped = active.map((p) => {
-      const pondHarvests = harvestRecordsForCycleRow(p, harvests);
+      const cyclesOnPond = pondRowCountByPondId.get(String(p.pond_id)) || 1;
+      const pondHarvests = harvestRecordsForCycleRow(p, harvests, { cyclesOnSamePond: cyclesOnPond });
       const plannedKg = Number(p.expected_yield) || 0;
-      const actualKg = pondHarvests.reduce((s, h) => s + (Number(h.actual_yield) || 0), 0);
+      const fromRecords = pondHarvests.reduce((s, h) => s + (Number(h.actual_yield) || 0), 0);
+      const fromCycle = Number(p.actual_yield) || 0;
+      /** Phiếu thu + đồng bộ trên chu kỳ (lấy max để không mất số khi lệch phiếu / RLS) */
+      const actualKg = Math.max(fromRecords, fromCycle);
       const feedKg = Number(p.total_feed_used) || 0;
       const denom = actualKg > 0 ? actualKg : plannedKg;
       const fcrRaw = p.fcr != null ? Number(p.fcr) : (feedKg > 0 && denom > 0 ? feedKg / denom : null);
@@ -59,7 +63,7 @@ export default function ReportDailyProductionPlan({ ponds, harvests, agencyNameB
       if (byOwner !== 0) return byOwner;
       return String(a.pond).localeCompare(String(b.pond), 'vi');
     });
-  }, [ponds, harvests, agencyNameByCode]);
+  }, [ponds, harvests, agencyNameByCode, pondRowCountByPondId]);
 
   const total = useMemo(() => {
     const plannedKg = rows.reduce((s, r) => s + (r.plannedKg || 0), 0);

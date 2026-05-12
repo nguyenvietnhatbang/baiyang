@@ -142,6 +142,19 @@ const CYCLE_COLUMNS = [
   { key: 'actions', label: '' },
 ];
 
+/** Chỉ dùng trên tab «Chu kì đã thu» — chèn trước SL dự kiến */
+const HARVESTED_CYCLE_EXTRA_COLUMNS = [
+  { key: 'fish_harvested', label: 'SỐ CÁ ĐÃ THU' },
+  { key: 'fish_remaining', label: 'SỐ CÁ CÒN PHẢI THU' },
+];
+
+function cycleColumnDefsForMainTab(mainTab) {
+  if (mainTab !== 'cyclesHarvested') return CYCLE_COLUMNS;
+  const idx = CYCLE_COLUMNS.findIndex((c) => c.key === 'expected_yield');
+  if (idx < 0) return [...CYCLE_COLUMNS, ...HARVESTED_CYCLE_EXTRA_COLUMNS];
+  return [...CYCLE_COLUMNS.slice(0, idx), ...HARVESTED_CYCLE_EXTRA_COLUMNS, ...CYCLE_COLUMNS.slice(idx)];
+}
+
 const DEFAULT_VISIBLE_COLUMNS = {
   pond_code: true,
   cycle_name: true,
@@ -158,7 +171,33 @@ const DEFAULT_VISIBLE_COLUMNS = {
   fcr: true,
   alerts: true,
   actions: true,
+  fish_harvested: true,
+  fish_remaining: true,
 };
+
+/** Tổng con cá trên phiếu thu; nếu không có phiếu thì ước từ tồn (ban đầu + thả thêm − hiện tại) khi đã chốt thu. */
+function computeFishHarvestCounts(row, ticketSumByCycleId) {
+  const basis = (Number(row.total_fish) || 0) + (Number(row.stocked_fish_added) || 0);
+  const tid = row.cycle_id != null ? String(row.cycle_id) : '';
+  const ticketSum = tid ? Number(ticketSumByCycleId.get(tid)) || 0 : 0;
+  const curRaw = row.current_fish;
+  const cur = curRaw != null && !Number.isNaN(Number(curRaw)) ? Number(curRaw) : NaN;
+
+  if (ticketSum > 0) {
+    const harvested = ticketSum;
+    const remaining = basis > 0 ? Math.max(0, basis - harvested) : Number.isFinite(cur) ? Math.max(0, cur) : null;
+    return { fish_harvested: harvested, fish_remaining: remaining };
+  }
+
+  const harvestedMark = row.harvest_done === true || (Number(row.actual_yield) || 0) > 0;
+  if (basis > 0 && harvestedMark && Number.isFinite(cur)) {
+    const remaining = Math.max(0, cur);
+    const harvested = Math.max(0, basis - remaining);
+    return { fish_harvested: harvested, fish_remaining: remaining };
+  }
+
+  return { fish_harvested: null, fish_remaining: null };
+}
 
 function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
   const [households, setHouseholds] = useState([]);
@@ -391,6 +430,7 @@ export default function Ponds() {
   const [ponds, setPonds] = useState([]);
   const [agencies, setAgencies] = useState([]);
   const [stockedFishByCycle, setStockedFishByCycle] = useState({});
+  const [harvestRecords, setHarvestRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilters, setStatusFilters] = useState(() => new Set());
@@ -428,10 +468,11 @@ export default function Ponds() {
   const [deletingCycle, setDeletingCycle] = useState(false);
 
   const loadPonds = async () => {
-    const [data, agencyData, logRows] = await Promise.all([
+    const [data, agencyData, logRows, harvestRows] = await Promise.all([
       base44.entities.Pond.listWithHouseholds('-updated_date', 500),
       base44.entities.Agency.list('code', 200),
       base44.entities.PondLog.list('-log_date', 5000),
+      base44.entities.HarvestRecord.list('-harvest_date', 8000),
     ]);
     const stockedMap = {};
     for (const log of logRows || []) {
@@ -442,6 +483,7 @@ export default function Ponds() {
     setPonds(data || []);
     setAgencies(agencyData || []);
     setStockedFishByCycle(stockedMap);
+    setHarvestRecords(harvestRows || []);
     setLoading(false);
   };
 
@@ -464,11 +506,19 @@ export default function Ponds() {
   }, [ponds, search, statusFilters, agencyFilters, householdFilters]);
 
   const cycleRows = useMemo(() => {
+    const ticketFishByCycle = new Map();
+    for (const h of harvestRecords || []) {
+      const cid = h?.pond_cycle_id;
+      if (!cid) continue;
+      const k = String(cid);
+      ticketFishByCycle.set(k, (ticketFishByCycle.get(k) || 0) + (Number(h.fish_count_harvested) || 0));
+    }
+
     const rows = [];
     for (const p of ponds) {
       const cycles = Array.isArray(p.pond_cycles) ? p.pond_cycles : [];
       if (cycles.length === 0) {
-        rows.push({
+        const base = {
           row_id: `${p.id}::__none__`,
           pond_id: p.id,
           pond_code: p.code,
@@ -486,22 +536,25 @@ export default function Ponds() {
           current_fish: null,
           expected_yield: null,
           fcr_yield_basis: null,
+          actual_yield: null,
+          harvest_done: false,
           expected_harvest_date: null,
           stock_date: null,
           withdrawal_end_date: null,
           fcr: null,
           total_feed_used: 0,
           raw: p,
-        });
+        };
+        rows.push({ ...base, ...computeFishHarvestCounts(base, ticketFishByCycle) });
       } else {
         cycles.forEach((c, idx) => {
-          rows.push({
+          const base = {
             row_id: `${p.id}::${c.id}`,
             pond_id: p.id,
             pond_code: p.code,
             owner_name: p.owner_name,
             agency_code: p.agency_code,
-          household_id: p?.household_id || p?.households?.id || null,
+            household_id: p?.household_id || p?.households?.id || null,
             area: p.area,
             location: p.location,
             depth: p.depth,
@@ -525,7 +578,8 @@ export default function Ponds() {
             fcr: c.fcr,
             total_feed_used: c.total_feed_used ?? 0,
             raw: p,
-          });
+          };
+          rows.push({ ...base, ...computeFishHarvestCounts(base, ticketFishByCycle) });
         });
       }
     }
@@ -537,7 +591,7 @@ export default function Ponds() {
       if (!b.stock_date) return -1;
       return b.stock_date.localeCompare(a.stock_date);
     });
-  }, [ponds, stockedFishByCycle]);
+  }, [ponds, stockedFishByCycle, harvestRecords]);
 
   const agencyCodes = [...new Set(cycleRows.map((r) => r.agency_code).filter(Boolean))];
   const agencyFilterItems = useMemo(() => agencyCodes.sort((a, b) => String(a).localeCompare(String(b), 'vi')), [agencyCodes]);
@@ -568,6 +622,8 @@ export default function Ponds() {
   );
 
   const today = new Date();
+
+  const cycleColumnDefs = useMemo(() => cycleColumnDefsForMainTab(mainTab), [mainTab]);
 
   const filteredRows = useMemo(() => {
     const q = search.toLowerCase();
@@ -1070,7 +1126,7 @@ export default function Ponds() {
             harvestAlertDays={harvestAlertDays}
             today={today}
             visibleCols={visibleCols}
-            columnDefs={CYCLE_COLUMNS}
+            columnDefs={cycleColumnDefs}
             setViewCycleId={setViewCycleId}
             setViewPondId={setViewPondId}
             setEditCycleId={setEditCycleId}
@@ -1107,7 +1163,7 @@ export default function Ponds() {
             harvestAlertDays={harvestAlertDays}
             today={today}
             visibleCols={visibleCols}
-            columnDefs={CYCLE_COLUMNS}
+            columnDefs={cycleColumnDefs}
             setViewCycleId={setViewCycleId}
             setViewPondId={setViewPondId}
             setEditCycleId={setEditCycleId}
@@ -1172,7 +1228,7 @@ export default function Ponds() {
             <DialogTitle>Cài đặt cột hiển thị</DialogTitle>
           </DialogHeader>
           <div className="space-y-2 py-1">
-            {CYCLE_COLUMNS.map((col) => (
+            {cycleColumnDefs.map((col) => (
               <label key={col.key} className="flex items-center justify-between gap-3 text-sm">
                 <span>{col.label}</span>
                 <input

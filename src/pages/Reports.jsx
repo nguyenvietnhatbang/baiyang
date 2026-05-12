@@ -1,8 +1,10 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { Download, Maximize2, ChevronsUpDown } from 'lucide-react';
+import { Download, Maximize2, ChevronsUpDown, RefreshCw } from 'lucide-react';
+import { syncPondCyclesWithHarvests } from '@/lib/pondCycleSync';
+import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -115,6 +117,17 @@ function yieldHarvestByMonth(rows, monthIdx) {
     .reduce((s, h) => s + (h.actual_yield || 0), 0);
 }
 
+/** Lọc phiếu thu theo năm (hỗ trợ yyyy-MM-dd và chuỗi ngày parse được). */
+function harvestDateInYear(harvestDate, yearFilter) {
+  if (harvestDate == null || String(harvestDate).trim() === '') return true;
+  const s = String(harvestDate).trim();
+  const y = String(yearFilter);
+  if (s.startsWith(y)) return true;
+  const t = Date.parse(s.length >= 10 ? s.slice(0, 10) : s);
+  if (Number.isNaN(t)) return true;
+  return new Date(t).getFullYear() === Number(y);
+}
+
 function toCycleRows(ponds) {
   return ponds.flatMap((pond) => {
     const cycles = Array.isArray(pond.pond_cycles) ? pond.pond_cycles : [];
@@ -149,43 +162,56 @@ export default function Reports() {
   const [cycleIdFilter, setCycleIdFilter] = useState('all');
   const [exportGranularity, setExportGranularity] = useState('agency');
   const [exporting, setExporting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [expandedReport, setExpandedReport] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      base44.entities.Pond.listWithHouseholds('-updated_date', 500),
-      base44.entities.HarvestRecord.list('-harvest_date', 500),
-      base44.entities.Agency.list('-created_at', 500),
-    ])
-      .then(([p, h, a]) => {
-        if (cancelled) return;
-        setPonds(p || []);
-        setHarvests(h || []);
-        const m = new Map();
-        (a || []).forEach((row) => {
-          const code = row?.code != null ? String(row.code).trim() : '';
-          const name = row?.name != null ? String(row.name).trim() : '';
-          if (code) m.set(code, name || code);
-        });
-        setAgencyNameByCode(m);
-      })
-      .catch((e) => {
-        console.error(e);
-        if (!cancelled) {
-          setPonds([]);
-          setHarvests([]);
-          setAgencyNameByCode(new Map());
-          toast.error('Không tải được dữ liệu báo cáo.');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+  const loadReportsData = useCallback(async ({ showLoading = true } = {}) => {
+    if (showLoading) setLoading(true);
+    try {
+      const [p, h, a] = await Promise.all([
+        base44.entities.Pond.listWithHouseholds('-updated_date', 500),
+        base44.entities.HarvestRecord.list('-harvest_date', 8000),
+        base44.entities.Agency.list('-created_at', 500),
+      ]);
+      setPonds(p || []);
+      setHarvests(h || []);
+      const m = new Map();
+      (a || []).forEach((row) => {
+        const code = row?.code != null ? String(row.code).trim() : '';
+        const name = row?.name != null ? String(row.name).trim() : '';
+        if (code) m.set(code, name || code);
       });
-    return () => {
-      cancelled = true;
-    };
+      setAgencyNameByCode(m);
+    } catch (e) {
+      console.error(e);
+      setPonds([]);
+      setHarvests([]);
+      setAgencyNameByCode(new Map());
+      toast.error('Không tải được dữ liệu báo cáo.');
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadReportsData();
+  }, [loadReportsData]);
+
+  const handleSyncHarvestToCycles = async () => {
+    setSyncing(true);
+    try {
+      const r = await syncPondCyclesWithHarvests();
+      toast.success(
+        `Đã đồng bộ phiếu thu → chu kỳ: ${r.updatedCount} chu kỳ cập nhật / ${r.totalCycles} chu kỳ.`
+      );
+      await loadReportsData({ showLoading: false });
+    } catch (e) {
+      console.error(e);
+      toast.error(formatSupabaseError(e));
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     if (monthFilter === 'all') {
@@ -283,15 +309,92 @@ export default function Reports() {
     });
   }, [scopedCycleRows, monthFilter, yearFilter]);
 
-  const scopedCycleIds = useMemo(() => new Set(scopedCycleRows.map((r) => r.pond_cycle_id).filter(Boolean)), [scopedCycleRows]);
-  const scopedPondIds = useMemo(() => new Set(scopedCycleRows.map((r) => r.pond_id).filter(Boolean)), [scopedCycleRows]);
-  const scopedPondCodes = useMemo(() => new Set(scopedCycleRows.map((r) => r.pond_code).filter(Boolean)), [scopedCycleRows]);
+  const scopedCycleIds = useMemo(
+    () => new Set(scopedCycleRows.map((r) => String(r.pond_cycle_id)).filter((id) => id && id !== 'undefined')),
+    [scopedCycleRows]
+  );
+  const scopedPondIds = useMemo(
+    () => new Set(scopedCycleRows.map((r) => String(r.pond_id)).filter((id) => id && id !== 'undefined')),
+    [scopedCycleRows]
+  );
+  const scopedPondCodes = useMemo(
+    () => new Set(scopedCycleRows.map((r) => r.pond_code).filter(Boolean).map((c) => String(c).trim())),
+    [scopedCycleRows]
+  );
+
+  /** Chu kỳ đang hiển thị sau lọc tháng theo ngày thu kế — dùng để gán phiếu thu thực tế cho đúng dòng bảng */
+  const reportScopedCycleIds = useMemo(
+    () => new Set(reportScopedCycleRows.map((r) => String(r.pond_cycle_id)).filter((id) => id && id !== 'undefined')),
+    [reportScopedCycleRows]
+  );
+  const reportScopedPondIds = useMemo(
+    () => new Set(reportScopedCycleRows.map((r) => String(r.pond_id)).filter((id) => id && id !== 'undefined')),
+    [reportScopedCycleRows]
+  );
+  const reportScopedPondCodes = useMemo(
+    () => new Set(reportScopedCycleRows.map((r) => r.pond_code).filter(Boolean).map((c) => String(c).trim())),
+    [reportScopedCycleRows]
+  );
+
+  /** Số chu kỳ / ao trong phạm vi báo cáo (để gán phiếu thu sai pond_cycle_id nhưng đúng ao khi chỉ có 1 chu kỳ) */
+  const reportScopedPondCycleCount = useMemo(() => {
+    const m = new Map();
+    for (const r of reportScopedCycleRows) {
+      const k = r.pond_id != null ? String(r.pond_id) : '';
+      if (!k) continue;
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+    return m;
+  }, [reportScopedCycleRows]);
+
+  /**
+   * Phiếu thu cho các chu kỳ đang xem (theo lọc tháng kế hoạch), trong năm — không lọc theo tháng ngày thu thực tế.
+   * Tránh mất dữ liệu khi tháng thu thực tế khác tháng ngày thu kế trong bảng «KH thu & sản lượng».
+   */
+  const harvestsForCycleActuals = useMemo(
+    () =>
+      harvests.filter((h) => {
+        const matchAgency =
+          agencyFilter === 'all' ||
+          h.agency_code === agencyFilter ||
+          h.agency_code == null ||
+          String(h.agency_code).trim() === '';
+        const matchYear = harvestDateInYear(h.harvest_date, yearFilter);
+        const cid = h.pond_cycle_id != null ? String(h.pond_cycle_id) : '';
+        const pid = h.pond_id != null ? String(h.pond_id) : '';
+        const pc = h.pond_code != null ? String(h.pond_code).trim() : '';
+        const pondCyclesInReport = pid ? reportScopedPondCycleCount.get(pid) || 0 : 0;
+        const singlePondCycle = pondCyclesInReport === 1;
+        const matchScope =
+          (cid && reportScopedCycleIds.has(cid)) ||
+          ((!h.pond_cycle_id || String(h.pond_cycle_id).trim() === '') &&
+            ((pid && reportScopedPondIds.has(pid)) || (pc && reportScopedPondCodes.has(pc)))) ||
+          (cid &&
+            !reportScopedCycleIds.has(cid) &&
+            singlePondCycle &&
+            ((pid && reportScopedPondIds.has(pid)) || (pc && reportScopedPondCodes.has(pc))));
+        return matchAgency && matchYear && matchScope;
+      }),
+    [
+      harvests,
+      agencyFilter,
+      yearFilter,
+      reportScopedCycleIds,
+      reportScopedPondIds,
+      reportScopedPondCodes,
+      reportScopedPondCycleCount,
+    ]
+  );
 
   const filteredHarvests = useMemo(
     () =>
       harvests.filter((h) => {
-        const matchAgency = agencyFilter === 'all' || h.agency_code === agencyFilter;
-        const matchYear = !h.harvest_date || h.harvest_date.startsWith(yearFilter);
+        const matchAgency =
+          agencyFilter === 'all' ||
+          h.agency_code === agencyFilter ||
+          h.agency_code == null ||
+          String(h.agency_code).trim() === '';
+        const matchYear = harvestDateInYear(h.harvest_date, yearFilter);
         const matchMonth =
           monthFilter === 'all' ||
           (Boolean(h.harvest_date) &&
@@ -300,10 +403,13 @@ export default function Reports() {
               if (Number.isNaN(d.getTime())) return false;
               return d.getFullYear() === Number(yearFilter) && d.getMonth() === Number(monthFilter);
             })());
+        const cid = h.pond_cycle_id != null ? String(h.pond_cycle_id) : '';
+        const pid = h.pond_id != null ? String(h.pond_id) : '';
+        const pc = h.pond_code != null ? String(h.pond_code).trim() : '';
         const matchScope =
-          (h.pond_cycle_id && scopedCycleIds.has(h.pond_cycle_id)) ||
-          (!h.pond_cycle_id && h.pond_id && scopedPondIds.has(h.pond_id)) ||
-          (!h.pond_cycle_id && h.pond_code && scopedPondCodes.has(h.pond_code));
+          (cid && scopedCycleIds.has(cid)) ||
+          (!h.pond_cycle_id && pid && scopedPondIds.has(pid)) ||
+          (!h.pond_cycle_id && pc && scopedPondCodes.has(pc));
         return matchAgency && matchYear && matchMonth && matchScope;
       }),
     [harvests, agencyFilter, yearFilter, monthFilter, scopedCycleIds, scopedPondIds, scopedPondCodes]
@@ -329,7 +435,7 @@ export default function Reports() {
         reportType,
         granularity: exportGranularity,
         ponds: reportScopedCycleRows,
-        harvests: filteredHarvests,
+        harvests: reportType === 'daily_plan' ? harvestsForCycleActuals : filteredHarvests,
         agencies,
         harvestAlertDays,
         appSettings,
@@ -353,7 +459,7 @@ export default function Reports() {
   const monthlyData = MONTHS.map((m, i) => ({
     month: m,
     keHoach: yieldByMonth(reportScopedCycleRows, i),
-    thucTe: yieldHarvestByMonth(filteredHarvests, i),
+    thucTe: yieldHarvestByMonth(harvestsForCycleActuals, i),
   }));
 
   const fcrData = [
@@ -364,16 +470,21 @@ export default function Reports() {
   ].filter((d) => d.value > 0);
 
   const totalAdjustedYield = reportScopedCycleRows.reduce((s, p) => s + (p.expected_yield || 0), 0);
-  const totalActual = filteredHarvests.reduce((s, h) => s + (h.actual_yield || 0), 0);
+  /** Tổng thực thu (phiếu thu) của đúng các chu kỳ đang lọc trong năm — không lọc theo tháng ngày thu thực */
+  const totalActualFromScopedCycles = useMemo(() => {
+    const fromH = harvestsForCycleActuals.reduce((s, h) => s + (Number(h.actual_yield) || 0), 0);
+    const fromC = reportScopedCycleRows.reduce((s, r) => s + (Number(r.actual_yield) || 0), 0);
+    return Math.max(fromH, fromC);
+  }, [harvestsForCycleActuals, reportScopedCycleRows]);
 
   const totalOriginalYield = reportScopedCycleRows.reduce((s, p) => s + calcOriginalYieldKg(p), 0);
   const dailyProductionRows = useMemo(() => {
     const byDate = new Map();
 
-    filteredHarvests.forEach((h) => {
+    harvestsForCycleActuals.forEach((h) => {
       if (!h.harvest_date) return;
       const dateKey = h.harvest_date.slice(0, 10);
-      byDate.set(dateKey, (byDate.get(dateKey) || 0) + (h.actual_yield || 0));
+      byDate.set(dateKey, (byDate.get(dateKey) || 0) + (Number(h.actual_yield) || 0));
     });
 
     const rows = [...byDate.entries()]
@@ -395,7 +506,7 @@ export default function Reports() {
         variance: 0,
       },
     ];
-  }, [filteredHarvests]);
+  }, [harvestsForCycleActuals]);
 
   if (loading) {
     return (
@@ -429,6 +540,17 @@ export default function Reports() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            type="button"
+            variant="outline"
+            className="flex items-center gap-2 text-sm"
+            disabled={syncing || loading}
+            onClick={() => void handleSyncHarvestToCycles()}
+            title="Cộng phiếu thu hoạch theo chu kỳ và cập nhật sản lượng thực tế, FCR, trạng thái trên PondCycle"
+          >
+            <RefreshCw className={`w-4 h-4 shrink-0 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Đang đồng bộ…' : 'Đồng bộ thu → chu kỳ'}
+          </Button>
           <Button variant="outline" className="flex items-center gap-2 text-sm" disabled={exporting} onClick={handleExportExcel}>
             <Download className="w-4 h-4" />
             {exporting ? 'Đang xuất…' : 'Tải Excel'}
@@ -528,14 +650,14 @@ export default function Reports() {
         </div>
         <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Đã thu thực tế</p>
-          <p className="text-xl font-bold mt-1 text-green-600">{(totalActual / 1000).toFixed(1)}T</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{filteredHarvests.length} phiếu thu</p>
+          <p className="text-xl font-bold mt-1 text-green-600">{(totalActualFromScopedCycles / 1000).toFixed(1)}T</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{harvestsForCycleActuals.length} phiếu thu</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Còn tồn chưa thu</p>
-          <p className="text-xl font-bold mt-1 text-blue-600">{(Math.max(0, totalAdjustedYield - totalActual) / 1000).toFixed(1)}T</p>
+          <p className="text-xl font-bold mt-1 text-blue-600">{(Math.max(0, totalAdjustedYield - totalActualFromScopedCycles) / 1000).toFixed(1)}T</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            {totalAdjustedYield > 0 ? `${Math.round((totalActual / totalAdjustedYield) * 100)}% đã thu` : '—'}
+            {totalAdjustedYield > 0 ? `${Math.round((totalActualFromScopedCycles / totalAdjustedYield) * 100)}% đã thu` : '—'}
           </p>
         </div>
       </div>
@@ -606,7 +728,7 @@ export default function Reports() {
           </div>
           <ReportSummaryMatrix
             ponds={reportScopedCycleRows}
-            harvests={filteredHarvests}
+            harvests={harvestsForCycleActuals}
             agencies={agencies}
             appSettings={appSettings}
             agencyNameByCode={agencyNameByCode}
@@ -636,7 +758,9 @@ export default function Reports() {
           </div>
           {reportType === 'original' && <ReportOriginal ponds={reportScopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
           {reportType === 'adjusted' && <ReportAdjusted ponds={reportScopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
-          {reportType === 'daily_plan' && <ReportDailyProductionPlan ponds={reportScopedCycleRows} harvests={filteredHarvests} agencyNameByCode={agencyNameByCode} />}
+          {reportType === 'daily_plan' && (
+            <ReportDailyProductionPlan ponds={reportScopedCycleRows} harvests={harvestsForCycleActuals} agencyNameByCode={agencyNameByCode} />
+          )}
         </div>
       )}
 
@@ -661,7 +785,9 @@ export default function Reports() {
           <div className="flex-1 overflow-auto px-0 py-0">
             {expandedReport === 'original' && <ReportOriginal ponds={reportScopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
             {expandedReport === 'adjusted' && <ReportAdjusted ponds={reportScopedCycleRows} agencies={agencies} dateFrom={dateFrom} dateTo={dateTo} appSettings={appSettings} agencyNameByCode={agencyNameByCode} />}
-            {expandedReport === 'daily_plan' && <ReportDailyProductionPlan ponds={reportScopedCycleRows} harvests={filteredHarvests} agencyNameByCode={agencyNameByCode} />}
+            {expandedReport === 'daily_plan' && (
+              <ReportDailyProductionPlan ponds={reportScopedCycleRows} harvests={harvestsForCycleActuals} agencyNameByCode={agencyNameByCode} />
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -59,6 +59,27 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
         </div>
       </div>
 
+      {(pond.fish_harvested != null || pond.fish_remaining != null) && (
+        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+          <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-2 text-center border border-emerald-200/60 dark:border-emerald-800/50">
+            <p className="text-muted-foreground">Đã thu (con)</p>
+            <p className="font-semibold mt-0.5 text-emerald-800 dark:text-emerald-200">
+              {pond.fish_harvested != null && !Number.isNaN(Number(pond.fish_harvested))
+                ? Number(pond.fish_harvested).toLocaleString()
+                : '—'}
+            </p>
+          </div>
+          <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2 text-center border border-amber-200/60 dark:border-amber-800/50">
+            <p className="text-muted-foreground">Còn phải thu (con)</p>
+            <p className="font-semibold mt-0.5 text-amber-900 dark:text-amber-100">
+              {pond.fish_remaining != null && !Number.isNaN(Number(pond.fish_remaining))
+                ? Number(pond.fish_remaining).toLocaleString()
+                : '—'}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
         <span>Đại lý: <span className="font-medium text-foreground">{pond.agency_code || '—'}</span></span>
         {dk && (

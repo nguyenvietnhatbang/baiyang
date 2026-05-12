@@ -233,6 +233,8 @@ export default function PondCycleListTabPanel({
                 agency_code: r.agency_code,
                 harvest_done: r.harvest_done,
                 actual_yield: r.actual_yield,
+                fish_harvested: r.fish_harvested,
+                fish_remaining: r.fish_remaining,
               }}
               checked={r.cycle_id ? checkedHarvest.has(r.cycle_id) : false}
               onCheck={(e) => toggleHarvestCheck(r.cycle_id, e)}
@@ -332,6 +334,20 @@ export default function PondCycleListTabPanel({
                       {visibleCols.current_fish && (
                         <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
                           {r.current_fish != null && !Number.isNaN(Number(r.current_fish)) ? Number(r.current_fish).toLocaleString() : '—'}
+                        </td>
+                      )}
+                      {visibleCols.fish_harvested && (
+                        <td className="px-4 py-3 text-right font-semibold text-emerald-800 whitespace-nowrap">
+                          {r.fish_harvested != null && !Number.isNaN(Number(r.fish_harvested))
+                            ? Number(r.fish_harvested).toLocaleString()
+                            : '—'}
+                        </td>
+                      )}
+                      {visibleCols.fish_remaining && (
+                        <td className="px-4 py-3 text-right font-semibold text-amber-900 whitespace-nowrap">
+                          {r.fish_remaining != null && !Number.isNaN(Number(r.fish_remaining))
+                            ? Number(r.fish_remaining).toLocaleString()
+                            : '—'}
                         </td>
                       )}
                       {visibleCols.expected_yield && (

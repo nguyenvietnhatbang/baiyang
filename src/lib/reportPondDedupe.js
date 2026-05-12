@@ -27,13 +27,31 @@ export function uniquePhysicalPondTotalArea(cycleRows) {
  * @param {object} cycleRow
  * @param {Array} harvests
  */
-export function harvestRecordsForCycleRow(cycleRow, harvests) {
+/**
+ * @param {object} cycleRow
+ * @param {Array} harvests
+ * @param {{ cyclesOnSamePond?: number }} [opts] — nếu ao chỉ có 1 chu kỳ trong báo cáo, gộp phiếu thu sai pond_cycle_id nhưng đúng ao
+ */
+export function harvestRecordsForCycleRow(cycleRow, harvests, opts = {}) {
+  const cyclesOnSamePond = Number(opts.cyclesOnSamePond) > 0 ? Number(opts.cyclesOnSamePond) : 1;
+  const cid = cycleRow?.pond_cycle_id != null ? String(cycleRow.pond_cycle_id) : '';
+  const pid = cycleRow?.pond_id != null ? String(cycleRow.pond_id) : '';
+  const pcode = cycleRow?.pond_code != null ? String(cycleRow.pond_code).trim() : '';
   return (harvests || []).filter((h) => {
-    if (h.pond_cycle_id && cycleRow.pond_cycle_id) {
-      return h.pond_cycle_id === cycleRow.pond_cycle_id;
+    const hid = h.pond_cycle_id != null ? String(h.pond_cycle_id) : '';
+    const hip = h.pond_id != null ? String(h.pond_id) : '';
+    const hcode = h.pond_code != null ? String(h.pond_code).trim() : '';
+
+    if (hid && cid) {
+      if (hid === cid) return true;
+      // Chu kỳ lệch (migrate / nhập tay cũ) nhưng cùng ao và chỉ một chu kỳ đang xem → gán vào dòng này
+      if (cyclesOnSamePond <= 1 && hip && pid && hip === pid) return true;
+      if (cyclesOnSamePond <= 1 && hcode && pcode && hcode === pcode) return true;
+      return false;
     }
-    if (h.pond_id && cycleRow.pond_id) return h.pond_id === cycleRow.pond_id;
-    if (h.pond_code && cycleRow.pond_code) return h.pond_code === cycleRow.pond_code;
+    if (hid) return false;
+    if (hip && pid) return hip === pid;
+    if (hcode && pcode) return hcode === pcode;
     return false;
   });
 }
