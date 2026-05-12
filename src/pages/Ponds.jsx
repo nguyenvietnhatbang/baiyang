@@ -243,6 +243,12 @@ function isYieldNeedHarvestDone(r) {
   return y != null && !Number.isNaN(Number(y)) && Number(y) <= 0;
 }
 
+/** Còn kg theo kế hoạch cần thu (> 0) → luôn ở tab Chu kỳ, không sang «Chu kì đã thu». */
+function isYieldNeedStillActive(r) {
+  const y = r.yield_need_harvest;
+  return y != null && !Number.isNaN(Number(y)) && Number(y) > 0;
+}
+
 function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
   const [households, setHouseholds] = useState([]);
   const [form, setForm] = useState({
@@ -701,6 +707,9 @@ export default function Ponds() {
       const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
 
+      // Còn SL cần thu (kg) theo kế hoạch → luôn tab Chu kỳ (ưu tiên hơn phân nhánh theo cá)
+      if (isYieldNeedStillActive(r)) return true;
+
       const rem = effectiveFishRemainingForTabSplit(r);
       const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
       // Đã thu hết cá (còn 0 con) → chỉ hiển thị tab «Chu kì đã thu»
@@ -752,6 +761,7 @@ export default function Ponds() {
       const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
       if (!r.cycle_id) return false;
+      if (isYieldNeedStillActive(r)) return false;
       if (isYieldNeedHarvestDone(r)) return true;
       const rem = effectiveFishRemainingForTabSplit(r);
       const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
