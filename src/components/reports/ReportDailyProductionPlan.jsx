@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { plannedHarvestDateForDisplay, plannedYieldOriginalKg } from '@/lib/planReportHelpers';
 import { formatDateDisplay } from '@/lib/dateFormat';
 import { harvestRecordsForCycleRow, latestActualHarvestDate } from '@/lib/reportPondDedupe';
 
@@ -87,7 +87,7 @@ export default function ReportDailyProductionPlan({ ponds, harvests, agencyNameB
               'Diện tích',
               'Kế hoạch thu (ngày thu kế)',
               'Ngày thu thực tế',
-              'Sản lượng Kế hoạch',
+              'Sản lượng Kế hoạch (ban đầu)',
               'Sản lượng thực tế',
               'Tổng lượng thức ăn',
               'FCR',

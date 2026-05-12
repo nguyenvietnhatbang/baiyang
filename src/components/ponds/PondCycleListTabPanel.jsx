@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Search, ChevronsUpDown, MoreHorizontal, Eye, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,6 +52,9 @@ export default function PondCycleListTabPanel({
 }) {
   const isHarvestedView = variant === 'harvested';
   const emptyListHint = isHarvestedView ? 'Không có chu kỳ đã thu hoạch' : 'Không tìm thấy chu kỳ nào';
+
+  /** Chỉ render ô dữ liệu khi cột có trong columnDefs — tránh lệch với thead (tab Chu kỳ không có cột cá đã thu). */
+  const defKeys = useMemo(() => new Set(columnDefs.map((c) => c.key)), [columnDefs]);
 
   return (
     <>
@@ -233,6 +237,7 @@ export default function PondCycleListTabPanel({
                 agency_code: r.agency_code,
                 harvest_done: r.harvest_done,
                 actual_yield: r.actual_yield,
+                yield_need_harvest: r.yield_need_harvest,
                 fish_harvested: r.fish_harvested,
                 fish_remaining: r.fish_remaining,
               }}
@@ -336,14 +341,28 @@ export default function PondCycleListTabPanel({
                           {r.current_fish != null && !Number.isNaN(Number(r.current_fish)) ? Number(r.current_fish).toLocaleString() : '—'}
                         </td>
                       )}
-                      {visibleCols.fish_harvested && (
+                      {defKeys.has('actual_yield') && visibleCols.actual_yield && (
+                        <td className="px-4 py-3 text-right font-bold text-green-700 whitespace-nowrap">
+                          {r.actual_yield != null && Number.isFinite(Number(r.actual_yield))
+                            ? Number(r.actual_yield).toLocaleString()
+                            : '—'}
+                        </td>
+                      )}
+                      {defKeys.has('yield_need_harvest') && visibleCols.yield_need_harvest && (
+                        <td className="px-4 py-3 text-right font-bold text-amber-800 whitespace-nowrap">
+                          {r.yield_need_harvest != null && Number.isFinite(Number(r.yield_need_harvest))
+                            ? Number(r.yield_need_harvest).toLocaleString()
+                            : '—'}
+                        </td>
+                      )}
+                      {defKeys.has('fish_harvested') && visibleCols.fish_harvested && (
                         <td className="px-4 py-3 text-right font-semibold text-emerald-800 whitespace-nowrap">
                           {r.fish_harvested != null && !Number.isNaN(Number(r.fish_harvested))
                             ? Number(r.fish_harvested).toLocaleString()
                             : '—'}
                         </td>
                       )}
-                      {visibleCols.fish_remaining && (
+                      {defKeys.has('fish_remaining') && visibleCols.fish_remaining && (
                         <td className="px-4 py-3 text-right font-semibold text-amber-900 whitespace-nowrap">
                           {r.fish_remaining != null && !Number.isNaN(Number(r.fish_remaining))
                             ? Number(r.fish_remaining).toLocaleString()

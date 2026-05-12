@@ -59,23 +59,44 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
         </div>
       </div>
 
-      {(pond.fish_harvested != null || pond.fish_remaining != null) && (
-        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-          <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-2 text-center border border-emerald-200/60 dark:border-emerald-800/50">
-            <p className="text-muted-foreground">Đã thu (con)</p>
-            <p className="font-semibold mt-0.5 text-emerald-800 dark:text-emerald-200">
-              {pond.fish_harvested != null && !Number.isNaN(Number(pond.fish_harvested))
-                ? Number(pond.fish_harvested).toLocaleString()
-                : '—'}
-            </p>
-          </div>
-          <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2 text-center border border-amber-200/60 dark:border-amber-800/50">
-            <p className="text-muted-foreground">Còn phải thu (con)</p>
-            <p className="font-semibold mt-0.5 text-amber-900 dark:text-amber-100">
-              {pond.fish_remaining != null && !Number.isNaN(Number(pond.fish_remaining))
-                ? Number(pond.fish_remaining).toLocaleString()
-                : '—'}
-            </p>
+      {(pond.fish_harvested != null ||
+        pond.fish_remaining != null ||
+        pond.yield_need_harvest != null ||
+        pond.actual_yield != null) && (
+        <div className="mt-2 space-y-2 text-xs">
+          {(pond.actual_yield != null && Number.isFinite(Number(pond.actual_yield))) && (
+            <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-2 text-center border border-green-200/60 dark:border-green-800/50">
+              <p className="text-muted-foreground">SL thực tế (kg)</p>
+              <p className="font-semibold mt-0.5 text-green-800 dark:text-green-200">
+                {Number(pond.actual_yield).toLocaleString()}
+              </p>
+            </div>
+          )}
+          {pond.yield_need_harvest != null && Number.isFinite(Number(pond.yield_need_harvest)) && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2 text-center border border-amber-200/60 dark:border-amber-800/50">
+              <p className="text-muted-foreground">SL cần phải thu (kg)</p>
+              <p className="font-semibold mt-0.5 text-amber-900 dark:text-amber-100">
+                {Number(pond.yield_need_harvest).toLocaleString()}
+              </p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-2 text-center border border-emerald-200/60 dark:border-emerald-800/50">
+              <p className="text-muted-foreground">Đã thu (con)</p>
+              <p className="font-semibold mt-0.5 text-emerald-800 dark:text-emerald-200">
+                {pond.fish_harvested != null && !Number.isNaN(Number(pond.fish_harvested))
+                  ? Number(pond.fish_harvested).toLocaleString()
+                  : '—'}
+              </p>
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2 text-center border border-amber-200/60 dark:border-amber-800/50">
+              <p className="text-muted-foreground">Còn phải thu (con)</p>
+              <p className="font-semibold mt-0.5 text-amber-900 dark:text-amber-100">
+                {pond.fish_remaining != null && !Number.isNaN(Number(pond.fish_remaining))
+                  ? Number(pond.fish_remaining).toLocaleString()
+                  : '—'}
+              </p>
+            </div>
           </div>
         </div>
       )}

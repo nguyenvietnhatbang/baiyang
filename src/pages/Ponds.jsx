@@ -142,17 +142,23 @@ const CYCLE_COLUMNS = [
   { key: 'actions', label: '' },
 ];
 
-/** Chỉ dùng trên tab «Chu kì đã thu» — chèn trước SL dự kiến */
-const HARVESTED_CYCLE_EXTRA_COLUMNS = [
+/** Cột thu hoạch để so sánh — chèn trước SL dự kiến (tab Chu kỳ + Chu kì đã thu) */
+const HARVEST_COMPARE_COLUMNS = [
+  { key: 'actual_yield', label: 'SL THỰC TẾ (KG)' },
+  { key: 'yield_need_harvest', label: 'SL CẦN PHẢI THU' },
   { key: 'fish_harvested', label: 'SỐ CÁ ĐÃ THU' },
   { key: 'fish_remaining', label: 'SỐ CÁ CÒN PHẢI THU' },
 ];
 
+function insertHarvestCompareColumns(base) {
+  const idx = base.findIndex((c) => c.key === 'expected_yield');
+  if (idx < 0) return [...base, ...HARVEST_COMPARE_COLUMNS];
+  return [...base.slice(0, idx), ...HARVEST_COMPARE_COLUMNS, ...base.slice(idx)];
+}
+
 function cycleColumnDefsForMainTab(mainTab) {
-  if (mainTab !== 'cyclesHarvested') return CYCLE_COLUMNS;
-  const idx = CYCLE_COLUMNS.findIndex((c) => c.key === 'expected_yield');
-  if (idx < 0) return [...CYCLE_COLUMNS, ...HARVESTED_CYCLE_EXTRA_COLUMNS];
-  return [...CYCLE_COLUMNS.slice(0, idx), ...HARVESTED_CYCLE_EXTRA_COLUMNS, ...CYCLE_COLUMNS.slice(idx)];
+  if (mainTab === 'cycles' || mainTab === 'cyclesHarvested') return insertHarvestCompareColumns(CYCLE_COLUMNS);
+  return CYCLE_COLUMNS;
 }
 
 const DEFAULT_VISIBLE_COLUMNS = {
@@ -171,6 +177,8 @@ const DEFAULT_VISIBLE_COLUMNS = {
   fcr: true,
   alerts: true,
   actions: true,
+  actual_yield: true,
+  yield_need_harvest: true,
   fish_harvested: true,
   fish_remaining: true,
 };
@@ -197,6 +205,30 @@ function computeFishHarvestCounts(row, ticketSumByCycleId) {
   }
 
   return { fish_harvested: null, fish_remaining: null };
+}
+
+/** SL cần phải thu (kg) = max(0, SL dự kiến − SL thực tế). Không có SL dự kiến → null. */
+function computeYieldNeedHarvestKg(expectedYield, actualYield) {
+  const exp = Number(expectedYield);
+  const act = Number(actualYield) || 0;
+  if (!Number.isFinite(exp) || exp <= 0) return null;
+  return Math.max(0, exp - act);
+}
+
+/**
+ * Số cá còn lại để phân tab: chỉ sang «Chu kì đã thu» khi đã có hoạt động thu và còn = 0.
+ * null = chưa xác định / chưa thu — giữ ở Chu kỳ.
+ */
+function effectiveFishRemainingForTabSplit(r) {
+  if (r.fish_remaining != null && !Number.isNaN(Number(r.fish_remaining))) {
+    return Number(r.fish_remaining);
+  }
+  const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
+  if (!hasHarvest) return null;
+  if (r.current_fish != null && !Number.isNaN(Number(r.current_fish))) {
+    return Math.max(0, Number(r.current_fish));
+  }
+  return null;
 }
 
 function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
@@ -545,7 +577,12 @@ export default function Ponds() {
           total_feed_used: 0,
           raw: p,
         };
-        rows.push({ ...base, ...computeFishHarvestCounts(base, ticketFishByCycle) });
+        const fish = computeFishHarvestCounts(base, ticketFishByCycle);
+        rows.push({
+          ...base,
+          ...fish,
+          yield_need_harvest: computeYieldNeedHarvestKg(base.expected_yield, base.actual_yield),
+        });
       } else {
         cycles.forEach((c, idx) => {
           const base = {
@@ -579,7 +616,12 @@ export default function Ponds() {
             total_feed_used: c.total_feed_used ?? 0,
             raw: p,
           };
-          rows.push({ ...base, ...computeFishHarvestCounts(base, ticketFishByCycle) });
+          const fish = computeFishHarvestCounts(base, ticketFishByCycle);
+          rows.push({
+            ...base,
+            ...fish,
+            yield_need_harvest: computeYieldNeedHarvestKg(base.expected_yield, base.actual_yield),
+          });
         });
       }
     }
@@ -625,6 +667,12 @@ export default function Ponds() {
 
   const cycleColumnDefs = useMemo(() => cycleColumnDefsForMainTab(mainTab), [mainTab]);
 
+  /** Cột mới thêm vào DEFAULT nhưng state cũ/HMR có thể thiếu key → undefined coi là ẩn; merge để mặc định bật. */
+  const effectiveVisibleCols = useMemo(
+    () => ({ ...DEFAULT_VISIBLE_COLUMNS, ...visibleCols }),
+    [visibleCols]
+  );
+
   const filteredRows = useMemo(() => {
     const q = search.toLowerCase();
     return cycleRows.filter((r) => {
@@ -634,10 +682,10 @@ export default function Ponds() {
       const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
 
-      // Tab "Chu kỳ": chỉ hiển thị chu kỳ có (kế hoạch thả) hoặc (đang CC) hoặc (cảnh báo thu/thuốc).
-      // Chu kỳ đã thu hoạch sẽ chuyển sang báo cáo KQ thu & thực thu.
-      const isHarvested = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
-      if (isHarvested) return false;
+      const rem = effectiveFishRemainingForTabSplit(r);
+      const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
+      // Đã thu hết cá (còn 0 con) → chỉ hiển thị tab «Chu kì đã thu»
+      if (hasHarvest && rem === 0) return false;
 
       const hasPlan = Boolean(r.stock_date) || (Number(r.total_fish) || 0) > 0;
       const hasFish = r.status === 'CC';
@@ -645,6 +693,10 @@ export default function Ponds() {
       const isUrgent = diff !== null && diff <= harvestAlertDays;
       const isWithdrawal = r.withdrawal_end_date && differenceInDays(parseISO(r.withdrawal_end_date), today) >= 0;
       const hasAlert = Boolean(isUrgent || isWithdrawal);
+
+      // Thu một phần (còn cá) — luôn ở Chu kỳ để theo dõi
+      const partialHarvest = hasHarvest && rem != null && rem > 0;
+      if (partialHarvest) return true;
 
       return hasPlan || hasFish || hasAlert;
     });
@@ -675,8 +727,9 @@ export default function Ponds() {
       const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
       if (!r.cycle_id) return false;
-      const isHarvested = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
-      return isHarvested;
+      const rem = effectiveFishRemainingForTabSplit(r);
+      const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
+      return hasHarvest && rem === 0;
     });
   }, [cycleRows, search, statusFilters, agencyFilters, householdFilters]);
 
@@ -1125,7 +1178,7 @@ export default function Ponds() {
             confirming={confirming}
             harvestAlertDays={harvestAlertDays}
             today={today}
-            visibleCols={visibleCols}
+            visibleCols={effectiveVisibleCols}
             columnDefs={cycleColumnDefs}
             setViewCycleId={setViewCycleId}
             setViewPondId={setViewPondId}
@@ -1162,7 +1215,7 @@ export default function Ponds() {
             confirming={confirming}
             harvestAlertDays={harvestAlertDays}
             today={today}
-            visibleCols={visibleCols}
+            visibleCols={effectiveVisibleCols}
             columnDefs={cycleColumnDefs}
             setViewCycleId={setViewCycleId}
             setViewPondId={setViewPondId}
@@ -1233,7 +1286,7 @@ export default function Ponds() {
                 <span>{col.label}</span>
                 <input
                   type="checkbox"
-                  checked={Boolean(visibleCols[col.key])}
+                  checked={Boolean(effectiveVisibleCols[col.key])}
                   onChange={(e) => setVisibleCols((prev) => ({ ...prev, [col.key]: e.target.checked }))}
                   className="h-4 w-4 accent-primary"
                 />

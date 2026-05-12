@@ -1,5 +1,15 @@
 import { calcOriginalYieldKg, calculateCurrentYield } from '@/lib/calculateYield';
 
+/**
+ * SL kế hoạch ban đầu (kg) — công thức đăng ký: total_fish × tỷ lệ sống × TL mục tiêu.
+ * Dùng báo cáo «KH thu & sản lượng» (cột so sánh với thực tế), không lấy expected_yield đã chỉnh.
+ */
+export function plannedYieldOriginalKg(cycle) {
+  if (!cycle) return null;
+  const n = calcOriginalYieldKg(cycle);
+  return n > 0 ? n : null;
+}
+
 /** Ngày thu dùng cho báo cáo / biểu đồ KH gốc (ưu tiên snapshot sau khi khóa). */
 export function originalHarvestDateForReport(pond) {
   if (!pond) return null;
