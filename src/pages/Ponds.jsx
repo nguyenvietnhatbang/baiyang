@@ -230,7 +230,17 @@ function effectiveFishRemainingForTabSplit(r) {
   if (r.current_fish != null && !Number.isNaN(Number(r.current_fish))) {
     return Math.max(0, Number(r.current_fish));
   }
+  // Đã chốt CT + có thực thu nhưng thiếu tồn/phiếu con: coi là đã thu hết (tránh kẹt ở tab Chu kỳ)
+  if (r.status === 'CT' && hasHarvest) {
+    return 0;
+  }
   return null;
+}
+
+/** «Sản lượng cần phải thu» có giá trị số và ≤ 0 → không còn kg cần thu theo kế hoạch, hiển thị ở tab đã thu. */
+function isYieldNeedHarvestDone(r) {
+  const y = r.yield_need_harvest;
+  return y != null && !Number.isNaN(Number(y)) && Number(y) <= 0;
 }
 
 function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
@@ -695,6 +705,8 @@ export default function Ponds() {
       const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
       // Đã thu hết cá (còn 0 con) → chỉ hiển thị tab «Chu kì đã thu»
       if (hasHarvest && rem === 0) return false;
+      // SL cần phải thu ≤ 0 (đủ / vượt kế hoạch kg) → tab «Chu kì đã thu»
+      if (isYieldNeedHarvestDone(r)) return false;
 
       const hasPlan = Boolean(r.stock_date) || (Number(r.total_fish) || 0) > 0;
       const hasFish = r.status === 'CC';
@@ -740,11 +752,29 @@ export default function Ponds() {
       const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
       if (!r.cycle_id) return false;
+      if (isYieldNeedHarvestDone(r)) return true;
       const rem = effectiveFishRemainingForTabSplit(r);
       const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
       return hasHarvest && rem === 0;
     });
   }, [cycleRows, search, statusFilters, agencyFilters, householdFilters]);
+
+  // Khi mọi chu kỳ khớp bộ lọc đều đã thu hết: bảng «Chu kỳ» trống — chuyển sang «Chu kì đã thu»
+  useEffect(() => {
+    if (loading || mainTab !== 'cycles') return;
+    if (filteredRows.length > 0) return;
+    if (filteredHarvestedRows.length === 0) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', 'harvested');
+    setSearchParams(next, { replace: true });
+  }, [
+    loading,
+    mainTab,
+    filteredRows.length,
+    filteredHarvestedRows.length,
+    searchParams,
+    setSearchParams,
+  ]);
 
   const harvestedCycleTotals = useMemo(() => {
     const rows = filteredHarvestedRows || [];
