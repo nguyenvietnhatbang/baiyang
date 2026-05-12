@@ -66,25 +66,25 @@ function SearchableSelect({ value, onChange, options, placeholder = 'Chọn...',
         variant="outline"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
-        className={`h-9 w-full justify-between px-2 font-normal text-sm ${!cur ? 'text-muted-foreground' : ''}`}
+        className={`h-10 w-full justify-between px-2 font-semibold text-base ${!cur ? 'text-muted-foreground' : ''}`}
       >
         <span className="truncate text-left">{cur?.label || placeholder}</span>
-        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+        <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 opacity-50" aria-hidden />
       </Button>
       {open && !disabled && (
         <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-[12rem] rounded-lg border border-border bg-popover shadow-md">
           <div className="p-2 border-b border-border">
-            <Input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Gõ để tìm..." className="h-8 text-sm" />
+            <Input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Gõ để tìm..." className="h-9 text-base font-semibold" />
           </div>
           <div className="max-h-80 overflow-y-auto p-1">
             {filtered.length === 0 ? (
-              <div className="px-2 py-2 text-xs text-muted-foreground">Không có kết quả</div>
+              <div className="px-2 py-2 text-sm font-semibold text-muted-foreground">Không có kết quả</div>
             ) : (
               filtered.map((o) => (
                 <button
                   key={String(o.value)}
                   type="button"
-                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground ${
+                  className={`flex w-full items-center rounded-md px-2 py-2 text-left text-base font-semibold hover:bg-accent hover:text-accent-foreground ${
                     String(o.value) === String(value) ? 'bg-accent/60' : ''
                   }`}
                   onClick={() => {
@@ -401,17 +401,17 @@ export default function Logs() {
   const logTableScrollRef = useRef(null);
 
   return (
-    <div className="p-2 sm:p-4 space-y-3 w-full max-w-none bg-slate-50/50 min-h-screen">
+    <div className="p-2 sm:p-4 space-y-3 w-full max-w-none bg-slate-50/50 min-h-screen text-base font-semibold leading-normal [&_input]:text-base [&_input]:font-semibold [&_select]:text-base [&_select]:font-semibold">
       <div className="flex items-center justify-between px-1">
         <div>
-          <h1 className="text-lg sm:text-xl font-bold text-slate-800">Nhật ký & Thống kê</h1>
-          <p className="text-slate-500 text-[10px] sm:text-xs">Quản lý nhập liệu tập trung</p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">Nhật ký & Thống kê</h1>
+          <p className="text-slate-600 text-sm sm:text-base font-semibold mt-0.5">Quản lý nhập liệu tập trung</p>
         </div>
       </div>
 
       {/* Chọn ao để ghi nhật ký */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-        <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Chọn ao để ghi nhật ký</Label>
+        <Label className="text-sm font-extrabold text-slate-600 uppercase tracking-wide mb-2 block">Chọn ao để ghi nhật ký</Label>
         <div className="flex gap-2">
           <div className="flex-1 min-w-0">
             <SearchableSelect
@@ -427,19 +427,19 @@ export default function Logs() {
           <Button 
             onClick={() => setShowCamera(true)} 
             variant="outline"
-            className="h-9 px-3 shrink-0" 
+            className="h-10 px-3 shrink-0 text-base font-bold" 
             size="sm"
           >
-            <Camera className="w-4 h-4 shrink-0" aria-hidden />
-            <span className="sm:ml-2 text-xs sm:text-sm font-medium">Quét QR</span>
+            <Camera className="w-5 h-5 shrink-0" aria-hidden />
+            <span className="sm:ml-2 text-sm sm:text-base font-bold">Quét QR</span>
           </Button>
           {canCreateLog && (
             <Button 
               onClick={() => handleCreateLog(activePond)} 
-              className="hidden sm:inline-flex bg-emerald-600 text-white h-9 px-4 shadow-sm hover:bg-emerald-700 shrink-0" 
+              className="hidden sm:inline-flex bg-emerald-600 text-white h-10 px-4 shadow-sm hover:bg-emerald-700 shrink-0 text-base font-bold" 
               size="sm"
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-5 h-5 mr-2" />
               Ghi nhật ký
             </Button>
           )}
@@ -448,14 +448,14 @@ export default function Logs() {
           <Button
             type="button"
             onClick={() => handleCreateLog(activePond)}
-            className="mt-3 w-full h-11 text-sm font-semibold bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 sm:hidden"
+            className="mt-3 w-full h-12 text-base font-bold bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 sm:hidden"
           >
-            <Plus className="w-4 h-4 mr-2 shrink-0" />
+            <Plus className="w-5 h-5 mr-2 shrink-0" />
             Ghi nhật ký
           </Button>
         )}
         {activePond && !pickActiveCycle(activePond.pond_cycles) && (
-          <p className="text-xs text-amber-600 mt-2 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+          <p className="text-sm font-semibold text-amber-800 mt-2 bg-amber-50 border border-amber-200 rounded px-3 py-2">
             ⚠️ Ao này chưa có chu kỳ hoạt động
           </p>
         )}
@@ -465,44 +465,44 @@ export default function Logs() {
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
         {/* Bộ lọc */}
         <div>
-          <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">Bộ lọc</Label>
+          <Label className="text-sm font-extrabold text-slate-600 uppercase tracking-wide mb-2 block">Bộ lọc</Label>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             <Input
               type="date"
-              className="h-9 text-xs"
+              className="h-10 text-sm font-semibold"
               placeholder="Từ ngày"
               value={logDateFrom}
               onChange={(e) => { setLogDateFrom(e.target.value); setMonthFilter('all'); }}
             />
             <Input
               type="date"
-              className="h-9 text-xs"
+              className="h-10 text-sm font-semibold"
               placeholder="Đến ngày"
               value={logDateTo}
               onChange={(e) => { setLogDateTo(e.target.value); setMonthFilter('all'); }}
             />
             <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); setLogDateFrom(''); setLogDateTo(''); }}>
-              <SelectTrigger className="h-9 text-xs">
+              <SelectTrigger className="h-10 text-sm font-semibold">
                 <SelectValue placeholder="Tháng" />
               </SelectTrigger>
               <SelectContent>
                 {monthFilterItems.map((it) => (
-                  <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                  <SelectItem key={it.value} value={it.value} className="text-sm font-semibold">{it.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={agencyFilter} onValueChange={setAgencyFilter}>
-              <SelectTrigger className="h-9 text-xs">
+              <SelectTrigger className="h-10 text-sm font-semibold">
                 <SelectValue>{agencyFilter === 'all' ? 'Tất cả đại lý' : agencyFilter}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {agencyFilterItems.map((it) => (
-                  <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                  <SelectItem key={it.value} value={it.value} className="text-sm font-semibold">{it.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={householdFilter} onValueChange={setHouseholdFilter}>
-              <SelectTrigger className="h-9 text-xs">
+              <SelectTrigger className="h-10 text-sm font-semibold">
                 <SelectValue>
                   {householdFilter === 'all'
                     ? 'Tất cả hộ nuôi'
@@ -511,26 +511,26 @@ export default function Logs() {
               </SelectTrigger>
               <SelectContent className="max-h-64">
                 {householdFilterItems.map((it) => (
-                  <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                  <SelectItem key={it.value} value={it.value} className="text-sm font-semibold">{it.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={cycleFilter} onValueChange={setCycleFilter}>
-              <SelectTrigger className="h-9 text-xs">
+              <SelectTrigger className="h-10 text-sm font-semibold">
                 <SelectValue placeholder="Chu kỳ">
                   {cycleFilter === 'all' ? 'Tất cả chu kỳ' : cycleFilterItems.find((x) => x.value === cycleFilter)?.label}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent className="max-h-64">
                 {cycleFilterItems.map((it) => (
-                  <SelectItem key={it.value} value={it.value} className="text-xs">{it.label}</SelectItem>
+                  <SelectItem key={it.value} value={it.value} className="text-sm font-semibold">{it.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="flex gap-2 mt-2">
             {(logDateFrom || logDateTo || monthFilter !== 'all' || activePond || agencyFilter !== 'all' || householdFilter !== 'all' || cycleFilter !== 'all') && (
-              <Button variant="outline" size="sm" className="h-9 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => { 
+              <Button variant="outline" size="sm" className="h-10 text-sm font-bold text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => { 
                 setLogDateFrom(''); 
                 setLogDateTo(''); 
                 setMonthFilter('all'); 
@@ -548,31 +548,31 @@ export default function Logs() {
         {/* Thống kê nhanh */}
         <div className="border-t border-slate-100 pt-3">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            <div className="rounded-lg border border-slate-200 p-2 bg-slate-50/50">
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Số bản ghi</p>
-              <p className="text-base font-bold text-slate-800 mt-0.5">{summary.nLogs.toLocaleString()}</p>
+            <div className="rounded-lg border border-slate-200 p-2.5 bg-slate-50/50">
+              <p className="text-xs font-extrabold text-slate-600 uppercase tracking-wide">Số bản ghi</p>
+              <p className="text-xl font-extrabold text-slate-900 mt-0.5 tabular-nums">{summary.nLogs.toLocaleString()}</p>
             </div>
-            <div className="rounded-lg border border-blue-200 p-2 bg-blue-50/50">
-              <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wide">Thức ăn (kg)</p>
-              <p className="text-base font-bold text-blue-700 mt-0.5">
+            <div className="rounded-lg border border-blue-200 p-2.5 bg-blue-50/50">
+              <p className="text-xs font-extrabold text-blue-700 uppercase tracking-wide">Thức ăn (kg)</p>
+              <p className="text-xl font-extrabold text-blue-800 mt-0.5 tabular-nums">
                 {summary.sumFeedKg > 0 ? summary.sumFeedKg.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—'}
               </p>
             </div>
-            <div className="rounded-lg border border-emerald-200 p-2 bg-emerald-50/50">
-              <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Thu hoạch (kg)</p>
-              <p className="text-base font-bold text-emerald-700 mt-0.5">
+            <div className="rounded-lg border border-emerald-200 p-2.5 bg-emerald-50/50">
+              <p className="text-xs font-extrabold text-emerald-700 uppercase tracking-wide">Thu hoạch (kg)</p>
+              <p className="text-xl font-extrabold text-emerald-800 mt-0.5 tabular-nums">
                 {summary.sumHarvestKg > 0 ? summary.sumHarvestKg.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}
               </p>
             </div>
-            <div className="rounded-lg border border-amber-200 p-2 bg-amber-50/50">
-              <p className="text-[9px] font-bold text-amber-600 uppercase tracking-wide">Hao hụt (con)</p>
-              <p className="text-base font-bold text-amber-700 mt-0.5">
+            <div className="rounded-lg border border-amber-200 p-2.5 bg-amber-50/50">
+              <p className="text-xs font-extrabold text-amber-700 uppercase tracking-wide">Hao hụt (con)</p>
+              <p className="text-xl font-extrabold text-amber-800 mt-0.5 tabular-nums">
                 {summary.sumDead.toLocaleString()}
               </p>
             </div>
-            <div className="rounded-lg border border-violet-200 p-2 bg-violet-50/50 col-span-2 sm:col-span-1">
-              <p className="text-[9px] font-bold text-violet-600 uppercase tracking-wide">FCR Kỳ lọc</p>
-              <p className="text-base font-bold text-violet-700 mt-0.5">
+            <div className="rounded-lg border border-violet-200 p-2.5 bg-violet-50/50 col-span-2 sm:col-span-1">
+              <p className="text-xs font-extrabold text-violet-700 uppercase tracking-wide">FCR Kỳ lọc</p>
+              <p className="text-xl font-extrabold text-violet-800 mt-0.5 tabular-nums">
                 {summary.fcrPeriod != null ? summary.fcrPeriod.toLocaleString() : '—'}
               </p>
             </div>
@@ -583,11 +583,11 @@ export default function Logs() {
       {/* Danh sách — Full width */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm whitespace-nowrap">
-            <ClipboardList className="w-4 h-4 text-primary flex-shrink-0" />
+          <h3 className="font-extrabold text-slate-800 flex items-center gap-2 text-base whitespace-nowrap">
+            <ClipboardList className="w-5 h-5 text-primary flex-shrink-0" />
             DANH SÁCH NHẬT KÝ {activePond ? `— ${activePond.code}` : ''}
           </h3>
-          <span className="text-xs font-medium text-slate-500 bg-white px-2.5 py-1 rounded-full border border-slate-200 whitespace-nowrap">{displayLogs.length} dòng</span>
+          <span className="text-sm font-bold text-slate-700 bg-white px-3 py-1.5 rounded-full border border-slate-200 whitespace-nowrap tabular-nums">{displayLogs.length} dòng</span>
         </div>
 
         <div className="min-h-[400px]">
@@ -602,12 +602,12 @@ export default function Logs() {
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-50 mb-3">
                 <Filter className="w-6 h-6 text-slate-200" />
               </div>
-              <p className="text-slate-400 text-xs">Không có nhật ký nào khớp với bộ lọc hiện tại</p>
+              <p className="text-slate-500 text-base font-semibold">Không có nhật ký nào khớp với bộ lọc hiện tại</p>
             </div>
           ) : (
             <>
               <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5 border-b border-slate-100 bg-slate-50/95">
-                <p className="text-[10px] sm:text-xs text-slate-500 pl-1">
+                <p className="text-sm font-semibold text-slate-600 pl-1">
                   Kéo ngang (hoặc vuốt trên cảm ứng) — dùng nút để lướt nhanh
                 </p>
                 <div className="flex gap-1 shrink-0 pr-1">
@@ -639,32 +639,32 @@ export default function Logs() {
                 aria-label="Bảng nhật ký — cuộn ngang để xem đủ cột"
                 className="overflow-x-auto overscroll-x-contain touch-pan-x scroll-smooth min-h-[360px] max-w-full"
               >
-                <table className="w-full text-xs sm:text-sm min-w-[1820px] border-collapse">
+                <table className="w-full text-sm sm:text-base min-w-[1820px] border-collapse">
                   <thead>
                     <tr className="bg-muted/30 border-b border-border">
-                      <th className="sticky left-0 z-10 w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] bg-muted/95 backdrop-blur-sm text-left px-2 sm:px-3 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-r border-border/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                      <th className="sticky left-0 z-10 w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] bg-muted/95 backdrop-blur-sm text-left px-2 sm:px-3 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap border-r border-border/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
                         NGÀY
                       </th>
-                      <th className="sticky left-[6.25rem] z-10 min-w-[7.5rem] bg-muted/95 backdrop-blur-sm text-left px-2 sm:px-3 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-r border-border/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                      <th className="sticky left-[6.25rem] z-10 min-w-[7.5rem] bg-muted/95 backdrop-blur-sm text-left px-2 sm:px-3 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap border-r border-border/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]">
                         MÃ AO
                       </th>
-                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">ĐẠI LÝ</th>
-                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[7rem]">CHU KỲ</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">HAO HỤT (CON)</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">THỨC ĂN (KG)</th>
-                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">MÃ TA</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">pH</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">T°</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">DO</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">NH3</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">NO2</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">H2S</th>
-                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[6rem]">MÀU NC</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">TL TB (G)</th>
-                      <th className="text-right px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8.5rem]">TĂNG TRƯỞNG (G)</th>
-                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8rem]">THUỐC</th>
-                      <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8rem]">GHI CHÚ</th>
-                      <th className="sticky right-0 z-10 bg-muted/95 backdrop-blur-sm px-2 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap w-24 border-l border-border/80 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                      <th className="text-left px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">ĐẠI LÝ</th>
+                      <th className="text-left px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[7rem]">CHU KỲ</th>
+                      <th className="text-right px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">HAO HỤT (CON)</th>
+                      <th className="text-right px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">THỨC ĂN (KG)</th>
+                      <th className="text-left px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">MÃ TA</th>
+                      <th className="text-right px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">pH</th>
+                      <th className="text-right px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">T°</th>
+                      <th className="text-right px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">DO</th>
+                      <th className="text-right px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">NH3</th>
+                      <th className="text-right px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">NO2</th>
+                      <th className="text-right px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">H2S</th>
+                      <th className="text-left px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[6rem]">MÀU NC</th>
+                      <th className="text-right px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">TL TB (G)</th>
+                      <th className="text-right px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[8.5rem]">TĂNG TRƯỞNG (G)</th>
+                      <th className="text-left px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[8rem]">THUỐC</th>
+                      <th className="text-left px-3 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[8rem]">GHI CHÚ</th>
+                      <th className="sticky right-0 z-10 bg-muted/95 backdrop-blur-sm px-2 sm:px-4 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-24 border-l border-border/80 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.06)]">
                         THAO TÁC
                       </th>
                     </tr>
@@ -683,67 +683,67 @@ export default function Logs() {
                             setShowLogDialog(false);
                           }}
                         >
-                          <td className="sticky left-0 z-[1] w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-2.5 sm:py-3 text-slate-500 font-medium whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
+                          <td className="sticky left-0 z-[1] w-[6.25rem] min-w-[6.25rem] max-w-[6.25rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-3 sm:py-3.5 text-slate-700 font-semibold whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
                             {formatDateDisplay(log.log_date)}
                           </td>
-                          <td className="sticky left-[6.25rem] z-[1] min-w-[7.5rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-2.5 sm:py-3 font-bold text-slate-700 whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
+                          <td className="sticky left-[6.25rem] z-[1] min-w-[7.5rem] bg-white group-hover:bg-primary/5 px-2 sm:px-3 py-3 sm:py-3.5 font-extrabold text-slate-900 whitespace-nowrap border-r border-border/60 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.04)]">
                             {log.pond_code}
                           </td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 whitespace-nowrap">{agency}</td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[10rem] truncate" title={cycleLb}>
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-slate-700 font-semibold whitespace-nowrap">{agency}</td>
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-slate-700 font-semibold max-w-[10rem] truncate" title={cycleLb}>
                             {cycleLb}
                           </td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right font-bold text-red-600 whitespace-nowrap">
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-right font-extrabold text-red-600 tabular-nums whitespace-nowrap">
                             {log.dead_fish > 0 ? `-${log.dead_fish}` : '—'}
                           </td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right font-bold text-blue-600 whitespace-nowrap">
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-right font-extrabold text-blue-700 tabular-nums whitespace-nowrap">
                             {log.feed_amount != null && log.feed_amount !== '' ? `${log.feed_amount}` : '—'}
                           </td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 whitespace-nowrap max-w-[6rem] truncate" title={log.feed_code || ''}>
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-slate-700 font-semibold whitespace-nowrap max-w-[6rem] truncate" title={log.feed_code || ''}>
                             {cellDash(log.feed_code)}
                           </td>
-                          <td className={`px-3 sm:px-4 py-2.5 sm:py-3 text-right font-semibold whitespace-nowrap ${log.ph != null && log.ph !== '' && (Number(log.ph) < 6.5 || Number(log.ph) > 8.5) ? 'text-red-600' : 'text-slate-600'}`}>
+                          <td className={`px-3 sm:px-4 py-3 sm:py-3.5 text-right font-bold tabular-nums whitespace-nowrap ${log.ph != null && log.ph !== '' && (Number(log.ph) < 6.5 || Number(log.ph) > 8.5) ? 'text-red-600' : 'text-slate-800'}`}>
                             {cellDash(log.ph)}
                           </td>
-                          <td className={`px-3 sm:px-4 py-2.5 sm:py-3 text-right font-semibold whitespace-nowrap ${log.temperature != null && log.temperature !== '' && (Number(log.temperature) < 25 || Number(log.temperature) > 32) ? 'text-red-600' : 'text-slate-600'}`}>
+                          <td className={`px-3 sm:px-4 py-3 sm:py-3.5 text-right font-bold tabular-nums whitespace-nowrap ${log.temperature != null && log.temperature !== '' && (Number(log.temperature) < 25 || Number(log.temperature) > 32) ? 'text-red-600' : 'text-slate-800'}`}>
                             {cellDash(log.temperature)}
                           </td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(log.do)}</td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(log.nh3)}</td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(log.no2)}</td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">{cellDash(log.h2s)}</td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[8rem] truncate" title={log.water_color || ''}>
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-right text-slate-800 font-bold tabular-nums whitespace-nowrap">{cellDash(log.do)}</td>
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-right text-slate-800 font-bold tabular-nums whitespace-nowrap">{cellDash(log.nh3)}</td>
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-right text-slate-800 font-bold tabular-nums whitespace-nowrap">{cellDash(log.no2)}</td>
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-right text-slate-800 font-bold tabular-nums whitespace-nowrap">{cellDash(log.h2s)}</td>
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-slate-700 font-semibold max-w-[8rem] truncate" title={log.water_color || ''}>
                             {cellDash(log.water_color)}
                           </td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right text-slate-600 whitespace-nowrap">
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-right text-slate-900 font-extrabold tabular-nums whitespace-nowrap">
                             {log.avg_weight != null && log.avg_weight !== '' ? `${log.avg_weight}` : '—'}
                           </td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-right whitespace-nowrap">
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-right whitespace-nowrap font-extrabold tabular-nums">
                             {(() => {
                               const g = growthByLogId.get(log.id);
                               const manual = log?.growth_g;
                               const manualN = manual == null || manual === '' ? null : Number(manual);
                               if (Number.isFinite(manualN)) {
-                                const cls = manualN >= 0 ? 'text-emerald-700 font-bold' : 'text-red-700 font-bold';
+                                const cls = manualN >= 0 ? 'text-emerald-800' : 'text-red-800';
                                 return <span className={cls}>{(Math.round(manualN * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>;
                               }
-                              if (g == null || !Number.isFinite(g)) return <span className="text-slate-400">—</span>;
+                              if (g == null || !Number.isFinite(g)) return <span className="text-slate-400 font-semibold">—</span>;
                               const rounded = Math.round(g * 10) / 10;
-                              const cls = rounded >= 0 ? 'text-emerald-700 font-bold' : 'text-red-700 font-bold';
+                              const cls = rounded >= 0 ? 'text-emerald-800' : 'text-red-800';
                               return <span className={cls}>{rounded.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>;
                             })()}
                           </td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[10rem]">
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-slate-700 font-semibold max-w-[10rem]">
                             <div className="truncate" title={log.medicine_used || ''}>
                               {log.medicine_used ? `💊 ${log.medicine_used}` : '—'}
                             </div>
                           </td>
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-slate-600 max-w-[12rem]">
+                          <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-slate-700 font-semibold max-w-[12rem]">
                             <div className="truncate" title={log.notes || ''}>
                               {cellDash(log.notes)}
                             </div>
                           </td>
-                          <td className="sticky right-0 z-[1] px-2 sm:px-4 py-2.5 sm:py-3 text-right whitespace-nowrap bg-white group-hover:bg-primary/5 border-l border-border/60 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.04)]">
+                          <td className="sticky right-0 z-[1] px-2 sm:px-4 py-3 sm:py-3.5 text-right whitespace-nowrap bg-white group-hover:bg-primary/5 border-l border-border/60 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.04)]">
                             <div className="flex items-center justify-end gap-1 sm:gap-2">
                               <button
                                 type="button"

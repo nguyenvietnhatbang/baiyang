@@ -2,14 +2,15 @@ import { AlertTriangle, Clock, Pill, ChevronRight } from 'lucide-react';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { calendarDaysUntilHarvest, isHarvestDateOnOrBeforeToday } from '@/lib/harvestAlerts';
 
 function AlertItem({ pond, type }) {
   const today = new Date();
   
   if (type === 'harvest') {
     const dk = plannedHarvestDateForDisplay(pond);
-    const diff = differenceInDays(parseISO(dk), today);
-    const isOverdue = diff < 0;
+    const diff = calendarDaysUntilHarvest(dk, today);
+    const isOverdue = diff != null && diff < 0;
     const colorClass = isOverdue 
       ? 'bg-red-50 border-red-200 text-red-800' 
       : 'bg-yellow-50 border-yellow-200 text-yellow-800';
@@ -25,12 +26,12 @@ function AlertItem({ pond, type }) {
           <span className="text-xs ml-2 opacity-75">
             {isOverdue 
               ? `Quá hạn ${Math.abs(diff)} ngày` 
-              : `Thu hoạch trong ${diff} ngày (${format(parseISO(dk), 'dd/MM')})`
+              : `Đến hạn thu (${format(parseISO(String(dk).slice(0, 10)), 'dd/MM')})`
             }
           </span>
         </div>
         <span className={`text-xs font-bold px-2 py-0.5 rounded ${isOverdue ? 'bg-red-500 text-white' : 'bg-yellow-400 text-yellow-900'}`}>
-          {isOverdue ? 'QUÁ HẠN' : 'SẮP THU'}
+          {isOverdue ? 'QUÁ HẠN' : 'ĐẾN HẠN'}
         </span>
       </div>
     );
@@ -56,15 +57,15 @@ function AlertItem({ pond, type }) {
   return null;
 }
 
-export default function AlertBanner({ ponds, harvestAlertDays = 7 }) {
+export default function AlertBanner({ ponds }) {
   const today = new Date();
   const alerts = [];
 
   ponds.forEach(p => {
     const dk = plannedHarvestDateForDisplay(p);
     if (p.status === 'CC' && dk) {
-      const diff = differenceInDays(parseISO(dk), today);
-      if (diff <= harvestAlertDays) alerts.push({ pond: p, type: 'harvest', diff });
+      const diff = calendarDaysUntilHarvest(dk, today);
+      if (isHarvestDateOnOrBeforeToday(diff)) alerts.push({ pond: p, type: 'harvest', diff });
     }
     if (p.withdrawal_end_date) {
       const wDiff = differenceInDays(parseISO(p.withdrawal_end_date), today);

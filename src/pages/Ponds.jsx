@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Plus, Search, Settings2, ChevronsUpDown } from 'lucide-react';
+import { Plus, Settings2, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import PondStatusBadge from '@/components/ponds/PondStatusBadge';
 import QRBatchDownload from '@/components/ponds/QRBatchDownload';
 import PondMobileCard from '@/components/ponds/PondMobileCard';
-import { differenceInDays, parseISO } from 'date-fns';
 import { useAuth } from '@/lib/AuthContext';
 import { MoreHorizontal, Eye, Edit, Trash2, AlertCircle } from 'lucide-react';
 import { formatDateDisplay } from '@/lib/dateFormat';
@@ -20,8 +19,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-  DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
@@ -36,7 +33,7 @@ import {
 import { getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { pondQrPayload } from '@/lib/fieldAuthHelpers';
-import { plannedHarvestDateForDisplay, plannedYieldForDisplay, plannedYieldAdjustedForTable } from '@/lib/planReportHelpers';
+import { plannedHarvestDateForDisplay, isPlannedHarvestDateEstimated, plannedYieldForDisplay, plannedYieldAdjustedForTable } from '@/lib/planReportHelpers';
 import { calculateCurrentYield } from '@/lib/calculateYield';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HouseholdsPanel } from '@/components/households/HouseholdsPanel';
@@ -44,6 +41,15 @@ import PondViewDialog from '@/components/ponds/PondViewDialog';
 import CycleViewDialog from '@/components/ponds/CycleViewDialog';
 import CycleEditDialog from '@/components/ponds/CycleEditDialog';
 import PondCycleListTabPanel from '@/components/ponds/PondCycleListTabPanel';
+import PondTableFilterControls from '@/components/ponds/PondTableFilterControls';
+import { rowMatchesCycleDateRange } from '@/lib/pondCycleDateFilter';
+import {
+  calendarDaysUntilHarvest,
+  getHarvestAlertDays,
+  isCycleHarvestCompleteForAlerts,
+  isHarvestDateOnOrBeforeToday,
+  isHarvestDateWithinUpcomingDays,
+} from '@/lib/harvestAlerts';
 
 function SearchableSelect({ label, value, onChange, options, placeholder = 'Chọn...', disabled }) {
   const [open, setOpen] = useState(false);
@@ -75,13 +81,13 @@ function SearchableSelect({ label, value, onChange, options, placeholder = 'Ch�
 
   return (
     <div ref={rootRef} className="relative">
-      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</Label>
+      <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">{label}</Label>
       <Button
         type="button"
         variant="outline"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
-        className={`mt-1 h-9 w-full justify-between px-2 font-normal text-sm ${!cur ? 'text-muted-foreground' : ''}`}
+        className={`mt-1 h-10 w-full justify-between px-2 font-semibold text-base ${!cur ? 'text-muted-foreground' : ''}`}
       >
         <span className="truncate text-left">{cur?.label || placeholder}</span>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
@@ -89,17 +95,17 @@ function SearchableSelect({ label, value, onChange, options, placeholder = 'Ch�
       {open && !disabled && (
         <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-[12rem] rounded-lg border border-border bg-popover shadow-md">
           <div className="p-2 border-b border-border">
-            <Input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm..." className="h-8 text-sm" />
+            <Input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm..." className="h-9 text-base font-semibold" />
           </div>
           <div className="max-h-64 overflow-y-auto p-1">
             {filtered.length === 0 ? (
-              <div className="px-2 py-2 text-xs text-muted-foreground">Không có kết quả</div>
+              <div className="px-2 py-2 text-sm font-semibold text-muted-foreground">Không có kết quả</div>
             ) : (
               filtered.map((o) => (
                 <button
                   key={String(o.value)}
                   type="button"
-                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground ${
+                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-base font-semibold hover:bg-accent hover:text-accent-foreground ${
                     String(o.value) === String(value) ? 'bg-accent/60' : ''
                   }`}
                   onClick={() => {
@@ -345,9 +351,9 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
           <DialogTitle>Tạo ao nuôi mới</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          {error && <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
+          {error && <p className="text-base font-semibold text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
           <div>
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Hộ nuôi *</Label>
+            <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Hộ nuôi *</Label>
             <Select value={form.household_id} onValueChange={(v) => setForm({ ...form, household_id: v })} items={householdSelectItems}>
               <SelectTrigger className="mt-1">
                 <SelectValue placeholder="Chọn hộ..." />
@@ -362,25 +368,25 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
             </Select>
           </div>
           <div>
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mã ao (tự sinh)</Label>
+            <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Mã ao (tự sinh)</Label>
             <Input value={form.codePreview || '—'} readOnly className="mt-1 font-mono bg-muted/50" />
           </div>
           <div>
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tên chu kỳ đầu (tuỳ chọn)</Label>
+            <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Tên chu kỳ đầu (tuỳ chọn)</Label>
             <Input className="mt-1" value={form.first_cycle_name} onChange={(e) => setForm({ ...form, first_cycle_name: e.target.value })} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Diện tích (m²)</Label>
+              <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Diện tích (m²)</Label>
               <Input type="number" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} className="mt-1" />
             </div>
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Độ sâu (m)</Label>
+              <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Độ sâu (m)</Label>
               <Input type="number" step="0.1" value={form.depth} onChange={(e) => setForm({ ...form, depth: e.target.value })} className="mt-1" />
             </div>
           </div>
           <div>
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Địa điểm</Label>
+            <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Địa điểm</Label>
             <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="mt-1" />
           </div>
           <Button onClick={handleCreate} disabled={saving || households.length === 0} className="w-full bg-primary text-white">
@@ -435,19 +441,19 @@ function EditPondDialog({ open, onClose, pond, onUpdated }) {
           <DialogTitle>Chỉnh sửa thông tin ao {pond?.code}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          {error && <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
+          {error && <p className="text-base font-semibold text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Diện tích (m²)</Label>
+              <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Diện tích (m²)</Label>
               <Input type="number" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} className="mt-1" />
             </div>
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Độ sâu (m)</Label>
+              <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Độ sâu (m)</Label>
               <Input type="number" step="0.1" value={form.depth} onChange={(e) => setForm({ ...form, depth: e.target.value })} className="mt-1" />
             </div>
           </div>
           <div>
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Địa điểm</Label>
+            <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Địa điểm</Label>
             <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="mt-1" />
           </div>
           <Button onClick={handleUpdate} disabled={saving} className="w-full bg-primary text-white">
@@ -465,7 +471,7 @@ function cycleLabel(c, idx) {
 }
 
 export default function Ponds() {
-  const { harvestAlertDays, appSettings } = useAuth();
+  const { appSettings } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = String(searchParams.get('tab') || '').trim().toLowerCase();
   const mainTab =
@@ -486,6 +492,9 @@ export default function Ponds() {
   const [statusFilters, setStatusFilters] = useState(() => new Set());
   const [agencyFilters, setAgencyFilters] = useState(() => new Set());
   const [householdFilters, setHouseholdFilters] = useState(() => new Set());
+  const [cycleDateField, setCycleDateField] = useState(() => 'stock');
+  const [cycleDateFrom, setCycleDateFrom] = useState('');
+  const [cycleDateTo, setCycleDateTo] = useState('');
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -550,10 +559,15 @@ export default function Ponds() {
       const matchAgency = agencyFilters.size === 0 || agencyFilters.has(p.agency_code);
       const hid = p?.household_id || p?.households?.id || null;
       const matchHousehold = householdFilters.size === 0 || (hid && householdFilters.has(String(hid)));
-      return matchSearch && matchStatus && matchAgency && matchHousehold;
+      const c = p.active_cycle;
+      const dateRow = c
+        ? { stock_date: c.stock_date ?? null, expected_harvest_date: plannedHarvestDateForDisplay(c) }
+        : { stock_date: null, expected_harvest_date: null };
+      const matchDate = rowMatchesCycleDateRange(dateRow, cycleDateField, cycleDateFrom, cycleDateTo);
+      return matchSearch && matchStatus && matchAgency && matchHousehold && matchDate;
     });
     return rows.sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')));
-  }, [ponds, search, statusFilters, agencyFilters, householdFilters]);
+  }, [ponds, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo]);
 
   const cycleRows = useMemo(() => {
     const ticketFishByCycle = new Map();
@@ -591,6 +605,7 @@ export default function Ponds() {
           actual_yield: null,
           harvest_done: false,
           expected_harvest_date: null,
+          expected_harvest_date_estimated: false,
           stock_date: null,
           withdrawal_end_date: null,
           fcr: null,
@@ -631,6 +646,7 @@ export default function Ponds() {
             actual_yield: c.actual_yield ?? null,
             harvest_done: Boolean(c.harvest_done),
             expected_harvest_date: plannedHarvestDateForDisplay(c),
+            expected_harvest_date_estimated: isPlannedHarvestDateEstimated(c),
             stock_date: c.stock_date,
             withdrawal_end_date: c.withdrawal_end_date,
             fcr: c.fcr,
@@ -652,11 +668,13 @@ export default function Ponds() {
     }
     // Group by pond_code
     return rows.sort((a, b) => {
-      if (a.pond_code !== b.pond_code) return a.pond_code.localeCompare(b.pond_code);
+      const ca = String(a.pond_code ?? '');
+      const cb = String(b.pond_code ?? '');
+      if (ca !== cb) return ca.localeCompare(cb, 'vi');
       // Sort cycles within pond by stock_date desc
       if (!a.stock_date) return 1;
       if (!b.stock_date) return -1;
-      return b.stock_date.localeCompare(a.stock_date);
+      return String(b.stock_date).localeCompare(String(a.stock_date));
     });
   }, [ponds, stockedFishByCycle, harvestRecords]);
 
@@ -689,14 +707,16 @@ export default function Ponds() {
   );
 
   const today = new Date();
+  const harvestAlertDays = getHarvestAlertDays(appSettings);
 
   const cycleColumnDefs = useMemo(() => cycleColumnDefsForMainTab(mainTab), [mainTab]);
 
   /** Cột mới thêm vào DEFAULT nhưng state cũ/HMR có thể thiếu key → undefined coi là ẩn; merge để mặc định bật. */
-  const effectiveVisibleCols = useMemo(
-    () => ({ ...DEFAULT_VISIBLE_COLUMNS, ...visibleCols }),
-    [visibleCols]
-  );
+  const effectiveVisibleCols = useMemo(() => {
+    const merged = { ...DEFAULT_VISIBLE_COLUMNS, ...visibleCols };
+    delete merged.nhac_thu;
+    return merged;
+  }, [visibleCols]);
 
   const filteredRows = useMemo(() => {
     const q = search.toLowerCase();
@@ -706,6 +726,7 @@ export default function Ponds() {
       const matchAgency = agencyFilters.size === 0 || agencyFilters.has(r.agency_code);
       const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
+      if (!rowMatchesCycleDateRange(r, cycleDateField, cycleDateFrom, cycleDateTo)) return false;
 
       // Còn SL cần thu (kg) theo kế hoạch → luôn tab Chu kỳ (ưu tiên hơn phân nhánh theo cá)
       if (isYieldNeedStillActive(r)) return true;
@@ -718,11 +739,16 @@ export default function Ponds() {
       if (isYieldNeedHarvestDone(r)) return false;
 
       const hasPlan = Boolean(r.stock_date) || (Number(r.total_fish) || 0) > 0;
-      const hasFish = r.status === 'CC';
-      const diff = r.expected_harvest_date ? differenceInDays(parseISO(r.expected_harvest_date), today) : null;
-      const isUrgent = diff !== null && diff <= harvestAlertDays;
-      const isWithdrawal = r.withdrawal_end_date && differenceInDays(parseISO(r.withdrawal_end_date), today) >= 0;
-      const hasAlert = Boolean(isUrgent || isWithdrawal);
+      const hasFish = String(r.status ?? '').toUpperCase() === 'CC';
+      const diff = calendarDaysUntilHarvest(r.expected_harvest_date, today);
+      const harvestComplete = isCycleHarvestCompleteForAlerts(r);
+      const isUrgent = !harvestComplete && isHarvestDateOnOrBeforeToday(diff);
+      const isUpcomingHarvest =
+        !harvestComplete && isHarvestDateWithinUpcomingDays(diff, harvestAlertDays);
+      const withdrawalDiff = r.withdrawal_end_date ? calendarDaysUntilHarvest(r.withdrawal_end_date, today) : null;
+      const isWithdrawal =
+        !harvestComplete && r.withdrawal_end_date && withdrawalDiff !== null && withdrawalDiff >= 0;
+      const hasAlert = Boolean(isUrgent || isWithdrawal || isUpcomingHarvest);
 
       // Thu một phần (còn cá) — luôn ở Chu kỳ để theo dõi
       const partialHarvest = hasHarvest && rem != null && rem > 0;
@@ -730,7 +756,18 @@ export default function Ponds() {
 
       return hasPlan || hasFish || hasAlert;
     });
-  }, [cycleRows, search, statusFilters, agencyFilters, householdFilters, harvestAlertDays, today]);
+  }, [
+    cycleRows,
+    search,
+    statusFilters,
+    agencyFilters,
+    householdFilters,
+    today,
+    harvestAlertDays,
+    cycleDateField,
+    cycleDateFrom,
+    cycleDateTo,
+  ]);
 
   const cycleTotals = useMemo(() => {
     const rows = filteredRows || [];
@@ -760,6 +797,7 @@ export default function Ponds() {
       const matchAgency = agencyFilters.size === 0 || agencyFilters.has(r.agency_code);
       const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
+      if (!rowMatchesCycleDateRange(r, cycleDateField, cycleDateFrom, cycleDateTo)) return false;
       if (!r.cycle_id) return false;
       if (isYieldNeedStillActive(r)) return false;
       if (isYieldNeedHarvestDone(r)) return true;
@@ -767,9 +805,7 @@ export default function Ponds() {
       const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
       return hasHarvest && rem === 0;
     });
-  }, [cycleRows, search, statusFilters, agencyFilters, householdFilters]);
-
-  // Khi mọi chu kỳ khớp bộ lọc đều đã thu hết: bảng «Chu kỳ» trống — chuyển sang «Chu kì đã thu»
+  }, [cycleRows, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo]);
   useEffect(() => {
     if (loading || mainTab !== 'cycles') return;
     if (filteredRows.length > 0) return;
@@ -935,7 +971,7 @@ export default function Ponds() {
   };
 
   return (
-    <div className="p-3 sm:p-6 w-full max-w-none">
+    <div className="p-3 sm:p-6 w-full max-w-none text-base font-semibold leading-normal [&_input]:text-base [&_input]:font-semibold [&_select]:text-base [&_select]:font-semibold">
       <Tabs
         value={mainTab}
         onValueChange={(v) => {
@@ -943,16 +979,16 @@ export default function Ponds() {
         }}
         className="w-full gap-0"
       >
-        <TabsList className="inline-flex h-auto min-h-8 w-fit max-w-full shrink-0 flex-wrap items-center gap-1 rounded-md border border-border bg-muted/50 p-1 shadow-none">
-          <TabsTrigger value="households" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Hộ nuôi</TabsTrigger>
-          <TabsTrigger value="ponds" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Ao</TabsTrigger>
-          <TabsTrigger value="cycles" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kỳ</TabsTrigger>
-          <TabsTrigger value="cyclesHarvested" className="h-7 rounded-sm px-3 py-0 text-xs font-semibold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kì đã thu</TabsTrigger>
+        <TabsList className="inline-flex h-auto min-h-10 w-fit max-w-full shrink-0 flex-wrap items-center gap-1 rounded-md border border-border bg-muted/50 p-1.5 shadow-none">
+          <TabsTrigger value="households" className="h-10 rounded-md px-4 py-1 text-base font-bold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Hộ nuôi</TabsTrigger>
+          <TabsTrigger value="ponds" className="h-10 rounded-md px-4 py-1 text-base font-bold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Ao</TabsTrigger>
+          <TabsTrigger value="cycles" className="h-10 rounded-md px-4 py-1 text-base font-bold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kỳ</TabsTrigger>
+          <TabsTrigger value="cyclesHarvested" className="h-10 rounded-md px-4 py-1 text-base font-bold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kì đã thu</TabsTrigger>
         </TabsList>
 
         <div className="mt-3 flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground sm:whitespace-nowrap">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground sm:whitespace-nowrap tracking-tight">
               {mainTab === 'households'
                 ? 'Hộ nuôi'
                 : mainTab === 'ponds'
@@ -961,7 +997,7 @@ export default function Ponds() {
                     ? 'Chu kỳ đã thu hoạch'
                     : 'Quản lý chu kỳ ao nuôi'}
             </h1>
-            <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
+            <p className="text-muted-foreground text-base sm:text-lg font-semibold mt-1">
               {mainTab === 'households'
                 ? 'Mã hộ nằm trong mã ao (khu vực–đại lý–hộ–STT).'
                 : mainTab === 'ponds'
@@ -976,8 +1012,8 @@ export default function Ponds() {
               <div className="hidden sm:block"><QRBatchDownload ponds={ponds} /></div>
               {mainTab === 'cycles' || mainTab === 'cyclesHarvested' ? (
                 <>
-                  <Button variant="outline" className="gap-2" onClick={() => setShowColumnSettings(true)}>
-                    <Settings2 className="w-4 h-4" /> Cài đặt cột
+                  <Button variant="outline" className="gap-2 text-base font-bold h-10 px-4" onClick={() => setShowColumnSettings(true)}>
+                    <Settings2 className="w-5 h-5" /> Cài đặt cột
                   </Button>
                   {mainTab === 'cycles' && (
                     <Button
@@ -997,17 +1033,17 @@ export default function Ponds() {
                         });
                         setNewCycleOpen(true);
                       }}
-                      className="bg-primary text-white flex items-center gap-2 text-sm"
+                      className="bg-primary text-white flex items-center gap-2 text-base font-bold h-10 px-4"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-5 h-5" />
                       <span className="hidden sm:inline">Thêm chu kỳ</span>
                       <span className="sm:hidden">Chu kỳ</span>
                     </Button>
                   )}
                 </>
               ) : (
-                <Button onClick={() => setShowNewDialog(true)} className="bg-primary text-white flex items-center gap-2 text-sm">
-                  <Plus className="w-4 h-4" />
+                <Button onClick={() => setShowNewDialog(true)} className="bg-primary text-white flex items-center gap-2 text-base font-bold h-10 px-4">
+                  <Plus className="w-5 h-5" />
                   <span className="hidden sm:inline">Thêm ao mới</span>
                   <span className="sm:hidden">Thêm</span>
                 </Button>
@@ -1017,114 +1053,38 @@ export default function Ponds() {
         </div>
 
         <TabsContent value="ponds" className="mt-3 sm:mt-4 space-y-4 sm:space-y-5 outline-none">
-              <div className="flex w-full min-w-0 flex-wrap gap-2 sm:gap-3 items-center">
-                <div className="relative min-w-[12rem] flex-1 basis-[min(100%,24rem)]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input placeholder="Tìm mã ao, tên chủ hộ, đại lý..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-                </div>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="w-44 justify-between">
-                      {statusFilters.size === 0 ? 'Trạng thái: Tất cả' : `Trạng thái: ${[...statusFilters].join(', ')}`}
-                      <ChevronsUpDown className="w-4 h-4 opacity-50" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-56">
-                    <DropdownMenuLabel>Trạng thái</DropdownMenuLabel>
-                    {statusFilterItems.map((it) => (
-                      <DropdownMenuCheckboxItem
-                        key={it.value}
-                        checked={statusFilters.has(it.value)}
-                        onCheckedChange={() =>
-                          setStatusFilters((prev) => {
-                            const next = new Set(prev);
-                            next.has(it.value) ? next.delete(it.value) : next.add(it.value);
-                            return next;
-                          })
-                        }
-                      >
-                        {it.label}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setStatusFilters(new Set())}>Bỏ chọn</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {agencyFilterItems.length > 0 && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="w-44 justify-between">
-                        {agencyFilters.size === 0 ? 'Đại lý: Tất cả' : `Đại lý: ${agencyFilters.size} đã chọn`}
-                        <ChevronsUpDown className="w-4 h-4 opacity-50" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-56">
-                      <DropdownMenuLabel>Đại lý</DropdownMenuLabel>
-                      {agencyFilterItems.map((a) => (
-                        <DropdownMenuCheckboxItem
-                          key={a}
-                          checked={agencyFilters.has(a)}
-                          onCheckedChange={() =>
-                            setAgencyFilters((prev) => {
-                              const next = new Set(prev);
-                              next.has(a) ? next.delete(a) : next.add(a);
-                              return next;
-                            })
-                          }
-                        >
-                          {a}
-                        </DropdownMenuCheckboxItem>
-                      ))}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setAgencyFilters(new Set())}>Bỏ chọn</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-
-                {householdFilterItems.length > 0 && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="w-52 justify-between">
-                        {householdFilters.size === 0 ? 'Chủ hộ: Tất cả' : `Chủ hộ: ${householdFilters.size} đã chọn`}
-                        <ChevronsUpDown className="w-4 h-4 opacity-50" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-[22rem] max-h-80 overflow-auto">
-                      <DropdownMenuLabel>Chủ hộ</DropdownMenuLabel>
-                      {householdFilterItems.map((h) => (
-                        <DropdownMenuCheckboxItem
-                          key={h.id}
-                          checked={householdFilters.has(String(h.id))}
-                          onCheckedChange={() =>
-                            setHouseholdFilters((prev) => {
-                              const next = new Set(prev);
-                              const id = String(h.id);
-                              next.has(id) ? next.delete(id) : next.add(id);
-                              return next;
-                            })
-                          }
-                        >
-                          {h.agency ? `${h.agency} — ` : ''}{h.name}
-                        </DropdownMenuCheckboxItem>
-                      ))}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setHouseholdFilters(new Set())}>Bỏ chọn</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
+              <PondTableFilterControls
+                search={search}
+                setSearch={setSearch}
+                searchPlaceholder="Tìm mã ao, tên chủ hộ, đại lý…"
+                statusFilterItems={statusFilterItems}
+                statusFilters={statusFilters}
+                setStatusFilters={setStatusFilters}
+                agencyFilterItems={agencyFilterItems}
+                agencyFilters={agencyFilters}
+                setAgencyFilters={setAgencyFilters}
+                householdFilterItems={householdFilterItems}
+                householdFilters={householdFilters}
+                setHouseholdFilters={setHouseholdFilters}
+                showDateRange
+                dateField={cycleDateField}
+                setDateField={setCycleDateField}
+                dateFrom={cycleDateFrom}
+                setDateFrom={setCycleDateFrom}
+                dateTo={cycleDateTo}
+                setDateTo={setCycleDateTo}
+              />
 
               <div className="sm:hidden space-y-3">
                 {loading ? (
                   Array(4).fill(0).map((_, i) => <div key={i} className="h-32 bg-muted rounded-xl animate-pulse" />)
                 ) : pondRows.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground text-sm">Không tìm thấy ao nào</div>
+                  <div className="text-center py-12 text-muted-foreground text-base font-semibold">Không tìm thấy ao nào</div>
                 ) : pondRows.map((p) => (
                   <PondMobileCard
                     key={p.id}
-                    pond={{
+                    harvestAlertDays={harvestAlertDays}
+        pond={{
                       code: p.code,
                       owner_name: p.owner_name,
                       status: p.active_cycle?.status || 'CT',
@@ -1132,29 +1092,31 @@ export default function Ponds() {
                       current_fish: p.active_cycle?.current_fish ?? p.active_cycle?.total_fish ?? null,
                       expected_yield: plannedYieldForDisplay(p.active_cycle),
                       expected_harvest_date: plannedHarvestDateForDisplay(p.active_cycle),
+                      harvest_date_estimated: p.active_cycle ? isPlannedHarvestDateEstimated(p.active_cycle) : false,
                       withdrawal_end_date: p.active_cycle?.withdrawal_end_date ?? null,
                       fcr: p.active_cycle?.fcr ?? null,
                       agency_code: p.agency_code,
+                      harvest_done: p.active_cycle?.harvest_done,
+                      actual_yield: p.active_cycle?.actual_yield,
                     }}
                     checked={false}
                     onCheck={() => {}}
                     onClick={() => setViewPondId(p.id)}
-                    harvestAlertDays={harvestAlertDays}
                   />
                 ))}
               </div>
 
               <div className="hidden sm:block bg-card rounded-xl border border-border shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-[640px]">
+                  <table className="w-full text-base min-w-[640px]">
                     <thead>
                       <tr className="bg-muted/30 border-b border-border">
-                        <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">MÃ AO</th>
-                        <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">CHỦ HỘ</th>
-                        <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">ĐẠI LÝ</th>
-                        <th className="text-left px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">TRẠNG THÁI</th>
-                        <th className="text-right px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">SL DỰ KIẾN (KG)</th>
-                        <th className="sticky right-0 bg-muted/30 text-center px-4 py-3 text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">THAO TÁC</th>
+                        <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">MÃ AO</th>
+                        <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">CHỦ HỘ</th>
+                        <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">ĐẠI LÝ</th>
+                        <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">TRẠNG THÁI</th>
+                        <th className="text-right px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">SL DỰ KIẾN (KG)</th>
+                        <th className="sticky right-0 bg-muted/30 text-center px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">THAO TÁC</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
@@ -1163,7 +1125,7 @@ export default function Ponds() {
                           <tr key={i}><td className="px-4 py-3" colSpan={6}><div className="h-4 bg-muted rounded animate-pulse w-32" /></td></tr>
                         ))
                       ) : pondRows.length === 0 ? (
-                        <tr><td colSpan={6} className="text-center py-12 text-muted-foreground">Không tìm thấy ao nào</td></tr>
+                        <tr><td colSpan={6} className="text-center py-12 text-muted-foreground text-base font-semibold">Không tìm thấy ao nào</td></tr>
                       ) : pondRows.map((p) => {
                         const status = p.active_cycle?.status || 'CT';
                         const currentFish = p.active_cycle?.current_fish ?? p.active_cycle?.total_fish ?? null;
@@ -1174,11 +1136,11 @@ export default function Ponds() {
                             onClick={() => setViewPondId(p.id)}
                             className="hover:bg-primary/5 cursor-pointer transition-colors"
                           >
-                            <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{p.code}</td>
-                            <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{p.owner_name || '—'}</td>
-                            <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">{p.agency_code || '—'}</td>
-                            <td className="px-4 py-3 whitespace-nowrap"><PondStatusBadge status={status} /></td>
-                            <td className="px-4 py-3 text-right font-bold text-slate-800 whitespace-nowrap">
+                            <td className="px-4 py-3.5 font-extrabold text-slate-800 whitespace-nowrap">{p.code}</td>
+                            <td className="px-4 py-3.5 text-slate-700 font-semibold whitespace-nowrap">{p.owner_name || '—'}</td>
+                            <td className="px-4 py-3.5 text-muted-foreground text-base font-semibold whitespace-nowrap">{p.agency_code || '—'}</td>
+                            <td className="px-4 py-3.5 whitespace-nowrap"><PondStatusBadge status={status} /></td>
+                            <td className="px-4 py-3.5 text-right font-extrabold text-slate-900 whitespace-nowrap">
                               {expectedYield != null ? Number(expectedYield).toLocaleString() : '—'}
                             </td>
                             <td className="sticky right-0 bg-card px-4 py-3 text-center whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]" onClick={(e) => e.stopPropagation()}>
@@ -1228,13 +1190,19 @@ export default function Ponds() {
             householdFilters={householdFilters}
             setHouseholdFilters={setHouseholdFilters}
             householdFilterItems={householdFilterItems}
+            cycleDateField={cycleDateField}
+            setCycleDateField={setCycleDateField}
+            cycleDateFrom={cycleDateFrom}
+            setCycleDateFrom={setCycleDateFrom}
+            cycleDateTo={cycleDateTo}
+            setCycleDateTo={setCycleDateTo}
             checkedHarvest={checkedHarvest}
             setCheckedHarvest={setCheckedHarvest}
             toggleHarvestCheck={toggleHarvestCheck}
             handleConfirmHarvest={handleConfirmHarvest}
             confirming={confirming}
-            harvestAlertDays={harvestAlertDays}
             today={today}
+            harvestAlertDays={harvestAlertDays}
             visibleCols={effectiveVisibleCols}
             columnDefs={cycleColumnDefs}
             setViewCycleId={setViewCycleId}
@@ -1265,13 +1233,19 @@ export default function Ponds() {
             householdFilters={householdFilters}
             setHouseholdFilters={setHouseholdFilters}
             householdFilterItems={householdFilterItems}
+            cycleDateField={cycleDateField}
+            setCycleDateField={setCycleDateField}
+            cycleDateFrom={cycleDateFrom}
+            setCycleDateFrom={setCycleDateFrom}
+            cycleDateTo={cycleDateTo}
+            setCycleDateTo={setCycleDateTo}
             checkedHarvest={checkedHarvest}
             setCheckedHarvest={setCheckedHarvest}
             toggleHarvestCheck={toggleHarvestCheck}
             handleConfirmHarvest={handleConfirmHarvest}
             confirming={confirming}
-            harvestAlertDays={harvestAlertDays}
             today={today}
+            harvestAlertDays={harvestAlertDays}
             visibleCols={effectiveVisibleCols}
             columnDefs={cycleColumnDefs}
             setViewCycleId={setViewCycleId}
@@ -1339,7 +1313,7 @@ export default function Ponds() {
           </DialogHeader>
           <div className="space-y-2 py-1">
             {cycleColumnDefs.map((col) => (
-              <label key={col.key} className="flex items-center justify-between gap-3 text-sm">
+              <label key={col.key} className="flex items-center justify-between gap-3 text-base font-semibold">
                 <span>{col.label}</span>
                 <input
                   type="checkbox"
@@ -1395,7 +1369,7 @@ export default function Ponds() {
           </DialogHeader>
           <div className="space-y-3 py-1">
             {newCycleErr && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+              <p className="text-base font-semibold text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
                 {newCycleErr}
               </p>
             )}
@@ -1410,7 +1384,7 @@ export default function Ponds() {
               />
             </div>
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trạng thái thả *</Label>
+              <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Trạng thái thả *</Label>
               <Select value={newCycleForm.status} onValueChange={(v) => setNewCycleForm((p) => ({ ...p, status: v }))}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Chọn trạng thái..." />
@@ -1422,12 +1396,12 @@ export default function Ponds() {
               </Select>
             </div>
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tên chu kỳ (tuỳ chọn)</Label>
+              <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Tên chu kỳ (tuỳ chọn)</Label>
               <Input className="mt-1" value={newCycleForm.name} onChange={(e) => setNewCycleForm((p) => ({ ...p, name: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ngày thả *</Label>
+                <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Ngày thả *</Label>
                 <Input
                   className="mt-1"
                   type="date"
@@ -1436,7 +1410,7 @@ export default function Ponds() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Thu hoạch DK (gốc)</Label>
+                <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Thu hoạch DK (gốc)</Label>
                 <Input
                   className="mt-1"
                   type="date"
@@ -1447,7 +1421,7 @@ export default function Ponds() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tổng cá thả (con) *</Label>
+                <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Tổng cá thả (con) *</Label>
                 <Input
                   className="mt-1"
                   type="number"
@@ -1456,7 +1430,7 @@ export default function Ponds() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Size giống (cm)</Label>
+                <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Size giống (cm)</Label>
                 <Input
                   className="mt-1"
                   type="number"
@@ -1466,7 +1440,7 @@ export default function Ponds() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL giống (g)</Label>
+                <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">TL giống (g)</Label>
                 <Input
                   className="mt-1"
                   type="number"
@@ -1476,7 +1450,7 @@ export default function Ponds() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tỷ lệ sống (%)</Label>
+                <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Tỷ lệ sống (%)</Label>
                 <Input
                   className="mt-1"
                   type="number"
@@ -1485,7 +1459,7 @@ export default function Ponds() {
                 />
               </div>
               <div className="col-span-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">TL kỳ vọng lúc thu (g)</Label>
+                <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">TL kỳ vọng lúc thu (g)</Label>
                 <Input
                   className="mt-1"
                   type="number"

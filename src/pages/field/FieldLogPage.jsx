@@ -4,9 +4,9 @@ import { format, differenceInDays, parseISO } from 'date-fns';
 import { base44 } from '@/api/base44Client';
 import { submitPondLogEntry } from '@/lib/pondLogSubmit';
 import { POND_LOG_ENV_RANGES, pondLogEnvOutOfRange } from '@/lib/pondLogEnvRanges';
-import { useAuth } from '@/lib/AuthContext';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { calendarDaysUntilHarvest, isHarvestDateOnOrBeforeToday } from '@/lib/harvestAlerts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -85,7 +85,6 @@ function SectionToggle({ open, onToggle, label, subtitle }) {
 }
 
 export default function FieldLogPage() {
-  const { harvestAlertDays } = useAuth();
   const [params] = useSearchParams();
   const pondId = params.get('pond');
 
@@ -227,8 +226,8 @@ export default function FieldLogPage() {
 
   const today = new Date();
   const harvestDk = plannedHarvestDateForDisplay(cycle);
-  const harvestDiff = harvestDk ? differenceInDays(parseISO(harvestDk), today) : null;
-  const harvestUrgent = harvestDiff !== null && harvestDiff <= (harvestAlertDays ?? 7);
+  const harvestDiff = harvestDk ? calendarDaysUntilHarvest(harvestDk, today) : null;
+  const harvestUrgent = isHarvestDateOnOrBeforeToday(harvestDiff);
   const harvestOverdue = harvestDiff !== null && harvestDiff < 0;
   const inWithdrawal =
     cycle.withdrawal_end_date && differenceInDays(parseISO(cycle.withdrawal_end_date), today) >= 0;

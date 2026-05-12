@@ -49,13 +49,13 @@ function SearchablePicker({
 
   return (
     <div ref={rootRef} className="relative">
-      {label ? <Label className="text-xs font-semibold text-muted-foreground uppercase">{label}</Label> : null}
+      {label ? <Label className="text-sm font-bold text-muted-foreground uppercase">{label}</Label> : null}
       <Button
         type="button"
         variant="outline"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
-        className={`mt-1 h-9 w-full justify-between px-2 font-normal text-sm ${!current ? 'text-muted-foreground' : ''}`}
+        className={`mt-1 h-10 w-full justify-between px-2 font-semibold text-base ${!current ? 'text-muted-foreground' : ''}`}
       >
         <span className="truncate text-left">{current?.label || placeholder}</span>
         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
@@ -68,18 +68,18 @@ function SearchablePicker({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Tìm…"
-              className="h-8 text-sm"
+              className="h-9 text-base font-semibold"
             />
           </div>
           <div className="max-h-64 overflow-y-auto p-1">
             {filtered.length === 0 ? (
-              <div className="px-2 py-2 text-xs text-muted-foreground">Không có kết quả</div>
+              <div className="px-2 py-2 text-sm font-semibold text-muted-foreground">Không có kết quả</div>
             ) : (
               filtered.map((o) => (
                 <button
                   key={String(o.value)}
                   type="button"
-                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground ${String(o.value) === String(value) ? 'bg-accent/60' : ''}`}
+                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-base font-semibold hover:bg-accent hover:text-accent-foreground ${String(o.value) === String(value) ? 'bg-accent/60' : ''}`}
                   onClick={() => {
                     onChange(o.value);
                     setOpen(false);
@@ -241,7 +241,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
         </DialogHeader>
         {!confirmDelete ? (
           <div className="space-y-4 py-2">
-            {error && <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
+            {error && <p className="text-base font-semibold text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
             <div>
               <SearchablePicker
                 label="Đại lý *"
@@ -271,7 +271,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-semibold text-muted-foreground uppercase">Mã hộ (001) *</Label>
+                <Label className="text-sm font-bold text-muted-foreground uppercase">Mã hộ (001) *</Label>
                 <Input
                   value={form.household_segment}
                   onChange={(e) => setForm({ ...form, household_segment: e.target.value })}
@@ -280,7 +280,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
                 />
               </div>
               <div>
-                <Label className="text-xs font-semibold text-muted-foreground uppercase">Trạng thái</Label>
+                <Label className="text-sm font-bold text-muted-foreground uppercase">Trạng thái</Label>
                 <Select
                   value={form.active ? '1' : '0'}
                   onValueChange={(v) => setForm({ ...form, active: v === '1' })}
@@ -295,15 +295,15 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
               </div>
             </div>
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase">Tên hộ *</Label>
+              <Label className="text-sm font-bold text-muted-foreground uppercase">Tên hộ *</Label>
               <Input {...f('name')} className="mt-1" />
             </div>
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase">SĐT</Label>
+              <Label className="text-sm font-bold text-muted-foreground uppercase">SĐT</Label>
               <Input {...f('phone')} className="mt-1" placeholder="VD: 0912345678" inputMode="tel" />
             </div>
             <div>
-              <Label className="text-xs font-semibold text-muted-foreground uppercase">Địa chỉ</Label>
+              <Label className="text-sm font-bold text-muted-foreground uppercase">Địa chỉ</Label>
               <Input {...f('address')} className="mt-1" />
             </div>
             <div className="flex gap-2 pt-1">
@@ -323,8 +323,8 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
             <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
               <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
               <div>
-                <p className="font-semibold text-red-700 text-sm">Xóa hộ {row.name}?</p>
-                <p className="text-xs text-red-600 mt-0.5">Các ao liên kết sẽ mất household_id nếu FK set null.</p>
+                <p className="font-bold text-red-700 text-base">Xóa hộ {row.name}?</p>
+                <p className="text-sm font-semibold text-red-600 mt-0.5">Các ao liên kết sẽ mất household_id nếu FK set null.</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -474,18 +474,18 @@ export function HouseholdsPanel({ embedded = false }) {
   };
 
   return (
-    <div className={embedded ? 'space-y-4' : 'p-6 space-y-5 max-w-7xl mx-auto'}>
+    <div className={embedded ? 'space-y-4 text-base font-semibold' : 'p-6 space-y-5 max-w-7xl mx-auto text-base font-semibold'}>
       <div className={`flex flex-col sm:flex-row sm:items-center gap-3 ${embedded ? 'sm:justify-end' : 'sm:justify-between'}`}>
         {!embedded && (
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Quản lý hộ nuôi</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">Mã hộ dùng trong mã ao (khu vực–đại lý–hộ–STT ao)</p>
+            <h1 className="text-3xl font-extrabold text-foreground">Quản lý hộ nuôi</h1>
+            <p className="text-muted-foreground text-base font-semibold mt-0.5">Mã hộ dùng trong mã ao (khu vực–đại lý–hộ–STT ao)</p>
           </div>
         )}
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            className="flex items-center gap-2 shrink-0"
+            className="flex items-center gap-2 shrink-0 text-base font-bold h-10 px-4"
             disabled={agencies.length === 0 || importing}
             onClick={() => document.getElementById('household-import-excel')?.click()}
           >
@@ -508,7 +508,7 @@ export function HouseholdsPanel({ embedded = false }) {
               setEditRow(null);
               setDialogOpen(true);
             }}
-            className="bg-primary text-white flex items-center gap-2 shrink-0"
+            className="bg-primary text-white flex items-center gap-2 shrink-0 text-base font-bold h-10 px-4"
             disabled={agencies.length === 0}
           >
             <Plus className="w-4 h-4" />
@@ -518,46 +518,46 @@ export function HouseholdsPanel({ embedded = false }) {
       </div>
 
       {importMsg && (
-        <p className="text-xs text-muted-foreground bg-muted/40 border border-border rounded-lg px-3 py-2">{importMsg}</p>
+        <p className="text-sm font-semibold text-muted-foreground bg-muted/40 border border-border rounded-lg px-3 py-2">{importMsg}</p>
       )}
 
       {agencies.length === 0 && (
-        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        <p className="text-base font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           Cần có ít nhất một đại lý trước khi tạo hộ nuôi.
         </p>
       )}
 
       <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[700px]">
+          <table className="w-full text-base min-w-[700px]">
             <thead>
               <tr className="bg-muted/50 border-b border-border">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Tên hộ</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Mã hộ</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Khu vực</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Đại lý</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">SĐT</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap">Địa chỉ</th>
-                <th className="sticky right-0 bg-muted/50 text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">Thao tác</th>
+                <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase whitespace-nowrap">Tên hộ</th>
+                <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase whitespace-nowrap">Mã hộ</th>
+                <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase whitespace-nowrap">Khu vực</th>
+                <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase whitespace-nowrap">Đại lý</th>
+                <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase whitespace-nowrap">SĐT</th>
+                <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase whitespace-nowrap">Địa chỉ</th>
+                <th className="sticky right-0 bg-muted/50 text-center px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {loading ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Đang tải...</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground font-semibold">Đang tải...</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">Chưa có hộ nuôi</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground font-semibold">Chưa có hộ nuôi</td></tr>
               ) : (
                 rows.map((x) => (
                   <tr key={x.id} className="hover:bg-muted/20">
-                    <td className="px-4 py-3 font-medium whitespace-nowrap">{x.name}</td>
-                    <td className="px-4 py-3 font-mono text-primary whitespace-nowrap">{x.household_segment}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{x.region_code}</td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{agencyMap[x.agency_id]?.code || '—'}</td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{x.phone || '—'}</td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-[250px]">
+                    <td className="px-4 py-3.5 font-bold whitespace-nowrap">{x.name}</td>
+                    <td className="px-4 py-3.5 font-mono text-primary font-bold whitespace-nowrap">{x.household_segment}</td>
+                    <td className="px-4 py-3.5 font-semibold whitespace-nowrap">{x.region_code}</td>
+                    <td className="px-4 py-3.5 text-muted-foreground font-semibold whitespace-nowrap">{agencyMap[x.agency_id]?.code || '—'}</td>
+                    <td className="px-4 py-3.5 text-muted-foreground font-semibold whitespace-nowrap">{x.phone || '—'}</td>
+                    <td className="px-4 py-3.5 text-muted-foreground text-base font-semibold max-w-[250px]">
                       <div className="truncate">{x.address || '—'}</div>
                     </td>
-                    <td className="sticky right-0 bg-card px-4 py-3 whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">
+                    <td className="sticky right-0 bg-card px-4 py-3.5 whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">
                       <div className="flex items-center justify-center">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

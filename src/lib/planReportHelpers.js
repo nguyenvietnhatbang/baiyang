@@ -1,4 +1,37 @@
+import { addDays, format, startOfDay } from 'date-fns';
 import { calcOriginalYieldKg, calculateCurrentYield } from '@/lib/calculateYield';
+import { parseHarvestDateInput } from '@/lib/harvestDateParse';
+
+/** Số ngày nuôi mặc định để ước ngày thu khi chưa nhập «Thu hoạch dự kiến» trên chu kỳ (có ngày thả + đang nuôi/có cá). */
+export const DEFAULT_ESTIMATED_GROWOUT_DAYS = 150;
+
+function storedPlannedHarvestDateOnly(pond) {
+  if (!pond) return null;
+  const adj = pond.expected_harvest_date ?? pond.expectedHarvestDate;
+  if (adj != null && String(adj).trim() !== '') return adj;
+  const ini = pond.initial_expected_harvest_date ?? pond.initialExpectedHarvestDate;
+  if (ini != null && String(ini).trim() !== '') return ini;
+  return null;
+}
+
+/**
+ * Ước yyyy-MM-dd = ngày thả + {@link DEFAULT_ESTIMATED_GROWOUT_DAYS} khi DB chưa có ngày thu DK.
+ * Chỉ khi có ngày thả parse được và (CC hoặc có cá đăng ký).
+ */
+export function estimatedHarvestDateFromStockOnly(cycle) {
+  if (!cycle) return null;
+  const status = String(cycle.status ?? '').toUpperCase();
+  const fish = Number(cycle.total_fish || cycle.current_fish || 0);
+  if (status !== 'CC' && !(fish > 0)) return null;
+  const d0 = parseHarvestDateInput(cycle.stock_date);
+  if (!d0 || Number.isNaN(d0.getTime())) return null;
+  return format(startOfDay(addDays(startOfDay(d0), DEFAULT_ESTIMATED_GROWOUT_DAYS)), 'yyyy-MM-dd');
+}
+
+/** true nếu đang dùng ước từ ngày thả (không có expected/initial trên DB). */
+export function isPlannedHarvestDateEstimated(cycle) {
+  return !storedPlannedHarvestDateOnly(cycle) && Boolean(estimatedHarvestDateFromStockOnly(cycle));
+}
 
 /**
  * SL kế hoạch ban đầu (kg) — công thức đăng ký: total_fish × tỷ lệ sống × TL mục tiêu.
@@ -17,16 +50,12 @@ export function originalHarvestDateForReport(pond) {
 }
 
 /**
- * Ngày thu hoạch hiển thị / lọc: ưu tiên dữ liệu điều chỉnh (expected_harvest_date);
- * không có điều chỉnh (trống) thì lấy ngày dự kiến gốc (initial_expected_harvest_date).
+ * Ngày thu hoạch hiển thị / lọc: ưu tiên điều chỉnh → gốc; nếu trống thì ước từ ngày thả + {@link DEFAULT_ESTIMATED_GROWOUT_DAYS} (khi hợp lệ).
  */
 export function plannedHarvestDateForDisplay(pond) {
-  if (!pond) return null;
-  const adj = pond.expected_harvest_date;
-  if (adj != null && String(adj).trim() !== '') return adj;
-  const ini = pond.initial_expected_harvest_date;
-  if (ini != null && String(ini).trim() !== '') return ini;
-  return null;
+  const s = storedPlannedHarvestDateOnly(pond);
+  if (s) return s;
+  return estimatedHarvestDateFromStockOnly(pond);
 }
 
 /**

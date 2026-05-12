@@ -24,6 +24,7 @@ import { base44 } from '@/api/base44Client';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { calendarDaysUntilHarvest, isHarvestDateOnOrBeforeToday } from '@/lib/harvestAlerts';
 
 function cycleLabel(c, idx) {
   if (!c) return '';
@@ -45,7 +46,7 @@ export default function PondManageView({
   onUpdate,
   onDeleted,
 }) {
-  const { harvestAlertDays, user } = useAuth();
+  const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const canEditThisPond = Boolean(user);
   const today = new Date();
@@ -90,15 +91,13 @@ export default function PondManageView({
     differenceInDays(parseISO(selectedCycle.withdrawal_end_date), today) >= 0;
 
   const selectedHarvestDate = plannedHarvestDateForDisplay(selectedCycle);
-  const harvestDiff = selectedHarvestDate
-    ? differenceInDays(parseISO(selectedHarvestDate), today)
-    : null;
+  const harvestDiff = selectedHarvestDate ? calendarDaysUntilHarvest(selectedHarvestDate, today) : null;
 
   // Kiểm tra xem đã thu hoạch chưa (actual_yield > 0 hoặc harvest_done = true)
   const isHarvested = selectedCycle?.actual_yield > 0 || selectedCycle?.harvest_done;
   
-  // Chỉ cảnh báo ưu tiên thu nếu chưa thu hoạch và sắp đến ngày thu
-  const isUrgent = !isHarvested && harvestDiff !== null && harvestDiff <= harvestAlertDays;
+  // Cảnh báo ưu tiên thu: ngày thu dự kiến <= hôm nay, chưa coi là đã thu xong (logic đơn giản trên form)
+  const isUrgent = !isHarvested && isHarvestDateOnOrBeforeToday(harvestDiff);
 
   const handleLocalUpdate = async () => {
     await loadCycles();

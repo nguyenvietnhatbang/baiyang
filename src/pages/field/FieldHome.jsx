@@ -7,9 +7,9 @@ import QRScanner from '@/components/scanner/QRScanner';
 import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { useAuth } from '@/lib/AuthContext';
 import PondStatusBadge from '@/components/ponds/PondStatusBadge';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { calendarDaysUntilHarvest, isHarvestDateOnOrBeforeToday } from '@/lib/harvestAlerts';
 import { Input } from '@/components/ui/input';
 
 /** Hero: gradient teal, gọn để ưu tiên danh sách ao. */
@@ -19,7 +19,6 @@ const FIELD_HOME_HERO_STYLE = {
 };
 
 export default function FieldHome() {
-  const { harvestAlertDays } = useAuth();
   const [ponds, setPonds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -74,8 +73,6 @@ export default function FieldHome() {
       toast.error('Không tra được ao');
     }
   };
-
-  const alertDays = harvestAlertDays ?? 7;
 
   return (
     <div className="space-y-5 md:space-y-6">
@@ -148,8 +145,9 @@ export default function FieldHome() {
           <ul className="grid gap-3 sm:grid-cols-1 xl:grid-cols-2">
             {filteredPonds.map((p) => {
               const today = new Date();
-              const diff = p.expected_harvest_date ? differenceInDays(parseISO(p.expected_harvest_date), today) : null;
-              const isUrgent = diff !== null && diff <= alertDays;
+              const dk = plannedHarvestDateForDisplay(p);
+              const diff = dk ? calendarDaysUntilHarvest(dk, today) : null;
+              const isUrgent = isHarvestDateOnOrBeforeToday(diff);
               const isOverdue = diff !== null && diff < 0;
               const isWithdrawal =
                 p.withdrawal_end_date && differenceInDays(parseISO(p.withdrawal_end_date), today) >= 0;

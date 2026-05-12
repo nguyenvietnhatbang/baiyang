@@ -7,11 +7,10 @@ import AlertBanner from '@/components/dashboard/AlertBanner';
 import HarvestChart from '@/components/dashboard/HarvestChart';
 import { Link } from 'react-router-dom';
 import { differenceInDays, parseISO } from 'date-fns';
-import { useAuth } from '@/lib/AuthContext';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { calendarDaysUntilHarvest, isHarvestDateOnOrBeforeToday } from '@/lib/harvestAlerts';
 
 export default function Dashboard() {
-  const { harvestAlertDays } = useAuth();
   const [ponds, setPonds] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -31,7 +30,7 @@ export default function Dashboard() {
   const urgentPonds = activePonds.filter(p => {
     const dk = plannedHarvestDateForDisplay(p);
     if (!dk) return false;
-    return differenceInDays(parseISO(dk), today) <= harvestAlertDays;
+    return isHarvestDateOnOrBeforeToday(calendarDaysUntilHarvest(dk, today));
   });
 
   const withdrawalAlerts = ponds.filter(p => {
@@ -82,7 +81,6 @@ export default function Dashboard() {
       {(urgentPonds.length > 0 || withdrawalAlerts.length > 0) && (
         <AlertBanner
           ponds={[...urgentPonds, ...withdrawalAlerts.filter(p => !urgentPonds.includes(p))]}
-          harvestAlertDays={harvestAlertDays}
         />
       )}
 
@@ -153,7 +151,8 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-2">
               {urgentPonds.map(p => {
-                const diff = differenceInDays(parseISO(p.expected_harvest_date), today);
+                const dk = plannedHarvestDateForDisplay(p);
+                const diff = dk ? calendarDaysUntilHarvest(dk, today) : null;
                 return (
                   <Link to="/ponds" key={p.id}>
                     <div className={`p-3 rounded-lg border cursor-pointer hover:shadow-sm transition-shadow ${
@@ -202,7 +201,7 @@ export default function Dashboard() {
             <tbody className="divide-y divide-border">
               {activePonds.slice(0, 8).map(p => {
                 const dk = plannedHarvestDateForDisplay(p);
-                const diff = dk ? differenceInDays(parseISO(dk), today) : null;
+                const diff = dk ? calendarDaysUntilHarvest(dk, today) : null;
                 return (
                   <tr key={p.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-medium text-primary whitespace-nowrap">{p.code}</td>
@@ -220,7 +219,7 @@ export default function Dashboard() {
                     </td>
                     <td className="px-4 py-3 text-center text-xs">
                       {dk ? (
-                        <span className={diff !== null && diff <= harvestAlertDays ? 'text-red-600 font-bold' : 'text-foreground'}>
+                        <span className={diff !== null && diff <= 0 ? 'text-red-600 font-bold' : 'text-foreground'}>
                           {dk}
                           {diff !== null && diff <= 0 && <span className="ml-1 text-red-500 text-xs">(Quá hạn)</span>}
                         </span>

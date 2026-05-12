@@ -7,9 +7,10 @@ import { differenceInDays, parseISO } from 'date-fns';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/lib/AuthContext';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { calendarDaysUntilHarvest, isHarvestDateOnOrBeforeToday } from '@/lib/harvestAlerts';
 
 export default function AppLayout() {
-  const { harvestAlertDays, user, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [alertCount, setAlertCount] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const isMobile = useIsMobile();
@@ -23,8 +24,8 @@ export default function AppLayout() {
         if (p.status !== 'CC') return;
         const dk = plannedHarvestDateForDisplay(p);
         if (dk) {
-          const diff = differenceInDays(parseISO(dk), today);
-          if (diff <= harvestAlertDays) count++;
+          const diff = calendarDaysUntilHarvest(dk, today);
+          if (isHarvestDateOnOrBeforeToday(diff)) count++;
         }
         if (p.withdrawal_end_date) {
           const wDiff = differenceInDays(parseISO(p.withdrawal_end_date), today);
@@ -34,7 +35,7 @@ export default function AppLayout() {
       setAlertCount(count);
     };
     loadAlerts();
-  }, [harvestAlertDays]);
+  }, []);
 
   const sidebarWidth = collapsed ? 64 : 220;
 
