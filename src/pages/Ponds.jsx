@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Plus, Settings2, ChevronsUpDown } from 'lucide-react';
+import { Plus, Settings2, ChevronsUpDown, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,7 +34,7 @@ import {
 import { getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { pondQrPayload } from '@/lib/fieldAuthHelpers';
-import { plannedHarvestDateForDisplay, isPlannedHarvestDateEstimated, plannedYieldForDisplay, plannedYieldAdjustedForTable } from '@/lib/planReportHelpers';
+import { plannedHarvestDateForDisplay, isPlannedHarvestDateEstimated, plannedYieldAdjustedForTable, sumPlannedYieldAdjustedForPond } from '@/lib/planReportHelpers';
 import { calculateCurrentYield } from '@/lib/calculateYield';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HouseholdsPanel } from '@/components/households/HouseholdsPanel';
@@ -43,6 +44,7 @@ import CycleEditDialog from '@/components/ponds/CycleEditDialog';
 import PondCycleListTabPanel from '@/components/ponds/PondCycleListTabPanel';
 import PondTableFilterControls from '@/components/ponds/PondTableFilterControls';
 import { rowMatchesCycleDateRange } from '@/lib/pondCycleDateFilter';
+import { recalculateAllCycleMetricsFromLogs } from '@/lib/recalculateCycleMetrics';
 import {
   calendarDaysUntilHarvest,
   getHarvestAlertDays,
@@ -525,6 +527,7 @@ export default function Ponds() {
   const [deleteCycleId, setDeleteCycleId] = useState(null);
   const [deleteCycleLabel, setDeleteCycleLabel] = useState('');
   const [deletingCycle, setDeletingCycle] = useState(false);
+  const [recalculatingFromLogs, setRecalculatingFromLogs] = useState(false);
 
   const loadPonds = async () => {
     const [data, agencyData, logRows, harvestRows] = await Promise.all([
@@ -549,6 +552,21 @@ export default function Ponds() {
   useEffect(() => {
     void loadPonds();
   }, []);
+
+  const handleRecalculateFromLogs = async () => {
+    setRecalculatingFromLogs(true);
+    try {
+      const r = await recalculateAllCycleMetricsFromLogs();
+      await loadPonds();
+      toast.success(
+        `Đã cập nhật từ nhật ký: ${r.updatedCount} chu kỳ thay đổi / ${r.totalCycles} chu kỳ (${r.logCount.toLocaleString()} dòng nhật ký).`
+      );
+    } catch (e) {
+      console.error(e);
+      toast.error(formatSupabaseError(e));
+    }
+    setRecalculatingFromLogs(false);
+  };
 
   const pondRows = useMemo(() => {
     const q = search.toLowerCase();
@@ -1008,8 +1026,20 @@ export default function Ponds() {
             </p>
           </div>
           {mainTab !== 'households' && (
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <div className="hidden sm:block"><QRBatchDownload ponds={ponds} /></div>
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2 text-base font-bold h-10 px-4"
+                disabled={recalculatingFromLogs || loading}
+                onClick={() => void handleRecalculateFromLogs()}
+                title="Tính lại số cá, thức ăn, sản lượng dự kiến và FCR từ toàn bộ nhật ký"
+              >
+                <RefreshCw className={`w-5 h-5 shrink-0 ${recalculatingFromLogs ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{recalculatingFromLogs ? 'Đang cập nhật…' : 'Cập nhật từ nhật ký'}</span>
+                <span className="sm:hidden">{recalculatingFromLogs ? '…' : 'Cập nhật'}</span>
+              </Button>
               {mainTab === 'cycles' || mainTab === 'cyclesHarvested' ? (
                 <>
                   <Button variant="outline" className="gap-2 text-base font-bold h-10 px-4" onClick={() => setShowColumnSettings(true)}>
@@ -1090,7 +1120,7 @@ export default function Ponds() {
                       status: p.active_cycle?.status || 'CT',
                       area: p.area,
                       current_fish: p.active_cycle?.current_fish ?? p.active_cycle?.total_fish ?? null,
-                      expected_yield: plannedYieldForDisplay(p.active_cycle),
+                      expected_yield: sumPlannedYieldAdjustedForPond(p),
                       expected_harvest_date: plannedHarvestDateForDisplay(p.active_cycle),
                       harvest_date_estimated: p.active_cycle ? isPlannedHarvestDateEstimated(p.active_cycle) : false,
                       withdrawal_end_date: p.active_cycle?.withdrawal_end_date ?? null,
@@ -1129,7 +1159,7 @@ export default function Ponds() {
                       ) : pondRows.map((p) => {
                         const status = p.active_cycle?.status || 'CT';
                         const currentFish = p.active_cycle?.current_fish ?? p.active_cycle?.total_fish ?? null;
-                        const expectedYield = plannedYieldForDisplay(p.active_cycle);
+                        const expectedYield = sumPlannedYieldAdjustedForPond(p);
                         return (
                           <tr
                             key={p.id}

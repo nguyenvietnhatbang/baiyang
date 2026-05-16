@@ -97,3 +97,19 @@ export function plannedYieldForDisplay(cycle) {
   if (natR > 0) return natR;
   return null;
 }
+
+/** Tổng SL dự kiến (kg) mọi chu kỳ trên ao — khớp tổng cột «SẢN LƯỢNG DỰ KIẾN» tab Chu kỳ theo mã ao. */
+export function sumPlannedYieldAdjustedForPond(pond) {
+  const cycles = Array.isArray(pond?.pond_cycles) ? pond.pond_cycles : [];
+  if (cycles.length === 0) return null;
+  let sum = 0;
+  let hasAny = false;
+  for (const c of cycles) {
+    const y = plannedYieldAdjustedForTable(c);
+    if (y != null && Number.isFinite(Number(y))) {
+      sum += Number(y);
+      hasAny = true;
+    }
+  }
+  return hasAny ? Math.round(sum) : null;
+}

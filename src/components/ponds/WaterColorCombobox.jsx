@@ -68,7 +68,6 @@ export default function WaterColorCombobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
         </PopoverTrigger>
         <PopoverContent
-          disablePortal
           className="w-[var(--anchor-width)] min-w-[12rem] max-w-[min(100vw-1rem,var(--available-width))] p-0"
           align="start"
           sideOffset={4}

@@ -5,7 +5,7 @@
  */
 import { Fragment } from 'react';
 import { originalHarvestDateForReport, plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
-import { uniquePhysicalPondCount, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
+import { countCycleRows, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
 import { calculateYieldFromPond } from '@/lib/calculateYield';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
 
@@ -61,7 +61,7 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
   const rows = agencies.map((agency) => {
     const agencyPonds = ponds.filter((p) => p.agency_code === agency);
     
-    const pondCount = uniquePhysicalPondCount(agencyPonds);
+    const cycleCount = countCycleRows(agencyPonds);
     const totalArea = uniquePhysicalPondTotalArea(agencyPonds);
 
     // Đếm theo chu kỳ (mỗi chu kỳ = 1 dòng dữ liệu kế hoạch)
@@ -92,10 +92,10 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
     const monthTH = monthCC.map((v, i) => v + monthCT[i]);
 
     const agencyName = agencyNameByCode instanceof Map ? (agencyNameByCode.get(String(agency)) || agency) : agency;
-    return { agency, agencyName, ponds: agencyPonds, pondCount, totalArea, totalCC, totalCT, totalTH, monthCC, monthCT, monthTH };
+    return { agency, agencyName, ponds: agencyPonds, cycleCount, totalArea, totalCC, totalCT, totalTH, monthCC, monthCT, monthTH };
   });
 
-  const grandTotalPonds = rows.reduce((s, r) => s + r.pondCount, 0);
+  const grandTotalCycles = rows.reduce((s, r) => s + r.cycleCount, 0);
   const grandTotalArea = rows.reduce((s, r) => s + r.totalArea, 0);
   const grandTotalCC = rows.reduce((s, r) => s + r.totalCC, 0);
   const grandTotalCT = rows.reduce((s, r) => s + r.totalCT, 0);
@@ -141,7 +141,7 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
                 Hệ thống
               </th>
               <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
-                Số lượng ao nuôi
+                Số chu kỳ
               </th>
               <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
                 Diện tích (m²)
@@ -182,7 +182,7 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
                   <td className="px-2 py-2 text-left font-semibold text-primary border-r border-border whitespace-nowrap">
                     {r.agencyName}
                   </td>
-                  <td className="px-2 py-2 text-center border-r border-border whitespace-nowrap">{r.pondCount > 0 ? r.pondCount : ''}</td>
+                  <td className="px-2 py-2 text-center border-r border-border whitespace-nowrap">{r.cycleCount > 0 ? r.cycleCount : ''}</td>
                   <td className="px-2 py-2 text-right border-r border-border whitespace-nowrap">{r.totalArea > 0 ? r.totalArea.toLocaleString() : ''}</td>
                   {visibleMonthIdx.map((mi, i) => (
                     <Fragment key={mi}>
@@ -201,7 +201,7 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
             <tr className="bg-primary/5 font-bold border-t-2 border-primary/20">
               <td className="px-3 py-3 text-center font-bold text-foreground border-r border-border">—</td>
               <td className="px-3 py-3 text-left font-bold text-foreground border-r border-border">Tổng</td>
-              <td className="px-3 py-3 text-center border-r border-border">{grandTotalPonds}</td>
+              <td className="px-3 py-3 text-center border-r border-border">{grandTotalCycles}</td>
               <td className="px-3 py-3 text-right border-r border-border">{grandTotalArea > 0 ? grandTotalArea.toLocaleString() : ''}</td>
               {visibleMonthIdx.map((mi, i) => (
                 <Fragment key={mi}>

@@ -1,12 +1,15 @@
 /**
- * Hỗ trợ báo cáo: các hàng "ponds" là chu kỳ (flatten từ pond_cycles),
- * còn số ao vật lý và diện tích chỉ nên đến 1 lần / ao.
+ * Hỗ trợ báo cáo: mỗi hàng = một chu kỳ; diện tích ao chỉ cộng một lần / pond_id.
  */
 
 /** @param {Array<{ pond_id?: string }>} cycleRows */
+export function countCycleRows(cycleRows) {
+  return (cycleRows || []).length;
+}
+
+/** @deprecated Dùng {@link countCycleRows} */
 export function uniquePhysicalPondCount(cycleRows) {
-  const ids = new Set((cycleRows || []).map((p) => p.pond_id).filter(Boolean));
-  return ids.size;
+  return countCycleRows(cycleRows);
 }
 
 /** Diện tích tổng: mỗi pond_id cộng area một lần (lấy hàng đầu gặp). */
@@ -50,6 +53,7 @@ export function harvestRecordsForCycleRow(cycleRow, harvests, opts = {}) {
       return false;
     }
     if (hid) return false;
+    if (cyclesOnSamePond > 1) return false;
     if (hip && pid) return hip === pid;
     if (hcode && pcode) return hcode === pcode;
     return false;

@@ -38,13 +38,13 @@ export default function ReportDailyProductionPlan({ ponds, harvests, agencyNameB
       const sysName = agencyNameByCode instanceof Map ? (agencyNameByCode.get(String(agency)) || agency) : agency;
 
       return {
-        id: p.id || p.pond_cycle_id || `${p.code || ''}-${p.pond_id || ''}`,
+        id: p.pond_cycle_id || p.id || `${p.pond_code || p.code || ''}-${p.pond_id || ''}`,
         agency,
         sysCode: systemCodeFromAgencyCode(agency),
         sysName,
         owner: p.owner_name || '—',
-        pond: p.code || p.pond_code || '—',
-        cycle: p.name || p.cycle_name || '—',
+        pond: p.pond_code || p.code || '—',
+        cycle: p.cycle_label || p.cycle_name || p.name || '—',
         area: p.area != null ? Number(p.area) : null,
         plannedDate: plannedHarvestDateForDisplay(p),
         actualDate: latestActualHarvestDate(pondHarvests),
