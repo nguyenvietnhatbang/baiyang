@@ -103,7 +103,7 @@ create table if not exists public.households (
   active boolean not null default true,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
-  unique (agency_id, household_segment)
+  unique (agency_id, region_code, household_segment)
 );
 
 alter table if exists public.households

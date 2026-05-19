@@ -99,17 +99,25 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
     fcrProvisional = true;
   }
 
+  const nextStatus = newCurrentFish > 0 ? 'CC' : 'CT';
+  const harvestDone =
+    totalActualYield > 0 ||
+    (Boolean(cycle.harvest_done) &&
+      String(cycle.status || '').toUpperCase() === 'CT' &&
+      nextStatus === 'CT' &&
+      totalActualYield === 0);
+
   await base44.entities.PondCycle.update(cycle.id, {
     current_fish: newCurrentFish,
     total_feed_used: totalFeed,
     expected_yield: newExpectedYield,
     actual_yield: totalActualYield,
-    harvest_done: totalActualYield > 0,
+    harvest_done: harvestDone,
     fcr: fcr,
     last_medicine_date: form.medicine_used ? form.log_date : cycle.last_medicine_date,
     withdrawal_days: form.withdrawal_days ? Number(form.withdrawal_days) : cycle.withdrawal_days,
     withdrawal_end_date: withdrawalEndDate,
-    status: newCurrentFish > 0 ? 'CC' : 'CT',
+    status: nextStatus,
   });
 
   if (newExpectedYield !== prevExpectedYield) {

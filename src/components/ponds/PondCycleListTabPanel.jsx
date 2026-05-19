@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { MoreHorizontal, Eye, Edit, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Eye, Edit, Trash2, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PondStatusBadge from '@/components/ponds/PondStatusBadge';
 import PondMobileCard from '@/components/ponds/PondMobileCard';
@@ -58,6 +58,8 @@ export default function PondCycleListTabPanel({
   setDeleteCycleLabel,
   setShowDeleteConfirm,
   harvestAlertDays = 7,
+  canManualCloseCycle = false,
+  onManualCloseCycle,
 }) {
   const isHarvestedView = variant === 'harvested';
   const emptyListHint = isHarvestedView ? 'Không có chu kỳ đã thu hoạch' : 'Không tìm thấy chu kỳ nào';
@@ -70,7 +72,7 @@ export default function PondCycleListTabPanel({
       {!isHarvestedView && checkedHarvest.size > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
           <p className="text-base font-semibold text-green-800">
-            Đã chọn <strong className="font-extrabold">{checkedHarvest.size}</strong> chu kỳ để chốt thu hoạch
+            Đã chọn <strong className="font-extrabold">{checkedHarvest.size}</strong> chu kỳ để chốt thu hoạch (chuyển sang tab Chu kỳ đã thu kể cả khi kg thực tế thấp hơn kế hoạch)
           </p>
           <div className="flex gap-2">
             <Button variant="outline" size="default" className="text-base font-bold h-10" onClick={() => setCheckedHarvest(new Set())}>
@@ -418,6 +420,18 @@ export default function PondCycleListTabPanel({
                               >
                                 <Edit className="w-4 h-4 mr-2" /> Sửa
                               </DropdownMenuItem>
+                              {cycleIsCc &&
+                                r.cycle_id &&
+                                canManualCloseCycle &&
+                                typeof onManualCloseCycle === 'function' && (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      onManualCloseCycle(r.cycle_id, `${r.pond_code} · ${r.cycle_name}`)
+                                    }
+                                  >
+                                    <ClipboardCheck className="w-4 h-4 mr-2" /> Chốt kết thúc chu kỳ…
+                                  </DropdownMenuItem>
+                                )}
                               <DropdownMenuSeparator />
                               {r.cycle_id ? (
                                 <DropdownMenuItem
@@ -427,7 +441,7 @@ export default function PondCycleListTabPanel({
                                     setDeleteCycleLabel(`${r.pond_code} · ${r.cycle_name}`);
                                   }}
                                 >
-                                  <Trash2 className="w-4 h-4 mr-2" /> Xoá
+                                  <Trash2 className="w-4 h-4 mr-2" /> Xóa
                                 </DropdownMenuItem>
                               ) : (
                                 <DropdownMenuItem
@@ -437,7 +451,7 @@ export default function PondCycleListTabPanel({
                                     setShowDeleteConfirm(true);
                                   }}
                                 >
-                                  <Trash2 className="w-4 h-4 mr-2" /> Xoá
+                                  <Trash2 className="w-4 h-4 mr-2" /> Xóa
                                 </DropdownMenuItem>
                               )}
                             </DropdownMenuContent>

@@ -54,6 +54,7 @@ export function isHarvestDateWithinUpcomingDays(diff, alertDays) {
  */
 export function isCycleHarvestCompleteForAlerts(row) {
   if (!row) return false;
+  if (row.harvest_done === true && String(row.status ?? '').toUpperCase() === 'CT') return true;
   const yNeed = row.yield_need_harvest;
   if (yNeed != null && Number.isFinite(Number(yNeed)) && Number(yNeed) <= 0) return true;
   const planned = Number(row.expected_yield) || 0;

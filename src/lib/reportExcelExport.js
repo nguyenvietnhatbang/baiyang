@@ -4,10 +4,18 @@
  */
 
 import ExcelJS from 'exceljs';
+import { calculateYieldFromPond } from '@/lib/calculateYield';
 import { originalHarvestDateForReport, plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
 import { countCycleRows, harvestRecordsForCycleRow, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
 import { cycleCountByPondId } from '@/lib/reportCycleRows';
+import {
+  cycleHarvestPlanEligibleForMonthReport,
+  harvestMonthIndexForReport,
+  cycleOriginalPlanEligibleForMonthReport,
+  originalHarvestMonthIndexForReport,
+} from '@/lib/reportMonthHelpers';
+import { parseHarvestDateInput } from '@/lib/harvestDateParse';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `T${i + 1}`);
 const MONTH_LABELS_LONG = Array.from({ length: 12 }, (_, i) => `Tháng ${i + 1}`);
@@ -257,16 +265,18 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine, factor
       const ct = ap.filter((p) => p.status === 'CT');
       const totalArea = uniquePhysicalPondTotalArea(ap);
       const monthCC = monthIdx.map((i) =>
-        cc.reduce((s, p) => {
-          const d = originalHarvestDateForReport(p);
-          return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
-        }, 0)
+        cc.reduce(
+          (s, p) => s + (cycleOriginalPlanEligibleForMonthReport(p) && originalHarvestMonthIndexForReport(p) === i ? calcOriginalYield(p) : 0),
+          0
+        )
       );
       const monthCT = monthIdx.map((i) =>
-        ct.reduce((s, p) => {
-          const d = originalHarvestDateForReport(p);
-          return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
-        }, 0)
+        ct.reduce(
+          (s, p) =>
+            s +
+            (cycleOriginalPlanEligibleForMonthReport(p) && originalHarvestMonthIndexForReport(p) === i ? calculateYieldFromPond(p) : 0),
+          0
+        )
       );
       const monthTH = monthCC.map((v, i) => v + monthCT[i]);
       const totalCC = monthCC.reduce((s, v) => s + v, 0);
@@ -289,18 +299,20 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine, factor
     });
     const grandArea = uniquePhysicalPondTotalArea(ponds);
     const grandMonthCC = monthIdx.map((i) =>
-      ponds.reduce((s, p) => {
-        if (p.status !== 'CC') return s;
-        const d = originalHarvestDateForReport(p);
-        return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
-      }, 0)
+      ponds.reduce(
+        (s, p) =>
+          p.status === 'CC' && cycleOriginalPlanEligibleForMonthReport(p) && originalHarvestMonthIndexForReport(p) === i ? s + calcOriginalYield(p) : s,
+        0
+      )
     );
     const grandMonthCT = monthIdx.map((i) =>
-      ponds.reduce((s, p) => {
-        if (p.status !== 'CT') return s;
-        const d = originalHarvestDateForReport(p);
-        return s + (d && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
-      }, 0)
+      ponds.reduce(
+        (s, p) =>
+          p.status === 'CT' && cycleOriginalPlanEligibleForMonthReport(p) && originalHarvestMonthIndexForReport(p) === i
+            ? s + calculateYieldFromPond(p)
+            : s,
+        0
+      )
     );
     const grandMonthTH = grandMonthCC.map((v, i) => v + grandMonthCT[i]);
     const grandTotalCC = grandMonthCC.reduce((s, v) => s + v, 0);
@@ -358,8 +370,10 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine, factor
     sorted.forEach((p, idx) => {
       const y = calcOriginalYield(p);
       const d = originalHarvestDateForReport(p);
-      const mi = d ? new Date(d).getMonth() : -1;
-      const monthVals = monthIdx.map((i) => (i === mi ? y : null));
+      const mi = originalHarvestMonthIndexForReport(p);
+      const eligible = cycleOriginalPlanEligibleForMonthReport(p);
+      const monthVals = monthIdx.map((i) => (eligible && mi === i ? y : null));
+      const dCell = d ? parseHarvestDateInput(d) : null;
       const row = sheet.addRow([
         p.agency_code || '',
         p.pond_code || p.code,
@@ -370,7 +384,7 @@ function buildOriginal(sheet, { granularity, ponds, agencies, filterLine, factor
         p.status === 'CC' ? y : null,
         p.status === 'CT' ? y : null,
         y || null,
-        d ? new Date(d) : null,
+        dCell && !Number.isNaN(dCell.getTime()) ? dCell : null,
         ...monthVals,
       ]);
       applyNumberFormats(row, numFmt);
@@ -404,10 +418,16 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine, factor
       const ct = ap.filter((p) => p.status === 'CT');
       const totalArea = uniquePhysicalPondTotalArea(ap);
       const monthCC = monthIdx.map((i) =>
-        cc.reduce((s, p) => s + (adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0), 0)
+        cc.reduce(
+          (s, p) => s + (cycleHarvestPlanEligibleForMonthReport(p) && harvestMonthIndexForReport(p) === i ? p.expected_yield || 0 : 0),
+          0
+        )
       );
       const monthCT = monthIdx.map((i) =>
-        ct.reduce((s, p) => s + (adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0), 0)
+        ct.reduce(
+          (s, p) => s + (cycleHarvestPlanEligibleForMonthReport(p) && harvestMonthIndexForReport(p) === i ? p.expected_yield || 0 : 0),
+          0
+        )
       );
       const monthTH = monthCC.map((v, i) => v + monthCT[i]);
       const totalCC = monthCC.reduce((s, v) => s + v, 0);
@@ -429,10 +449,18 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine, factor
     });
     const grandArea = uniquePhysicalPondTotalArea(ponds);
     const grandMonthCC = monthIdx.map((i) =>
-      ponds.reduce((s, p) => s + (p.status === 'CC' && adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0), 0)
+      ponds.reduce(
+        (s, p) =>
+          p.status === 'CC' && cycleHarvestPlanEligibleForMonthReport(p) && harvestMonthIndexForReport(p) === i ? s + (p.expected_yield || 0) : s,
+        0
+      )
     );
     const grandMonthCT = monthIdx.map((i) =>
-      ponds.reduce((s, p) => s + (p.status === 'CT' && adjustedHarvestDate(p) && new Date(adjustedHarvestDate(p)).getMonth() === i ? p.expected_yield || 0 : 0), 0)
+      ponds.reduce(
+        (s, p) =>
+          p.status === 'CT' && cycleHarvestPlanEligibleForMonthReport(p) && harvestMonthIndexForReport(p) === i ? s + (p.expected_yield || 0) : s,
+        0
+      )
     );
     const grandMonthTH = grandMonthCC.map((v, i) => v + grandMonthCT[i]);
     const grandTotalCC = grandMonthCC.reduce((s, v) => s + v, 0);
@@ -499,10 +527,10 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine, factor
       const adj = p.expected_yield || 0;
       const pct = orig > 0 ? Math.round(((adj - orig) / orig) * 100) : null;
       const edRaw = adjustedHarvestDate(p);
-      const ed = edRaw ? new Date(edRaw) : null;
-      const monthVals = monthIdx.map((i) =>
-        edRaw && new Date(edRaw).getMonth() === i ? adj : null
-      );
+      const ed = edRaw ? parseHarvestDateInput(edRaw) : null;
+      const miPlan = harvestMonthIndexForReport(p);
+      const planEligible = cycleHarvestPlanEligibleForMonthReport(p);
+      const monthVals = monthIdx.map((i) => (planEligible && miPlan === i ? adj : null));
       const row = sheet.addRow([
         p.agency_code || '',
         p.pond_code || p.code,
@@ -512,7 +540,7 @@ function buildAdjusted(sheet, { granularity, ponds, agencies, filterLine, factor
         orig || null,
         adj || null,
         pct != null ? pct : null,
-        ed,
+        ed && !Number.isNaN(ed.getTime()) ? ed : null,
         ...monthVals,
       ]);
       applyNumberFormats(row, numFmt);
@@ -695,12 +723,16 @@ function buildSummaryMatrix(sheet, { granularity, ponds, harvests, agencies, fil
     const planM = Array.from({ length: 12 }, () => 0);
     const actM = Array.from({ length: 12 }, () => 0);
     ap.forEach((p) => {
-      const d = plannedHarvestDateForDisplay(p);
-      if (d) planM[new Date(d).getMonth()] += Number(p.expected_yield) || 0;
+      if (cycleHarvestPlanEligibleForMonthReport(p)) {
+        const mi = harvestMonthIndexForReport(p);
+        if (mi != null) planM[mi] += Number(p.expected_yield) || 0;
+      }
       const hs = harvestByCycleId.get(p.pond_cycle_id) || [];
       hs.forEach((h) => {
         if (!h.harvest_date) return;
-        actM[new Date(h.harvest_date).getMonth()] += Number(h.actual_yield) || 0;
+        const hd = parseHarvestDateInput(h.harvest_date);
+        if (!hd || Number.isNaN(hd.getTime())) return;
+        actM[hd.getMonth()] += Number(h.actual_yield) || 0;
       });
     });
     const totalPlan = planM.reduce((s, v) => s + v, 0);

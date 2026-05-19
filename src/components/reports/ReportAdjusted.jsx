@@ -5,6 +5,11 @@
  */
 import { Fragment } from 'react';
 import { originalHarvestDateForReport, plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { parseHarvestDateInput } from '@/lib/harvestDateParse';
+import {
+  cycleHarvestPlanEligibleForMonthReport,
+  harvestMonthIndexForReport,
+} from '@/lib/reportMonthHelpers';
 import { countCycleRows, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
 import { calculateYieldFromPond } from '@/lib/calculateYield';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
@@ -17,7 +22,11 @@ function systemCodeFromAgencyCode(agencyCode) {
 }
 
 function parseDate(dateValue) {
-  if (!dateValue) return null;
+  if (dateValue == null || dateValue === '') return null;
+  if (typeof dateValue === 'string') {
+    const d = parseHarvestDateInput(dateValue.trim());
+    if (d && !Number.isNaN(d.getTime())) return d;
+  }
   const d = new Date(dateValue);
   return Number.isNaN(d.getTime()) ? null : d;
 }
@@ -46,8 +55,14 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
     const set = new Set();
     ponds.forEach((p) => {
       const adjustedDate = plannedHarvestDateForDisplay(p);
-      if (adjustedDate && (p.expected_yield || 0) > 0 && isInDateRange(adjustedDate, fromDate, toDate)) {
-        set.add(new Date(adjustedDate).getMonth());
+      if (
+        cycleHarvestPlanEligibleForMonthReport(p) &&
+        (p.expected_yield || 0) > 0 &&
+        adjustedDate &&
+        isInDateRange(adjustedDate, fromDate, toDate)
+      ) {
+        const mi = harvestMonthIndexForReport(p);
+        if (mi != null) set.add(mi);
       }
       const d0 = originalHarvestDateForReport(p);
       if (d0 && calculateYieldFromPond(p) > 0 && isInDateRange(d0, fromDate, toDate)) set.add(new Date(d0).getMonth());
@@ -68,10 +83,12 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
     const cc = agencyPonds.filter((p) => p.status === 'CC');
     const ct = agencyPonds.filter((p) => p.status === 'CT');
     const totalCC = cc.reduce((s, p) => {
+      if (!cycleHarvestPlanEligibleForMonthReport(p)) return s;
       const d = plannedHarvestDateForDisplay(p);
       return s + (isInDateRange(d, fromDate, toDate) ? p.expected_yield || 0 : 0);
     }, 0);
     const totalCT = ct.reduce((s, p) => {
+      if (!cycleHarvestPlanEligibleForMonthReport(p)) return s;
       const d = plannedHarvestDateForDisplay(p);
       return s + (isInDateRange(d, fromDate, toDate) ? p.expected_yield || 0 : 0);
     }, 0);
@@ -79,14 +96,18 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
 
     const monthCC = visibleMonthIdx.map((i) =>
       cc.reduce((s, p) => {
+        if (!cycleHarvestPlanEligibleForMonthReport(p)) return s;
         const d = plannedHarvestDateForDisplay(p);
-        return s + (d && isInDateRange(d, fromDate, toDate) && new Date(d).getMonth() === i ? p.expected_yield || 0 : 0);
+        const mi = harvestMonthIndexForReport(p);
+        return s + (d && isInDateRange(d, fromDate, toDate) && mi === i ? p.expected_yield || 0 : 0);
       }, 0)
     );
     const monthCT = visibleMonthIdx.map((i) =>
       ct.reduce((s, p) => {
+        if (!cycleHarvestPlanEligibleForMonthReport(p)) return s;
         const d = plannedHarvestDateForDisplay(p);
-        return s + (d && isInDateRange(d, fromDate, toDate) && new Date(d).getMonth() === i ? p.expected_yield || 0 : 0);
+        const mi = harvestMonthIndexForReport(p);
+        return s + (d && isInDateRange(d, fromDate, toDate) && mi === i ? p.expected_yield || 0 : 0);
       }, 0)
     );
     const monthTH = monthCC.map((v, i) => v + monthCT[i]);
@@ -127,7 +148,8 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
   return (
     <div>
       <div className="px-5 py-3.5 bg-muted/30 border-b border-border text-sm text-muted-foreground font-semibold">
-        Bảng sắp xếp theo dạng tháng: mỗi tháng gồm <strong>CC</strong>, <strong>CT</strong>, <strong>TH</strong> (tổng) cho kế hoạch điều chỉnh.
+        Bảng sắp xếp theo dạng tháng: mỗi tháng gồm <strong>CC</strong>, <strong>CT</strong>, <strong>TH</strong> (tổng) cho kế hoạch điều chỉnh. Cột theo tháng chỉ tính khi có{' '}
+        <strong>ngày thả hợp lệ</strong>, có <strong>ngày thu dự kiến</strong> (đã lưu hoặc ước từ thả) và ngày thu không trước ngày thả.
       </div>
 
       <div className="overflow-x-auto max-w-full pb-2 [&_table]:border-2 [&_table]:border-slate-400 [&_th]:border-2 [&_th]:border-slate-400 [&_td]:border-2 [&_td]:border-slate-400 dark:[&_table]:border-slate-500 dark:[&_th]:border-slate-500 dark:[&_td]:border-slate-500">

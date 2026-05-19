@@ -262,9 +262,29 @@ export const base44 = {
       },
       async update(patch) {
         if (!isSupabaseConfigured) throw configError;
-        const { data, error } = await supabase.from('app_settings').update(patch).eq('id', 1).select().single();
+        // maybeSingle: 0 dòng (chưa có id=1, hoặc RLS chặn) không được coi là lỗi — upsert bổ sung dòng singleton.
+        const { data, error } = await supabase
+          .from('app_settings')
+          .update(patch)
+          .eq('id', 1)
+          .select()
+          .maybeSingle();
         if (error) throw error;
-        return data ? { ...defaultAppSettingsRow, ...data } : data;
+        if (data) {
+          return { ...defaultAppSettingsRow, ...data };
+        }
+        const { data: upserted, error: upErr } = await supabase
+          .from('app_settings')
+          .upsert({ id: 1, ...patch }, { onConflict: 'id' })
+          .select()
+          .maybeSingle();
+        if (upErr) throw upErr;
+        if (!upserted) {
+          throw new Error(
+            'Không lưu được app_settings: không có dòng id=1 hoặc bị chặn (RLS). Kiểm tra bảng app_settings trên Supabase.'
+          );
+        }
+        return { ...defaultAppSettingsRow, ...upserted };
       },
     },
   },

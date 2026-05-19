@@ -3,6 +3,15 @@ import { parseHarvestDateInput } from '@/lib/harvestDateParse';
 
 /** Chuỗi yyyy-MM-dd từ ISO, dd/MM/yyyy, v.v.; null nếu không parse được. */
 export function cycleRowDateYyyyMmDd(row, field) {
+  if (field === 'actual_harvest') {
+    const raw = row.latest_harvest_date;
+    if (!raw) return null;
+    const s = String(raw).trim();
+    if (s.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const p = parseHarvestDateInput(raw);
+    if (!p || Number.isNaN(p.getTime())) return null;
+    return format(startOfDay(p), 'yyyy-MM-dd');
+  }
   const raw = field === 'stock' ? row.stock_date : row.expected_harvest_date;
   if (!raw) return null;
   const s = String(raw).trim();

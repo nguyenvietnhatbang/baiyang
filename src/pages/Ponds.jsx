@@ -13,7 +13,6 @@ import QRBatchDownload from '@/components/ponds/QRBatchDownload';
 import PondMobileCard from '@/components/ponds/PondMobileCard';
 import { useAuth } from '@/lib/AuthContext';
 import { MoreHorizontal, Eye, Edit, Trash2, AlertCircle } from 'lucide-react';
-import { formatDateDisplay } from '@/lib/dateFormat';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +43,7 @@ import CycleEditDialog from '@/components/ponds/CycleEditDialog';
 import PondCycleListTabPanel from '@/components/ponds/PondCycleListTabPanel';
 import PondTableFilterControls from '@/components/ponds/PondTableFilterControls';
 import { rowMatchesCycleDateRange } from '@/lib/pondCycleDateFilter';
+import { harvestRecordsForCycleRow, latestActualHarvestDate } from '@/lib/reportPondDedupe';
 import { recalculateAllCycleMetricsFromLogs } from '@/lib/recalculateCycleMetrics';
 import {
   calendarDaysUntilHarvest,
@@ -225,8 +225,13 @@ function computeYieldNeedFromPlanMinusActual(planKg, actualKg) {
   return Math.max(0, p - a);
 }
 
+/** Đã chốt kết thúc chu kỳ (xác nhận trong danh sách / thao tác thủ công): sang tab Chu kỳ đã thu kể cả khi kg kế hoạch > thực tế. */
+function isChuKyChotThuHoach(r) {
+  return r.harvest_done === true && String(r.status ?? '').toUpperCase() === 'CT';
+}
+
 /**
- * Số cá còn lại để phân tab: chỉ sang «Chu kì đã thu» khi đã có hoạt động thu và còn = 0.
+ * Số cá còn lại để phân tab: chỉ sang «Chu kỳ đã thu» khi đã có hoạt động thu và còn = 0.
  * null = chưa xác định / chưa thu — giữ ở Chu kỳ.
  */
 function effectiveFishRemainingForTabSplit(r) {
@@ -251,7 +256,7 @@ function isYieldNeedHarvestDone(r) {
   return y != null && !Number.isNaN(Number(y)) && Number(y) <= 0;
 }
 
-/** Còn kg theo kế hoạch cần thu (> 0) → luôn ở tab Chu kỳ, không sang «Chu kì đã thu». */
+/** Còn kg theo kế hoạch cần thu (> 0) → luôn ở tab Chu kỳ, không sang «Chu kỳ đã thu» (trừ khi đã chốt thủ công). */
 function isYieldNeedStillActive(r) {
   const y = r.yield_need_harvest;
   return y != null && !Number.isNaN(Number(y)) && Number(y) > 0;
@@ -473,7 +478,7 @@ function cycleLabel(c, idx) {
 }
 
 export default function Ponds() {
-  const { appSettings } = useAuth();
+  const { appSettings, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = String(searchParams.get('tab') || '').trim().toLowerCase();
   const mainTab =
@@ -527,7 +532,11 @@ export default function Ponds() {
   const [deleteCycleId, setDeleteCycleId] = useState(null);
   const [deleteCycleLabel, setDeleteCycleLabel] = useState('');
   const [deletingCycle, setDeletingCycle] = useState(false);
+  const [confirmManualCloseCycleId, setConfirmManualCloseCycleId] = useState(null);
+  const [confirmManualCloseLabel, setConfirmManualCloseLabel] = useState('');
+  const [closingManualCycle, setClosingManualCycle] = useState(false);
   const [recalculatingFromLogs, setRecalculatingFromLogs] = useState(false);
+  const canManualCloseCycle = user?.role === 'admin';
 
   const loadPonds = async () => {
     const [data, agencyData, logRows, harvestRows] = await Promise.all([
@@ -578,14 +587,28 @@ export default function Ponds() {
       const hid = p?.household_id || p?.households?.id || null;
       const matchHousehold = householdFilters.size === 0 || (hid && householdFilters.has(String(hid)));
       const c = p.active_cycle;
+      const cyclesArr = Array.isArray(p.pond_cycles) ? p.pond_cycles : [];
+      const nCyc = cyclesArr.length;
+      const ph = c
+        ? harvestRecordsForCycleRow(
+            { pond_cycle_id: c.id, pond_id: p.id, pond_code: p.code },
+            harvestRecords,
+            { cyclesOnSamePond: nCyc || 1 }
+          )
+        : [];
+      const latestH = latestActualHarvestDate(ph);
       const dateRow = c
-        ? { stock_date: c.stock_date ?? null, expected_harvest_date: plannedHarvestDateForDisplay(c) }
-        : { stock_date: null, expected_harvest_date: null };
+        ? {
+            stock_date: c.stock_date ?? null,
+            expected_harvest_date: plannedHarvestDateForDisplay(c),
+            latest_harvest_date: latestH,
+          }
+        : { stock_date: null, expected_harvest_date: null, latest_harvest_date: null };
       const matchDate = rowMatchesCycleDateRange(dateRow, cycleDateField, cycleDateFrom, cycleDateTo);
       return matchSearch && matchStatus && matchAgency && matchHousehold && matchDate;
     });
     return rows.sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')));
-  }, [ponds, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo]);
+  }, [ponds, harvestRecords, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo]);
 
   const cycleRows = useMemo(() => {
     const ticketFishByCycle = new Map();
@@ -628,6 +651,7 @@ export default function Ponds() {
           withdrawal_end_date: null,
           fcr: null,
           total_feed_used: 0,
+          latest_harvest_date: null,
           raw: p,
         };
         const fish = computeFishHarvestCounts(base, ticketFishByCycle);
@@ -639,6 +663,13 @@ export default function Ponds() {
         });
       } else {
         cycles.forEach((c, idx) => {
+          const cyclesOnPond = cycles.length;
+          const pondHarvests = harvestRecordsForCycleRow(
+            { pond_cycle_id: c.id, pond_id: p.id, pond_code: p.code },
+            harvestRecords,
+            { cyclesOnSamePond: cyclesOnPond }
+          );
+          const latest_harvest_date = latestActualHarvestDate(pondHarvests);
           const base = {
             row_id: `${p.id}::${c.id}`,
             pond_id: p.id,
@@ -669,6 +700,7 @@ export default function Ponds() {
             withdrawal_end_date: c.withdrawal_end_date,
             fcr: c.fcr,
             total_feed_used: c.total_feed_used ?? 0,
+            latest_harvest_date,
             raw: p,
           };
           const fish = computeFishHarvestCounts(base, ticketFishByCycle);
@@ -718,8 +750,8 @@ export default function Ponds() {
 
   const statusFilterItems = useMemo(
     () => [
-      { value: 'CC', label: 'CC - Có cá' },
-      { value: 'CT', label: 'CT - Chưa thả' },
+      { value: 'CC', label: 'CC — Đang nuôi' },
+      { value: 'CT', label: 'CT — Kết thúc chu kỳ' },
     ],
     []
   );
@@ -746,14 +778,14 @@ export default function Ponds() {
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
       if (!rowMatchesCycleDateRange(r, cycleDateField, cycleDateFrom, cycleDateTo)) return false;
 
-      // Còn SL cần thu (kg) theo kế hoạch → luôn tab Chu kỳ (ưu tiên hơn phân nhánh theo cá)
-      if (isYieldNeedStillActive(r)) return true;
+      // Còn SL cần thu (kg) theo kế hoạch → ưu tiên tab Chu kỳ, trừ khi đã chốt kết thúc chu kỳ (sang Chu kỳ đã thu)
+      if (isYieldNeedStillActive(r) && !isChuKyChotThuHoach(r)) return true;
 
       const rem = effectiveFishRemainingForTabSplit(r);
       const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
-      // Đã thu hết cá (còn 0 con) → chỉ hiển thị tab «Chu kì đã thu»
+      // Đã thu hết cá (còn 0 con) → chỉ hiển thị tab «Chu kỳ đã thu»
       if (hasHarvest && rem === 0) return false;
-      // SL cần phải thu ≤ 0 (đủ / vượt kế hoạch kg) → tab «Chu kì đã thu»
+      // SL cần phải thu ≤ 0 (đủ / vượt kế hoạch kg) → tab «Chu kỳ đã thu»
       if (isYieldNeedHarvestDone(r)) return false;
 
       const hasPlan = Boolean(r.stock_date) || (Number(r.total_fish) || 0) > 0;
@@ -817,7 +849,7 @@ export default function Ponds() {
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
       if (!rowMatchesCycleDateRange(r, cycleDateField, cycleDateFrom, cycleDateTo)) return false;
       if (!r.cycle_id) return false;
-      if (isYieldNeedStillActive(r)) return false;
+      if (isYieldNeedStillActive(r) && !isChuKyChotThuHoach(r)) return false;
       if (isYieldNeedHarvestDone(r)) return true;
       const rem = effectiveFishRemainingForTabSplit(r);
       const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
@@ -873,18 +905,42 @@ export default function Ponds() {
   const handleConfirmHarvest = async () => {
     if (checkedHarvest.size === 0) return;
     setConfirming(true);
-    await Promise.all(
-      [...checkedHarvest].map(async (cycleId) => {
-        await base44.entities.PondCycle.update(cycleId, { 
-          harvest_done: true, 
-          status: 'CT', 
-          current_fish: 0
-        });
-      })
-    );
-    setCheckedHarvest(new Set());
-    await loadPonds();
+    try {
+      await Promise.all(
+        [...checkedHarvest].map(async (cycleId) => {
+          await base44.entities.PondCycle.update(cycleId, {
+            harvest_done: true,
+            status: 'CT',
+            current_fish: 0,
+          });
+        })
+      );
+      setCheckedHarvest(new Set());
+      await loadPonds();
+      toast.success('Đã chốt thu cho các chu kỳ đã chọn.');
+    } catch (e) {
+      toast.error(formatSupabaseError(e));
+    }
     setConfirming(false);
+  };
+
+  const handleConfirmManualCloseCycle = async () => {
+    if (!confirmManualCloseCycleId) return;
+    setClosingManualCycle(true);
+    try {
+      await base44.entities.PondCycle.update(confirmManualCloseCycleId, {
+        harvest_done: true,
+        status: 'CT',
+        current_fish: 0,
+      });
+      setConfirmManualCloseCycleId(null);
+      setConfirmManualCloseLabel('');
+      await loadPonds();
+      toast.success('Đã chốt kết thúc chu kỳ. Chu kỳ hiển thị ở tab Chu kỳ đã thu (kể cả khi kg thực tế < kế hoạch).');
+    } catch (e) {
+      toast.error(formatSupabaseError(e));
+    }
+    setClosingManualCycle(false);
   };
 
   const handleDeletePond = async () => {
@@ -1001,7 +1057,7 @@ export default function Ponds() {
           <TabsTrigger value="households" className="h-10 rounded-md px-4 py-1 text-base font-bold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Hộ nuôi</TabsTrigger>
           <TabsTrigger value="ponds" className="h-10 rounded-md px-4 py-1 text-base font-bold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Ao</TabsTrigger>
           <TabsTrigger value="cycles" className="h-10 rounded-md px-4 py-1 text-base font-bold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kỳ</TabsTrigger>
-          <TabsTrigger value="cyclesHarvested" className="h-10 rounded-md px-4 py-1 text-base font-bold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kì đã thu</TabsTrigger>
+          <TabsTrigger value="cyclesHarvested" className="h-10 rounded-md px-4 py-1 text-base font-bold leading-none text-muted-foreground data-[active]:bg-background data-[active]:text-foreground">Chu kỳ đã thu</TabsTrigger>
         </TabsList>
 
         <div className="mt-3 flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
@@ -1189,7 +1245,7 @@ export default function Ponds() {
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => { setSelectedPond({ id: p.id, code: p.code }); setShowDeleteConfirm(true); }}>
-                                    <Trash2 className="w-4 h-4 mr-2" /> Xoá
+                                    <Trash2 className="w-4 h-4 mr-2" /> Xóa
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -1243,6 +1299,11 @@ export default function Ponds() {
             setDeleteCycleId={setDeleteCycleId}
             setDeleteCycleLabel={setDeleteCycleLabel}
             setShowDeleteConfirm={setShowDeleteConfirm}
+            canManualCloseCycle={canManualCloseCycle}
+            onManualCloseCycle={(id, label) => {
+              setConfirmManualCloseCycleId(id);
+              setConfirmManualCloseLabel(label);
+            }}
           />
         </TabsContent>
 
@@ -1286,26 +1347,52 @@ export default function Ponds() {
             setDeleteCycleId={setDeleteCycleId}
             setDeleteCycleLabel={setDeleteCycleLabel}
             setShowDeleteConfirm={setShowDeleteConfirm}
+            canManualCloseCycle={canManualCloseCycle}
+            onManualCloseCycle={(id, label) => {
+              setConfirmManualCloseCycleId(id);
+              setConfirmManualCloseLabel(label);
+            }}
           />
         </TabsContent>
 
         <NewPondDialog open={showNewDialog} onClose={() => setShowNewDialog(false)} onCreated={loadPonds} agencies={agencies} appSettings={appSettings} />
         <EditPondDialog open={showEditDialog} onClose={() => { setShowEditDialog(false); setSelectedPond(null); }} pond={selectedPond} onUpdated={loadPonds} />
 
+        <AlertDialog open={Boolean(confirmManualCloseCycleId)} onOpenChange={(open) => { if (!open) { setConfirmManualCloseCycleId(null); setConfirmManualCloseLabel(''); } }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Chốt kết thúc chu kỳ?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Chu kỳ <strong>{confirmManualCloseLabel || 'đang chọn'}</strong> sẽ được đánh dấu đã thu và hiển thị ở tab <strong>Chu kỳ đã thu</strong>, kể cả khi sản lượng thực tế (kg) thấp hơn kế hoạch. Tồn cá trên chu kỳ sẽ về 0.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Huỷ</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => void handleConfirmManualCloseCycle()}
+                disabled={closingManualCycle}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {closingManualCycle ? 'Đang lưu...' : 'Xác nhận chốt'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2 text-red-600">
-                  <AlertCircle className="w-5 h-5" /> Xác nhận xoá ao
+                  <AlertCircle className="w-5 h-5" /> Xác nhận xóa ao
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Bạn có chắc chắn muốn xoá ao <strong>{selectedPond?.code}</strong>? Hành động này sẽ xoá tất cả chu kỳ và dữ liệu liên quan. Thao tác này không thể hoàn tác.
+                  Bạn có chắc chắn muốn xóa ao <strong>{selectedPond?.code}</strong>? Hành động này sẽ xóa tất cả chu kỳ và dữ liệu liên quan. Thao tác này không thể hoàn tác.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => setSelectedPond(null)}>Huỷ</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDeletePond} disabled={deleting} className="bg-red-600 hover:bg-red-700 text-white">
-                  {deleting ? 'Đang xoá...' : 'Xác nhận xoá'}
+                  {deleting ? 'Đang xóa...' : 'Xác nhận xóa'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -1315,16 +1402,16 @@ export default function Ponds() {
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle className="flex items-center gap-2 text-red-600">
-                  <AlertCircle className="w-5 h-5" /> Xác nhận xoá chu kỳ
+                  <AlertCircle className="w-5 h-5" /> Xác nhận xóa chu kỳ
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Bạn có chắc chắn muốn xoá chu kỳ <strong>{deleteCycleLabel || 'đang chọn'}</strong>? Nhật ký và phiếu thu hoạch liên quan sẽ bị xoá theo. Thao tác này không thể hoàn tác.
+                  Bạn có chắc chắn muốn xóa chu kỳ <strong>{deleteCycleLabel || 'đang chọn'}</strong>? Nhật ký và phiếu thu hoạch liên quan sẽ bị xóa theo. Thao tác này không thể hoàn tác.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => { setDeleteCycleId(null); setDeleteCycleLabel(''); }}>Huỷ</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDeleteCycle} disabled={deletingCycle} className="bg-red-600 hover:bg-red-700 text-white">
-                  {deletingCycle ? 'Đang xoá...' : 'Xác nhận xoá'}
+                  {deletingCycle ? 'Đang xóa...' : 'Xác nhận xóa'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

@@ -5,6 +5,11 @@
  */
 import { Fragment } from 'react';
 import { originalHarvestDateForReport } from '@/lib/planReportHelpers';
+import { parseHarvestDateInput } from '@/lib/harvestDateParse';
+import {
+  cycleOriginalPlanEligibleForMonthReport,
+  originalHarvestMonthIndexForReport,
+} from '@/lib/reportMonthHelpers';
 import { countCycleRows, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
 import { calculateYieldFromPond, calcOriginalYieldKg } from '@/lib/calculateYield';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
@@ -20,7 +25,11 @@ function systemCodeFromAgencyCode(agencyCode) {
 }
 
 function parseDate(dateValue) {
-  if (!dateValue) return null;
+  if (dateValue == null || dateValue === '') return null;
+  if (typeof dateValue === 'string') {
+    const d = parseHarvestDateInput(dateValue.trim());
+    if (d && !Number.isNaN(d.getTime())) return d;
+  }
   const d = new Date(dateValue);
   return Number.isNaN(d.getTime()) ? null : d;
 }
@@ -48,11 +57,15 @@ export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo, appS
   const monthIdx = (() => {
     const set = new Set();
     ponds.forEach((p) => {
+      if (!cycleOriginalPlanEligibleForMonthReport(p)) return;
       const d = originalHarvestDateForReport(p);
       if (!d) return;
       if (!isInDateRange(d, fromDate, toDate)) return;
       const y = calculateYieldFromPond(p);
-      if (y > 0) set.add(new Date(d).getMonth());
+      if (y > 0) {
+        const mi = originalHarvestMonthIndexForReport(p);
+        if (mi != null) set.add(mi);
+      }
     });
     return [...set].sort((a, b) => a - b);
   })();
@@ -70,10 +83,12 @@ export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo, appS
     const cc = agencyPonds.filter((p) => p.status === 'CC');
     const ct = agencyPonds.filter((p) => p.status === 'CT');
     const totalCC = cc.reduce((s, p) => {
+      if (!cycleOriginalPlanEligibleForMonthReport(p)) return s;
       const d = originalHarvestDateForReport(p);
       return s + (isInDateRange(d, fromDate, toDate) ? calculateYieldFromPond(p) : 0);
     }, 0);
     const totalCT = ct.reduce((s, p) => {
+      if (!cycleOriginalPlanEligibleForMonthReport(p)) return s;
       const d = originalHarvestDateForReport(p);
       return s + (isInDateRange(d, fromDate, toDate) ? calculateYieldFromPond(p) : 0);
     }, 0);
@@ -81,14 +96,18 @@ export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo, appS
 
     const monthCC = visibleMonthIdx.map((i) =>
       cc.reduce((s, p) => {
+        if (!cycleOriginalPlanEligibleForMonthReport(p)) return s;
         const d = originalHarvestDateForReport(p);
-        return s + (d && isInDateRange(d, fromDate, toDate) && new Date(d).getMonth() === i ? calcOriginalYield(p) : 0);
+        const mi = originalHarvestMonthIndexForReport(p);
+        return s + (d && isInDateRange(d, fromDate, toDate) && mi === i ? calcOriginalYield(p) : 0);
       }, 0)
     );
     const monthCT = visibleMonthIdx.map((i) =>
       ct.reduce((s, p) => {
+        if (!cycleOriginalPlanEligibleForMonthReport(p)) return s;
         const d = originalHarvestDateForReport(p);
-        return s + (d && isInDateRange(d, fromDate, toDate) && new Date(d).getMonth() === i ? calculateYieldFromPond(p) : 0);
+        const mi = originalHarvestMonthIndexForReport(p);
+        return s + (d && isInDateRange(d, fromDate, toDate) && mi === i ? calculateYieldFromPond(p) : 0);
       }, 0)
     );
 
@@ -130,7 +149,8 @@ export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo, appS
   return (
     <div>
       <div className="px-5 py-3.5 bg-muted/30 border-b border-border text-sm text-muted-foreground font-semibold">
-        Bảng sắp xếp theo dạng tháng: mỗi tháng gồm <strong>CC</strong>, <strong>CT</strong>, <strong>TH</strong> (tổng).
+        Bảng sắp xếp theo dạng tháng: mỗi tháng gồm <strong>CC</strong>, <strong>CT</strong>, <strong>TH</strong> (tổng). Cột theo tháng chỉ tính khi có{' '}
+        <strong>ngày thả hợp lệ</strong>, có <strong>ngày thu KH gốc</strong> (initial/expected) và ngày thu không trước ngày thả.
       </div>
 
       <div className="overflow-x-auto max-w-full pb-2 [&_table]:border-2 [&_table]:border-slate-400 [&_th]:border-2 [&_th]:border-slate-400 [&_td]:border-2 [&_td]:border-slate-400 dark:[&_table]:border-slate-500 dark:[&_th]:border-slate-500 dark:[&_td]:border-slate-500">

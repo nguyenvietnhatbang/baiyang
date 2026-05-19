@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { plannedHarvestDateForDisplay, plannedYieldOriginalKg } from '@/lib/planReportHelpers';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { formatDateDisplay } from '@/lib/dateFormat';
 import { harvestRecordsForCycleRow, latestActualHarvestDate } from '@/lib/reportPondDedupe';
 

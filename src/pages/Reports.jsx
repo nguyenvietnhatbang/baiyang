@@ -19,6 +19,12 @@ import ReportDailyProductionPlan from '@/components/reports/ReportDailyProductio
 import ReportSummaryMatrix from '@/components/reports/ReportSummaryMatrix';
 import { calcOriginalYieldKg } from '@/lib/calculateYield';
 import {
+  harvestMatchesFilterMonthYear,
+  harvestMatchesFilterYear,
+  harvestMonthIndexForReport,
+} from '@/lib/reportMonthHelpers';
+import { parseHarvestDateInput } from '@/lib/harvestDateParse';
+import {
   flattenPondsToCycleRows,
   filterHarvestsForCycleScope,
   sumActualYieldForCycleRows,
@@ -109,16 +115,28 @@ const REPORT_TYPE_ITEMS = [
   { value: 'daily_plan', label: '📅 Báo cáo KH thu & sản lượng' },
 ];
 
-function yieldByMonth(rows, monthIdx) {
+function yieldByMonth(rows, monthIdx, yearFilter) {
   return rows
-    .filter((r) => r.expected_harvest_date && new Date(r.expected_harvest_date).getMonth() === monthIdx)
+    .filter((r) => harvestMatchesFilterYear(r, yearFilter) && harvestMonthIndexForReport(r) === monthIdx)
     .reduce((s, r) => s + (r.expected_yield || 0), 0);
 }
 
-function yieldHarvestByMonth(rows, monthIdx) {
-  return rows
-    .filter((h) => h.harvest_date && new Date(h.harvest_date).getMonth() === monthIdx)
-    .reduce((s, h) => s + (h.actual_yield || 0), 0);
+function yieldHarvestByMonth(rows, monthIdx, yearFilter) {
+  const y = Number(yearFilter);
+  if (!Number.isFinite(y)) {
+    return rows
+      .filter((h) => {
+        const d = parseHarvestDateInput(h.harvest_date);
+        return d && !Number.isNaN(d.getTime()) && d.getMonth() === monthIdx;
+      })
+      .reduce((s, h) => s + (h.actual_yield || 0), 0);
+  }
+  return rows.reduce((s, h) => {
+    const d = parseHarvestDateInput(h.harvest_date);
+    if (!d || Number.isNaN(d.getTime())) return s;
+    if (d.getFullYear() !== y || d.getMonth() !== monthIdx) return s;
+    return s + (Number(h.actual_yield) || 0);
+  }, 0);
 }
 
 /** Lọc phiếu thu theo năm (hỗ trợ yyyy-MM-dd và chuỗi ngày parse được). */
@@ -286,14 +304,7 @@ export default function Reports() {
   const reportScopedCycleRows = useMemo(() => {
     if (monthFilter === 'all') return scopedCycleRows;
     const mi = Number(monthFilter);
-    const y = Number(yearFilter);
-    return scopedCycleRows.filter((r) => {
-      const ed = r.expected_harvest_date;
-      if (!ed) return false;
-      const d = new Date(ed);
-      if (Number.isNaN(d.getTime())) return false;
-      return d.getFullYear() === y && d.getMonth() === mi;
-    });
+    return scopedCycleRows.filter((r) => harvestMatchesFilterMonthYear(r, yearFilter, mi));
   }, [scopedCycleRows, monthFilter, yearFilter]);
 
   /** Phiếu thu gắn đúng chu kỳ trong phạm vi (chỉ fallback theo ao khi ao đó có đúng 1 chu kỳ). */
@@ -322,8 +333,8 @@ export default function Reports() {
         monthFilter === 'all' ||
         (Boolean(h.harvest_date) &&
           (() => {
-            const d = new Date(h.harvest_date);
-            if (Number.isNaN(d.getTime())) return false;
+            const d = parseHarvestDateInput(h.harvest_date);
+            if (!d || Number.isNaN(d.getTime())) return false;
             return d.getFullYear() === Number(yearFilter) && d.getMonth() === Number(monthFilter);
           })());
       return matchAgency && matchYear && matchMonth;
@@ -373,8 +384,8 @@ export default function Reports() {
 
   const monthlyData = MONTHS.map((m, i) => ({
     month: m,
-    keHoach: yieldByMonth(reportScopedCycleRows, i),
-    thucTe: yieldHarvestByMonth(harvestsForCycleActuals, i),
+    keHoach: yieldByMonth(reportScopedCycleRows, i, yearFilter),
+    thucTe: yieldHarvestByMonth(harvestsForCycleActuals, i, yearFilter),
   }));
 
   const fcrData = [
@@ -384,7 +395,10 @@ export default function Reports() {
     { name: 'Chưa có', value: reportScopedCycleRows.filter((p) => !p.fcr).length, color: '#94a3b8' },
   ].filter((d) => d.value > 0);
 
-  const totalAdjustedYield = reportScopedCycleRows.reduce((s, p) => s + (p.expected_yield || 0), 0);
+  const totalAdjustedYield = reportScopedCycleRows.reduce(
+    (s, p) => s + (harvestMatchesFilterYear(p, yearFilter) ? p.expected_yield || 0 : 0),
+    0
+  );
   /** Tổng thực thu (phiếu thu) của đúng các chu kỳ đang lọc trong năm — không lọc theo tháng ngày thu thực */
   const totalActualFromScopedCycles = useMemo(
     () => sumActualYieldForCycleRows(reportScopedCycleRows, harvestsForCycleActuals),

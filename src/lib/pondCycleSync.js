@@ -6,6 +6,7 @@ const LIST_LIMIT = 8000;
 /**
  * Đồng bộ PondCycle từ HarvestRecord:
  * - Tổng actual_yield, harvest_done, FCR (khi có thu), status CT khi đã có thu (và current_fish = 0).
+ * - Giữ chốt thủ công: harvest_done + CT + không phiếu thu → không bỏ trạng thái đã thu khi đồng bộ.
  * - Gộp phiếu theo pond_cycle_id; phiếu không có chu kỳ nhưng có ao → chỉ gán khi ao có đúng 1 chu kỳ.
  */
 export async function syncPondCyclesWithHarvests() {
@@ -44,7 +45,11 @@ export async function syncPondCyclesWithHarvests() {
   for (const cycle of allCycles) {
     const hs = byCycleId.get(String(cycle.id)) || [];
     const totalActualYield = hs.reduce((sum, x) => sum + (Number(x.actual_yield) || 0), 0);
-    const isHarvested = totalActualYield > 0;
+    const manuallyClosedNoTickets =
+      Boolean(cycle.harvest_done) &&
+      String(cycle.status || '').toUpperCase() === 'CT' &&
+      totalActualYield === 0;
+    const isHarvested = totalActualYield > 0 || manuallyClosedNoTickets;
 
     let fcr = null;
     if (cycle.total_feed_used && totalActualYield > 0) {

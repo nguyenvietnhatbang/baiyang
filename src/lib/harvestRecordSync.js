@@ -59,15 +59,18 @@ export async function syncPondCycleWithHarvests(pondCycleId) {
   if (!cycle) {
     throw new Error(`Không tìm thấy PondCycle với ID: ${pondCycleId}`);
   }
+
+  const manuallyClosedNoTickets =
+    Boolean(cycle.harvest_done) &&
+    String(cycle.status || '').toUpperCase() === 'CT' &&
+    totalActualYield === 0;
+  const isHarvested = totalActualYield > 0 || manuallyClosedNoTickets;
   
   // Tính FCR nếu có total_feed_used
   let fcr = null;
   if (cycle.total_feed_used && totalActualYield > 0) {
     fcr = Math.round((cycle.total_feed_used / totalActualYield) * 100) / 100;
   }
-  
-  // Xác định trạng thái
-  const isHarvested = totalActualYield > 0;
   
   // Cập nhật PondCycle với retry logic
   let retries = 3;
@@ -120,7 +123,11 @@ export async function checkAndFixHarvestConsistency(pondCycleId) {
   }
   
   // Kiểm tra 2: harvest_done có đúng không
-  const expectedHarvestDone = totalActualYield > 0;
+  const manuallyClosedNoTickets =
+    Boolean(cycle.harvest_done) &&
+    String(cycle.status || '').toUpperCase() === 'CT' &&
+    totalActualYield === 0;
+  const expectedHarvestDone = totalActualYield > 0 || manuallyClosedNoTickets;
   if (cycle.harvest_done !== expectedHarvestDone) {
     issues.push(`harvest_done không đúng: ${cycle.harvest_done} (expected: ${expectedHarvestDone})`);
   }

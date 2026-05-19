@@ -29,8 +29,10 @@ export const AuthProvider = ({ children }) => {
     try {
       const row = await base44.entities.AppSettings.get();
       setAppSettings(row);
-    } catch {
-      setAppSettings({ ...settingsFallback });
+    } catch (e) {
+      console.error('[Auth] AppSettings.get failed:', e);
+      // Không ghi đè bằng fallback rỗng — tránh mất kế hoạch nhà máy / ngưỡng sau khi lưu thành công mà get lỗi tạm thời.
+      setAppSettings((prev) => (prev && typeof prev === 'object' ? prev : { ...settingsFallback }));
     }
   }, []);
 

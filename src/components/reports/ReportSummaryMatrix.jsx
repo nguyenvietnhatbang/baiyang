@@ -1,6 +1,10 @@
 import { Fragment, useMemo } from 'react';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
-import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import {
+  cycleHarvestPlanEligibleForMonthReport,
+  harvestMonthIndexForReport,
+} from '@/lib/reportMonthHelpers';
+import { parseHarvestDateInput } from '@/lib/harvestDateParse';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `Tháng ${i + 1}`);
 
@@ -9,10 +13,10 @@ function systemCodeFromAgencyCode(agencyCode) {
   return digits ? digits : String(agencyCode || '').trim();
 }
 
-function monthIdxFromDate(dateValue) {
+function monthIdxFromHarvestDate(dateValue) {
   if (!dateValue) return null;
-  const d = new Date(dateValue);
-  if (Number.isNaN(d.getTime())) return null;
+  const d = parseHarvestDateInput(dateValue);
+  if (!d || Number.isNaN(d.getTime())) return null;
   return d.getMonth();
 }
 
@@ -36,12 +40,14 @@ export default function ReportSummaryMatrix({ ponds, harvests, agencies, appSett
       const actualMonth = Array.from({ length: 12 }, () => 0);
 
       agencyPonds.forEach((p) => {
-        const miPlan = monthIdxFromDate(plannedHarvestDateForDisplay(p));
-        if (miPlan != null) plannedMonth[miPlan] += Number(p.expected_yield) || 0;
+        if (cycleHarvestPlanEligibleForMonthReport(p)) {
+          const miPlan = harvestMonthIndexForReport(p);
+          if (miPlan != null) plannedMonth[miPlan] += Number(p.expected_yield) || 0;
+        }
 
         const hs = harvestByCycleId.get(p.pond_cycle_id) || [];
         hs.forEach((h) => {
-          const miAct = monthIdxFromDate(h.harvest_date);
+          const miAct = monthIdxFromHarvestDate(h.harvest_date);
           if (miAct != null) actualMonth[miAct] += Number(h.actual_yield) || 0;
         });
       });
@@ -74,7 +80,22 @@ export default function ReportSummaryMatrix({ ponds, harvests, agencies, appSett
 
   const renderNum = (v) => (Number(v) > 0 ? Number(v).toLocaleString() : '');
 
+  const ineligiblePlanCount = useMemo(
+    () =>
+      (ponds || []).filter((p) => {
+        const y = Number(p.expected_yield) || 0;
+        return y > 0 && !cycleHarvestPlanEligibleForMonthReport(p);
+      }).length,
+    [ponds]
+  );
+
   return (
+    <div className="space-y-2">
+      {ineligiblePlanCount > 0 && (
+        <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          {ineligiblePlanCount} chu kỳ có sản lượng KH nhưng <strong>chưa có ngày thả</strong> hoặc ngày thu trước ngày thả — không cộng vào cột Kế hoạch theo tháng (tránh hiện KH T1–T4 khi chưa có dữ liệu thả hợp lệ).
+        </p>
+      )}
     <div className="overflow-x-auto max-w-full pb-2 [&_table]:border-2 [&_table]:border-slate-400 [&_th]:border-2 [&_th]:border-slate-400 [&_td]:border-2 [&_td]:border-slate-400 dark:[&_table]:border-slate-500 dark:[&_th]:border-slate-500 dark:[&_td]:border-slate-500">
       <table className="w-full min-w-max text-sm font-semibold border-collapse">
         <thead>
@@ -170,6 +191,7 @@ export default function ReportSummaryMatrix({ ponds, harvests, agencies, appSett
           </tr>
         </tbody>
       </table>
+    </div>
     </div>
   );
 }

@@ -128,7 +128,7 @@ async function main() {
             address: 'Xã nhập liệu — TB',
             active: true,
           },
-          { onConflict: 'agency_id,household_segment' }
+          { onConflict: 'agency_id,region_code,household_segment' }
         )
         .select('id')
         .single();

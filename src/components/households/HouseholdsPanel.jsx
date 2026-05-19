@@ -155,7 +155,11 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
 
   const segPreview = normalizeSegment(form.household_segment);
   const dup = households.some(
-    (r) => r.agency_id === form.agency_id && r.household_segment === segPreview && (!isEdit || r.id !== row.id)
+    (r) =>
+      r.agency_id === form.agency_id &&
+      String(r.region_code || '') === String(form.region_code || '') &&
+      r.household_segment === segPreview &&
+      (!isEdit || r.id !== row.id)
   );
 
   const handleSave = async () => {
@@ -165,7 +169,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
       return;
     }
     if (dup) {
-      setError(`Mã hộ "${seg}" đã tồn tại trong đại lý này`);
+      setError(`Mã hộ "${seg}" đã tồn tại ở đại lý và khu vực đang chọn`);
       return;
     }
     setError('');
@@ -278,6 +282,9 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
                   className="mt-1 font-mono"
                   placeholder="001"
                 />
+                <p className="mt-1 text-xs font-semibold text-muted-foreground leading-snug">
+                  Ba số cuối trong mã ao; không trùng trong cùng đại lý và cùng khu vực (khác khu vực được phép trùng mã hộ).
+                </p>
               </div>
               <div>
                 <Label className="text-sm font-bold text-muted-foreground uppercase">Trạng thái</Label>
@@ -352,6 +359,8 @@ export function HouseholdsPanel({ embedded = false }) {
   const [viewRow, setViewRow] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState('');
+  /** Rỗng = hiển thị mọi đại lý */
+  const [agencyFilterId, setAgencyFilterId] = useState('');
 
   const load = async () => {
     const [h, a, r] = await Promise.all([
@@ -369,6 +378,23 @@ export function HouseholdsPanel({ embedded = false }) {
 
   const agencyMap = Object.fromEntries(agencies.map((a) => [a.id, a]));
   const regionMap = Object.fromEntries(regions.map((r) => [r.code, r]));
+
+  const agencyFilterOptions = useMemo(
+    () => [
+      { value: '', label: 'Tất cả đại lý', searchText: 'tất cả tất ca all' },
+      ...agencies.map((a) => ({
+        value: a.id,
+        label: `${a.code} — ${a.name}`,
+        searchText: `${a.code} ${a.name} ${a.region_code || ''}`,
+      })),
+    ],
+    [agencies]
+  );
+
+  const filteredRows = useMemo(() => {
+    if (!agencyFilterId) return rows;
+    return rows.filter((r) => String(r.agency_id) === String(agencyFilterId));
+  }, [rows, agencyFilterId]);
 
   const agencyCodeMap = useMemo(() => {
     const m = new Map();
@@ -415,7 +441,9 @@ export function HouseholdsPanel({ embedded = false }) {
       if (codeCol <= 0) codeCol = 2;
 
       const dedupInFile = new Set();
-      const existing = new Set(rows.map((r) => `${r.agency_id}::${r.household_segment}`));
+      const existing = new Set(
+        rows.map((r) => `${r.agency_id}::${String(r.region_code || '')}::${r.household_segment}`)
+      );
       let created = 0;
       let skipped = 0;
       const issues = [];
@@ -443,7 +471,8 @@ export function HouseholdsPanel({ embedded = false }) {
           continue;
         }
 
-        const key = `${agency.id}::${parsed.segment}`;
+        const regionCode = String(agency.region_code || '17');
+        const key = `${agency.id}::${regionCode}::${parsed.segment}`;
         if (dedupInFile.has(key) || existing.has(key)) {
           skipped += 1;
           continue;
@@ -452,7 +481,7 @@ export function HouseholdsPanel({ embedded = false }) {
 
         await base44.entities.Household.create({
           agency_id: agency.id,
-          region_code: agency.region_code || '17',
+          region_code: regionCode,
           household_segment: parsed.segment,
           name: name || `Hộ ${parsed.segment}`,
           address: null,
@@ -479,7 +508,7 @@ export function HouseholdsPanel({ embedded = false }) {
         {!embedded && (
           <div>
             <h1 className="text-3xl font-extrabold text-foreground">Quản lý hộ nuôi</h1>
-            <p className="text-muted-foreground text-base font-semibold mt-0.5">Mã hộ dùng trong mã ao (khu vực–đại lý–hộ–STT ao)</p>
+            <p className="text-muted-foreground text-base font-semibold mt-0.5">Mã hộ là 3 số trong mã ao (khu vực–đại lý–hộ–STT ao); cùng đại lý có thể dùng lại mã hộ ở khu vực khác.</p>
           </div>
         )}
         <div className="flex items-center gap-2">
@@ -527,6 +556,18 @@ export function HouseholdsPanel({ embedded = false }) {
         </p>
       )}
 
+      {agencies.length > 0 && (
+        <div className="max-w-md">
+          <SearchablePicker
+            label="Lọc theo đại lý"
+            value={agencyFilterId}
+            onChange={setAgencyFilterId}
+            options={agencyFilterOptions}
+            placeholder="Tất cả đại lý"
+          />
+        </div>
+      )}
+
       <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-base min-w-[700px]">
@@ -546,8 +587,10 @@ export function HouseholdsPanel({ embedded = false }) {
                 <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground font-semibold">Đang tải...</td></tr>
               ) : rows.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground font-semibold">Chưa có hộ nuôi</td></tr>
+              ) : filteredRows.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground font-semibold">Không có hộ nuôi phù hợp bộ lọc đại lý</td></tr>
               ) : (
-                rows.map((x) => (
+                filteredRows.map((x) => (
                   <tr key={x.id} className="hover:bg-muted/20">
                     <td className="px-4 py-3.5 font-bold whitespace-nowrap">{x.name}</td>
                     <td className="px-4 py-3.5 font-mono text-primary font-bold whitespace-nowrap">{x.household_segment}</td>

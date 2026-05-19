@@ -138,31 +138,46 @@ export function CycleDateRangeFilterBar({
   const hasRange = Boolean((dateFrom || '').trim() || (dateTo || '').trim());
 
   return (
-    <div className="flex flex-wrap items-end gap-2">
-      <div className="flex flex-col gap-0.5 min-w-[10.5rem]">
-        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Lọc theo ngày</label>
-        <select
-          className="h-10 rounded-md border border-input bg-background px-2 text-sm font-semibold"
-          value={dateField}
-          onChange={(e) => setDateField(e.target.value === 'expected_harvest' ? 'expected_harvest' : 'stock')}
-        >
-          <option value="stock">Ngày thả</option>
-          <option value="expected_harvest">Thu hoạch dự kiến</option>
-        </select>
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-0.5 min-w-[10.5rem]">
+          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Lọc theo ngày</label>
+          <select
+            className="h-10 rounded-md border border-input bg-background px-2 text-sm font-semibold"
+            value={
+              dateField === 'expected_harvest' ? 'expected_harvest' : dateField === 'actual_harvest' ? 'actual_harvest' : 'stock'
+            }
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === 'expected_harvest') setDateField('expected_harvest');
+              else if (v === 'actual_harvest') setDateField('actual_harvest');
+              else setDateField('stock');
+            }}
+          >
+            <option value="stock">Ngày thả</option>
+            <option value="expected_harvest">Ngày thu hoạch dự kiến</option>
+            <option value="actual_harvest">Ngày thu hoạch thực tế (phiếu thu)</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Từ ngày</label>
+          <Input type="date" className="h-10 w-[11rem] text-sm font-semibold" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Đến ngày</label>
+          <Input type="date" className="h-10 w-[11rem] text-sm font-semibold" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </div>
+        {hasRange && (
+          <Button type="button" variant="outline" size="sm" className="h-10 gap-1 text-sm font-bold shrink-0" onClick={clearDates}>
+            <X className="h-3.5 w-3.5" />
+            Xóa ngày
+          </Button>
+        )}
       </div>
-      <div className="flex flex-col gap-0.5">
-        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Từ ngày</label>
-        <Input type="date" className="h-10 w-[11rem] text-sm font-semibold" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-      </div>
-      <div className="flex flex-col gap-0.5">
-        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Đến ngày</label>
-        <Input type="date" className="h-10 w-[11rem] text-sm font-semibold" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-      </div>
-      {hasRange && (
-        <Button type="button" variant="outline" size="sm" className="h-10 gap-1 text-sm font-bold shrink-0" onClick={clearDates}>
-          <X className="h-3.5 w-3.5" />
-          Xóa ngày
-        </Button>
+      {dateField === 'actual_harvest' && (
+        <p className="text-xs font-semibold text-muted-foreground max-w-xl">
+          Lọc theo tháng: chọn cùng ngày đầu và cuối tháng trên lịch (hoặc khoảng bất kỳ). So khớp theo ngày phiếu thu mới nhất của chu kỳ.
+        </p>
       )}
     </div>
   );

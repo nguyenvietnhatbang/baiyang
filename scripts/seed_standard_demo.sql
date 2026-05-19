@@ -71,17 +71,17 @@ begin
     (ag3, '17', '002', 'Hộ Vũ Thị Mai',        'Ấp Nam — Kiến Xương', true),
     (ag4, '17', '001', 'Hộ Đỗ Văn Hùng',       'Xã Nam Trung — Tiền Hải', true),
     (ag4, '17', '002', 'Hộ Bùi Thị Hương',     'Xã Đông Trung — Tiền Hải', true)
-  on conflict (agency_id, household_segment) do update set
+  on conflict (agency_id, region_code, household_segment) do update set
     name = excluded.name, address = excluded.address, active = excluded.active;
 
-  select id into h01 from public.households where agency_id = ag1 and household_segment = '001';
-  select id into h02 from public.households where agency_id = ag1 and household_segment = '002';
-  select id into h03 from public.households where agency_id = ag2 and household_segment = '001';
-  select id into h04 from public.households where agency_id = ag2 and household_segment = '002';
-  select id into h05 from public.households where agency_id = ag3 and household_segment = '001';
-  select id into h06 from public.households where agency_id = ag3 and household_segment = '002';
-  select id into h07 from public.households where agency_id = ag4 and household_segment = '001';
-  select id into h08 from public.households where agency_id = ag4 and household_segment = '002';
+  select id into h01 from public.households where agency_id = ag1 and region_code = '17' and household_segment = '001';
+  select id into h02 from public.households where agency_id = ag1 and region_code = '17' and household_segment = '002';
+  select id into h03 from public.households where agency_id = ag2 and region_code = '17' and household_segment = '001';
+  select id into h04 from public.households where agency_id = ag2 and region_code = '17' and household_segment = '002';
+  select id into h05 from public.households where agency_id = ag3 and region_code = '17' and household_segment = '001';
+  select id into h06 from public.households where agency_id = ag3 and region_code = '17' and household_segment = '002';
+  select id into h07 from public.households where agency_id = ag4 and region_code = '17' and household_segment = '001';
+  select id into h08 from public.households where agency_id = ag4 and region_code = '17' and household_segment = '002';
 
   -- ========== 16 ao: upsert theo code ==========
   -- (1) CC — A1/H001/01
