@@ -205,6 +205,8 @@ export default function Reports() {
   const handleSyncHarvestToCycles = async () => {
     setSyncing(true);
     try {
+      // Nạp mới dữ liệu trước khi đồng bộ để tránh xử lý trên snapshot cũ.
+      await loadReportsData({ showLoading: false });
       const r = await syncPondCyclesWithHarvests();
       toast.success(
         `Đã đồng bộ phiếu thu → chu kỳ: ${r.updatedCount} chu kỳ cập nhật / ${r.totalCycles} chu kỳ.`
@@ -474,10 +476,10 @@ export default function Reports() {
             className="flex items-center gap-2 text-sm"
             disabled={syncing || loading}
             onClick={() => void handleSyncHarvestToCycles()}
-            title="Cộng phiếu thu hoạch theo chu kỳ và cập nhật sản lượng thực tế, FCR, trạng thái trên PondCycle"
+            title="Lấy dữ liệu mới nhất, đồng bộ phiếu thu → chu kỳ, rồi cập nhật lại báo cáo"
           >
             <RefreshCw className={`w-4 h-4 shrink-0 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Đang đồng bộ…' : 'Đồng bộ thu → chu kỳ'}
+            {syncing ? 'Đang cập nhật…' : 'Cập nhật & đồng bộ'}
           </Button>
           <Button variant="outline" className="flex items-center gap-2 text-sm" disabled={exporting} onClick={handleExportExcel}>
             <Download className="w-4 h-4" />
