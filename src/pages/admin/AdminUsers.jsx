@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { normalizeVnPhone } from '@/lib/fieldAuthHelpers';
+import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -96,7 +97,11 @@ export default function AdminUsers() {
     [agencies]
   );
   const householdSelectItems = useMemo(
-    () => households.map((h) => ({ value: h.id, label: `${h.name} (${h.household_segment})` })),
+    () =>
+      households.map((h) => ({
+        value: h.id,
+        label: `${h.name} (${formatHouseholdSegmentDisplay(h.household_segment)})`,
+      })),
     [households]
   );
 
@@ -405,7 +410,9 @@ export default function AdminUsers() {
                   </SelectTrigger>
                   <SelectContent>
                     {households.map((h) => (
-                      <SelectItem key={h.id} value={h.id}>{h.name} ({h.household_segment})</SelectItem>
+                      <SelectItem key={h.id} value={h.id}>
+                        {h.name} ({formatHouseholdSegmentDisplay(h.household_segment)})
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -474,7 +481,9 @@ export default function AdminUsers() {
                   </SelectTrigger>
                   <SelectContent>
                     {households.map((h) => (
-                      <SelectItem key={h.id} value={h.id}>{h.name} ({h.household_segment})</SelectItem>
+                      <SelectItem key={h.id} value={h.id}>
+                        {h.name} ({formatHouseholdSegmentDisplay(h.household_segment)})
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

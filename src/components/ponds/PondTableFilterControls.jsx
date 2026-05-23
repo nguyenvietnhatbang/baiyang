@@ -146,6 +146,8 @@ export function CycleDateRangeFilterBar({
 
   const clearHarvestMonth = () => {
     setHarvestMonth?.('all');
+    setDateFrom('');
+    setDateTo('');
   };
 
   return (
@@ -223,12 +225,12 @@ export function CycleDateRangeFilterBar({
       </div>
       {showHarvestMonthPicker && (
         <p className="text-sm font-semibold text-muted-foreground max-w-2xl">
-          Lọc ao/chu kỳ có <strong>ít nhất một phiếu thu</strong> trong tháng đã chọn (theo ngày trên phiếu, không chỉ ngày thu mới nhất).
+          <strong>Tháng thu hoạch</strong> chỉ điền sẵn Từ/Đến ngày. Danh sách lọc theo mục <strong>Lọc theo ngày</strong> (thả / thu DK / thu thực tế).
         </p>
       )}
-      {dateField === 'actual_harvest' && !showHarvestMonthPicker && (
+      {dateField === 'actual_harvest' && (
         <p className="text-sm font-semibold text-muted-foreground max-w-xl">
-          Khoảng ngày so khớp theo ngày phiếu thu mới nhất của chu kỳ.
+          Thu thực tế: có ít nhất một phiếu thu có ngày nằm trong khoảng Từ–Đến.
         </p>
       )}
     </div>

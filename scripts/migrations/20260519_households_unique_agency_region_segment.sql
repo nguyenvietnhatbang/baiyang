@@ -1,4 +1,7 @@
--- Mã hộ (3 số) phải duy nhất theo từng cặp đại lý + khu vực, khớp cách ghép mã ao:
+-- Chạy trong Supabase Dashboard → SQL Editor (bắt buộc nếu vẫn báo trùng mã hộ
+-- khi đổi khu vực nhưng cùng đại lý + mã hộ).
+--
+-- Mã hộ phải duy nhất theo bộ (đại lý + khu vực + mã hộ), khớp cách ghép mã ao:
 --   region_code - mã đại lý - household_segment - STT ao
 -- (Trước đây chỉ unique theo agency_id + household_segment nên không cho cùng đại lý
 --  dùng lại mã hộ ở khu vực khác.)

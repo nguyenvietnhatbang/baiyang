@@ -28,6 +28,18 @@ export function rowMatchesCycleDateRange(row, field, fromStr, toStr) {
   const from = (fromStr || '').trim().slice(0, 10);
   const to = (toStr || '').trim().slice(0, 10);
   if (!from && !to) return true;
+
+  if (field === 'actual_harvest') {
+    const tickets = Array.isArray(row.harvest_dates_ymd) ? row.harvest_dates_ymd.filter(Boolean) : [];
+    if (tickets.length > 0) {
+      return tickets.some((d) => {
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+      });
+    }
+  }
+
   const d = cycleRowDateYyyyMmDd(row, field);
   if (!d) return false;
   if (from && d < from) return false;
@@ -45,20 +57,3 @@ export function harvestTicketDateYmd(harvestDate) {
   return format(startOfDay(p), 'yyyy-MM-dd');
 }
 
-/**
- * Có ít nhất một phiếu thu trong tháng (0–11) của năm calendar.
- * harvestDatesYmd: mảng yyyy-MM-dd (mỗi phiếu một ngày).
- */
-export function rowHasHarvestInMonth(harvestDatesYmd, yearFilter, monthIndex) {
-  if (monthIndex === 'all' || monthIndex == null || monthIndex === '') return true;
-  const y = Number(yearFilter);
-  const m = Number(monthIndex);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 0 || m > 11) return true;
-  const list = Array.isArray(harvestDatesYmd) ? harvestDatesYmd : [];
-  return list.some((d) => {
-    if (!d || d.length < 7) return false;
-    const dy = Number(d.slice(0, 4));
-    const dm = Number(d.slice(5, 7)) - 1;
-    return dy === y && dm === m;
-  });
-}

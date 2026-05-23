@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Plus, Pencil, Trash2, AlertTriangle, Save, Upload, Eye, MoreVertical, Phone, MessageCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, Save, Upload, Eye, MoreVertical, Phone, MessageCircle, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,9 +8,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import HouseholdViewDialog from './HouseholdViewDialog';
-import { formatSupabaseError } from '@/lib/supabaseErrors';
+import { formatHouseholdSaveError, formatSupabaseError } from '@/lib/supabaseErrors';
 import ExcelJS from 'exceljs';
 import { ChevronsUpDown } from 'lucide-react';
+import {
+  formatHouseholdSegmentDisplay,
+  householdSegmentFromInput,
+  householdSegmentWhileTyping,
+  householdTripleKey,
+  isDuplicateHouseholdTriple,
+} from '@/lib/householdSegment';
 
 function SearchablePicker({
   label,
@@ -96,14 +103,6 @@ function SearchablePicker({
   );
 }
 
-function normalizeSegment(s) {
-  const t = (s || '').trim();
-  if (!t) return '';
-  const digits = t.replace(/\D/g, '');
-  if (!digits) return '';
-  return digits.padStart(3, '0').slice(-3);
-}
-
 function phoneDigits(p) {
   return String(p || '').replace(/\D/g, '');
 }
@@ -132,7 +131,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
         setForm({
           agency_id: row.agency_id,
           region_code: row.region_code || '17',
-          household_segment: row.household_segment || '',
+          household_segment: householdSegmentFromInput(row.household_segment) || '',
           name: row.name || '',
           phone: row.phone || '',
           address: row.address || '',
@@ -153,23 +152,25 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
     }
   }, [open, isEdit, row, agencies, regions]);
 
-  const segPreview = normalizeSegment(form.household_segment);
-  const dup = households.some(
-    (r) =>
-      r.agency_id === form.agency_id &&
-      String(r.region_code || '') === String(form.region_code || '') &&
-      r.household_segment === segPreview &&
-      (!isEdit || r.id !== row.id)
-  );
-
   const handleSave = async () => {
-    const seg = normalizeSegment(form.household_segment);
+    const seg = householdSegmentFromInput(form.household_segment);
     if (!form.agency_id || !seg || !form.name.trim()) {
-      setError('Đại lý, mã hộ (3 số) và tên hộ là bắt buộc');
+      setError('Đại lý, mã hộ và tên hộ là bắt buộc');
       return;
     }
-    if (dup) {
-      setError(`Mã hộ "${seg}" đã tồn tại ở đại lý và khu vực đang chọn`);
+    if (
+      isDuplicateHouseholdTriple(households, {
+        agencyId: form.agency_id,
+        regionCode: form.region_code,
+        segment: seg,
+        excludeId: isEdit ? row.id : null,
+      })
+    ) {
+      const agencyLabel = agencies.find((a) => String(a.id) === String(form.agency_id));
+      setError(
+        `Bộ Mã hộ "${seg}" + Khu vực "${form.region_code}" + Đại lý "${agencyLabel?.code || '?'}" đã tồn tại. ` +
+          'Cùng mã hộ ở đại lý hoặc khu vực khác vẫn được phép.'
+      );
       return;
     }
     setError('');
@@ -192,7 +193,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
       onSaved();
       onClose();
     } catch (e) {
-      setError(formatSupabaseError(e));
+      setError(formatHouseholdSaveError(e));
     }
     setSaving(false);
   };
@@ -275,15 +276,25 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-sm font-bold text-muted-foreground uppercase">Mã hộ (001) *</Label>
+                <Label className="text-sm font-bold text-muted-foreground uppercase">Mã hộ *</Label>
                 <Input
                   value={form.household_segment}
-                  onChange={(e) => setForm({ ...form, household_segment: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, household_segment: householdSegmentWhileTyping(e.target.value) })
+                  }
+                  onBlur={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      household_segment: householdSegmentFromInput(prev.household_segment),
+                    }))
+                  }
                   className="mt-1 font-mono"
-                  placeholder="001"
+                  placeholder="006"
+                  inputMode="numeric"
+                  maxLength={24}
                 />
                 <p className="mt-1 text-xs font-semibold text-muted-foreground leading-snug">
-                  Ba số cuối trong mã ao; không trùng trong cùng đại lý và cùng khu vực (khác khu vực được phép trùng mã hộ).
+                  Phần số hộ trong mã ao (vd. 17-02-006-01 → 006). Trùng mã hộ chỉ bị chặn khi trùng cả đại lý và khu vực.
                 </p>
               </div>
               <div>
@@ -348,7 +359,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
 }
 
 /** Danh sách + dialog hộ nuôi — dùng trong trang Ao (tab) hoặc đứng riêng. */
-export function HouseholdsPanel({ embedded = false }) {
+export function HouseholdsPanel({ embedded = false, onCreatePond }) {
   const [rows, setRows] = useState([]);
   const [agencies, setAgencies] = useState([]);
   const [regions, setRegions] = useState([]);
@@ -361,6 +372,7 @@ export function HouseholdsPanel({ embedded = false }) {
   const [importMsg, setImportMsg] = useState('');
   /** Rỗng = hiển thị mọi đại lý */
   const [agencyFilterId, setAgencyFilterId] = useState('');
+  const [search, setSearch] = useState('');
 
   const load = async () => {
     const [h, a, r] = await Promise.all([
@@ -392,9 +404,26 @@ export function HouseholdsPanel({ embedded = false }) {
   );
 
   const filteredRows = useMemo(() => {
-    if (!agencyFilterId) return rows;
-    return rows.filter((r) => String(r.agency_id) === String(agencyFilterId));
-  }, [rows, agencyFilterId]);
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (agencyFilterId && String(r.agency_id) !== String(agencyFilterId)) return false;
+      if (!q) return true;
+      const agency = agencyMap[r.agency_id];
+      const hay = [
+        r.name,
+        formatHouseholdSegmentDisplay(r.household_segment),
+        r.region_code,
+        agency?.code,
+        agency?.name,
+        r.phone,
+        r.address,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [rows, agencyFilterId, search, agencyMap]);
 
   const agencyCodeMap = useMemo(() => {
     const m = new Map();
@@ -416,7 +445,7 @@ export function HouseholdsPanel({ embedded = false }) {
     const groups = txt.match(/\d+/g) || [];
     if (groups.length < 3) return null;
     const agencyCode = groups[1].padStart(2, '0');
-    const segment = normalizeSegment(groups[2]);
+    const segment = householdSegmentFromInput(groups[2]);
     if (!segment) return null;
     return { agencyCode, segment };
   };
@@ -442,7 +471,7 @@ export function HouseholdsPanel({ embedded = false }) {
 
       const dedupInFile = new Set();
       const existing = new Set(
-        rows.map((r) => `${r.agency_id}::${String(r.region_code || '')}::${r.household_segment}`)
+        rows.map((r) => householdTripleKey(r.agency_id, r.region_code, r.household_segment)).filter(Boolean)
       );
       let created = 0;
       let skipped = 0;
@@ -472,7 +501,7 @@ export function HouseholdsPanel({ embedded = false }) {
         }
 
         const regionCode = String(agency.region_code || '17');
-        const key = `${agency.id}::${regionCode}::${parsed.segment}`;
+        const key = householdTripleKey(agency.id, regionCode, parsed.segment);
         if (dedupInFile.has(key) || existing.has(key)) {
           skipped += 1;
           continue;
@@ -508,7 +537,9 @@ export function HouseholdsPanel({ embedded = false }) {
         {!embedded && (
           <div>
             <h1 className="text-3xl font-extrabold text-foreground">Quản lý hộ nuôi</h1>
-            <p className="text-muted-foreground text-base font-semibold mt-0.5">Mã hộ là 3 số trong mã ao (khu vực–đại lý–hộ–STT ao); cùng đại lý có thể dùng lại mã hộ ở khu vực khác.</p>
+            <p className="text-muted-foreground text-base font-semibold mt-0.5">
+              Chỉ cấm trùng bộ (Mã hộ + Khu vực + Đại lý); mã hộ một mình có thể trùng giữa các đại lý/khu vực.
+            </p>
           </div>
         )}
         <div className="flex items-center gap-2">
@@ -557,14 +588,28 @@ export function HouseholdsPanel({ embedded = false }) {
       )}
 
       {agencies.length > 0 && (
-        <div className="max-w-md">
-          <SearchablePicker
-            label="Lọc theo đại lý"
-            value={agencyFilterId}
-            onChange={setAgencyFilterId}
-            options={agencyFilterOptions}
-            placeholder="Tất cả đại lý"
-          />
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:items-end">
+          <div className="min-w-[12rem] flex-1 basis-[min(100%,20rem)] max-w-xl">
+            <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Tìm hộ nuôi</Label>
+            <div className="relative mt-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tên hộ, mã hộ, đại lý, SĐT, địa chỉ…"
+                className="pl-10 h-10 text-base font-semibold"
+              />
+            </div>
+          </div>
+          <div className="w-full sm:w-56 sm:max-w-xs">
+            <SearchablePicker
+              label="Lọc theo đại lý"
+              value={agencyFilterId}
+              onChange={setAgencyFilterId}
+              options={agencyFilterOptions}
+              placeholder="Tất cả đại lý"
+            />
+          </div>
         </div>
       )}
 
@@ -588,12 +633,18 @@ export function HouseholdsPanel({ embedded = false }) {
               ) : rows.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground font-semibold">Chưa có hộ nuôi</td></tr>
               ) : filteredRows.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground font-semibold">Không có hộ nuôi phù hợp bộ lọc đại lý</td></tr>
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground font-semibold">
+                    {search.trim() ? `Không tìm thấy hộ phù hợp «${search.trim()}»` : 'Không có hộ nuôi phù hợp bộ lọc đại lý'}
+                  </td>
+                </tr>
               ) : (
                 filteredRows.map((x) => (
                   <tr key={x.id} className="hover:bg-muted/20">
                     <td className="px-4 py-3.5 font-bold whitespace-nowrap">{x.name}</td>
-                    <td className="px-4 py-3.5 font-mono text-primary font-bold whitespace-nowrap">{x.household_segment}</td>
+                    <td className="px-4 py-3.5 font-mono text-primary font-bold whitespace-nowrap">
+                      {formatHouseholdSegmentDisplay(x.household_segment)}
+                    </td>
                     <td className="px-4 py-3.5 font-semibold whitespace-nowrap">{x.region_code}</td>
                     <td className="px-4 py-3.5 text-muted-foreground font-semibold whitespace-nowrap">{agencyMap[x.agency_id]?.code || '—'}</td>
                     <td className="px-4 py-3.5 text-muted-foreground font-semibold whitespace-nowrap">{x.phone || '—'}</td>
@@ -629,6 +680,12 @@ export function HouseholdsPanel({ embedded = false }) {
                                   </a>
                                 </DropdownMenuItem>
                               </>
+                            )}
+                            {typeof onCreatePond === 'function' && (
+                              <DropdownMenuItem onClick={() => onCreatePond(x.id)}>
+                                <Plus className="w-4 h-4 mr-2" />
+                                Tạo ao nuôi
+                              </DropdownMenuItem>
                             )}
                             <DropdownMenuItem onClick={() => { setViewRow(x); setViewDialogOpen(true); }}>
                               <Eye className="w-4 h-4 mr-2" />

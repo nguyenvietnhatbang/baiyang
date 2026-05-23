@@ -9,6 +9,13 @@
 
 1. [`scripts/migrations/20260429_field_accounts.sql`](scripts/migrations/20260429_field_accounts.sql) — bảng `field_accounts`, RLS chỉ admin.
 2. [`scripts/migrations/20260430_field_account_verify_rpc.sql`](scripts/migrations/20260430_field_account_verify_rpc.sql) — RPC đăng nhập hiện trường; gỡ cột `auth_user_id` nếu DB còn bản migration cũ.
+3. **[Bắt buộc nếu báo trùng mã hộ sai]** [`scripts/migrations/20260519_households_unique_agency_region_segment.sql`](scripts/migrations/20260519_households_unique_agency_region_segment.sql) — chỉ cấm trùng bộ **(Mã hộ + Khu vực + Đại lý)**; mã hộ có thể trùng giữa các khu vực/đại lý khác nhau.
+
+   Hoặc trong thư mục dự án (cần `DB_PASSWORD` hoặc `DATABASE_URL` trong `.env` từ Supabase → Settings → Database):
+
+   ```bash
+   npm run migrate:household-unique
+   ```
 
 ### Mã vùng / biển số
 

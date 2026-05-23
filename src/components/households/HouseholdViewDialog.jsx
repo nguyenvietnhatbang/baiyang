@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MapPin, Building2, Hash, CheckCircle2, XCircle, Phone, MessageCircle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
 
 function phoneDigits(p) {
   return String(p || '').replace(/\D/g, '');
@@ -82,7 +83,9 @@ export default function HouseholdViewDialog({ open, onClose, household, agency, 
 
               <div className="grid grid-cols-3 gap-2 items-center">
                 <span className="text-xs font-semibold text-slate-500 uppercase">Mã hộ</span>
-                <span className="col-span-2 text-base font-mono font-bold text-primary">{household.household_segment}</span>
+                <span className="col-span-2 text-base font-mono font-bold text-primary">
+                  {formatHouseholdSegmentDisplay(household.household_segment)}
+                </span>
               </div>
 
               <div className="grid grid-cols-3 gap-2 items-center">
@@ -152,7 +155,7 @@ export default function HouseholdViewDialog({ open, onClose, household, agency, 
                 <span className="text-xs font-semibold text-primary uppercase">Mã đầy đủ</span>
               </div>
               <p className="font-mono text-sm font-bold text-primary">
-                {household.region_code}-{agency?.code || '??'}-{household.household_segment}
+                {household.region_code}-{agency?.code || '??'}-{formatHouseholdSegmentDisplay(household.household_segment)}
               </p>
               <p className="text-xs text-slate-500 mt-1">Dùng trong mã ao: [Mã này]-[STT ao]</p>
             </div>

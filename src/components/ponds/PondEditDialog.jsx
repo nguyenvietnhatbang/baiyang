@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Trash2, Save, AlertTriangle } from 'lucide-react';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
+import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
 
 export default function PondEditDialog({ pond, open, onClose, onSaved, onDeleted, canEditCode = false }) {
   const [agencies, setAgencies] = useState([]);
@@ -92,7 +93,10 @@ export default function PondEditDialog({ pond, open, onClose, onSaved, onDeleted
   const householdSelectItems = useMemo(
     () => [
       { value: '__none__', label: '— Chọn —' },
-      ...households.map((h) => ({ value: h.id, label: `${h.name} — ${h.household_segment}` })),
+      ...households.map((h) => ({
+        value: h.id,
+        label: `${h.name} — ${formatHouseholdSegmentDisplay(h.household_segment)}`,
+      })),
     ],
     [households]
   );
@@ -131,7 +135,9 @@ export default function PondEditDialog({ pond, open, onClose, onSaved, onDeleted
                 <SelectContent>
                   <SelectItem value="__none__">— Chọn —</SelectItem>
                   {households.map((h) => (
-                    <SelectItem key={h.id} value={h.id}>{h.name} — {h.household_segment}</SelectItem>
+                    <SelectItem key={h.id} value={h.id}>
+                      {h.name} — {formatHouseholdSegmentDisplay(h.household_segment)}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

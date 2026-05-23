@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 import PondStatusBadge from '@/components/ponds/PondStatusBadge';
 import { ChevronRight, MapPin } from 'lucide-react';
+import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
 
 export default function FieldHouseholdPage() {
   const { user } = useAuth();
@@ -89,7 +90,10 @@ export default function FieldHouseholdPage() {
               <div>
                 <p className="font-bold text-stone-950 text-lg leading-tight">{h.name}</p>
                 <p className="text-sm text-stone-600 mt-1">
-                  Mã phân đoạn: <span className="font-semibold text-stone-900">{h.household_segment}</span>
+                  Mã phân đoạn:{' '}
+                  <span className="font-semibold text-stone-900">
+                    {formatHouseholdSegmentDisplay(h.household_segment)}
+                  </span>
                   {' · '}
                   Vùng: <span className="font-semibold text-stone-900">{h.region_code}</span>
                 </p>

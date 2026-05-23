@@ -12,6 +12,7 @@ import PondStatusBadge from '@/components/ponds/PondStatusBadge';
 import QRBatchDownload from '@/components/ponds/QRBatchDownload';
 import PondMobileCard from '@/components/ponds/PondMobileCard';
 import { useAuth } from '@/lib/AuthContext';
+import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
 import { MoreHorizontal, Eye, Edit, Trash2, AlertCircle } from 'lucide-react';
 import {
   DropdownMenu,
@@ -42,7 +43,7 @@ import CycleViewDialog from '@/components/ponds/CycleViewDialog';
 import CycleEditDialog from '@/components/ponds/CycleEditDialog';
 import PondCycleListTabPanel from '@/components/ponds/PondCycleListTabPanel';
 import PondTableFilterControls from '@/components/ponds/PondTableFilterControls';
-import { harvestTicketDateYmd, rowHasHarvestInMonth, rowMatchesCycleDateRange } from '@/lib/pondCycleDateFilter';
+import { harvestTicketDateYmd, rowMatchesCycleDateRange } from '@/lib/pondCycleDateFilter';
 import { harvestRecordsForCycleRow, latestActualHarvestDate } from '@/lib/reportPondDedupe';
 import { recalculateAllCycleMetricsFromLogs } from '@/lib/recalculateCycleMetrics';
 import {
@@ -76,7 +77,10 @@ function SearchableSelect({ label, value, onChange, options, placeholder = 'Ch�
   const q = search.trim().toLowerCase();
   const filtered = useMemo(() => {
     if (!q) return options;
-    return options.filter((o) => String(o.label || '').toLowerCase().includes(q));
+    return options.filter((o) => {
+      const hay = String(o.searchText ?? o.label ?? '').toLowerCase();
+      return hay.includes(q);
+    });
   }, [options, q]);
 
   const cur = options.find((o) => String(o.value) === String(value)) || null;
@@ -97,7 +101,7 @@ function SearchableSelect({ label, value, onChange, options, placeholder = 'Ch�
       {open && !disabled && (
         <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-[12rem] rounded-lg border border-border bg-popover shadow-md">
           <div className="p-2 border-b border-border">
-            <Input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm..." className="h-9 text-base font-semibold" />
+            <Input autoFocus value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Gõ để tìm…" className="h-9 text-base font-semibold" />
           </div>
           <div className="max-h-64 overflow-y-auto p-1">
             {filtered.length === 0 ? (
@@ -262,7 +266,7 @@ function isYieldNeedStillActive(r) {
   return y != null && !Number.isNaN(Number(y)) && Number(y) > 0;
 }
 
-function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
+function NewPondDialog({ open, onClose, onCreated, agencies, appSettings, initialHouseholdId = '' }) {
   const [households, setHouseholds] = useState([]);
   const [form, setForm] = useState({
     household_id: '',
@@ -278,10 +282,17 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
   useEffect(() => {
     if (open) {
       base44.entities.Household.filter({ active: true }, 'name', 500).then(setHouseholds);
-      setForm({ household_id: '', first_cycle_name: '', area: '', depth: '', location: '', codePreview: '' });
+      setForm({
+        household_id: initialHouseholdId || '',
+        first_cycle_name: '',
+        area: '',
+        depth: '',
+        location: '',
+        codePreview: '',
+      });
       setError('');
     }
-  }, [open]);
+  }, [open, initialHouseholdId]);
 
   useEffect(() => {
     if (!open || !form.household_id) {
@@ -307,10 +318,15 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
 
   const householdSelectItems = useMemo(
     () =>
-      households.map((h) => ({
-        value: h.id,
-        label: `${h.name} — KV ${h.region_code} · HT ${agencies.find((a) => a.id === h.agency_id)?.code || '—'} · ĐL ${agencies.find((a) => a.id === h.agency_id)?.code || '—'} · Hộ ${h.household_segment}`,
-      })),
+      households.map((h) => {
+        const agencyCode = agencies.find((a) => a.id === h.agency_id)?.code || '—';
+        const seg = formatHouseholdSegmentDisplay(h.household_segment);
+        const label = `${h.name} — KV ${h.region_code} · ĐL ${agencyCode} · Hộ ${seg}`;
+        const searchText = [h.name, h.region_code, agencyCode, seg, h.phone, h.address]
+          .filter(Boolean)
+          .join(' ');
+        return { value: h.id, label, searchText };
+      }),
     [households, agencies]
   );
 
@@ -359,21 +375,14 @@ function NewPondDialog({ open, onClose, onCreated, agencies, appSettings }) {
         </DialogHeader>
         <div className="space-y-4 py-2">
           {error && <p className="text-base font-semibold text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
-          <div>
-            <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Hộ nuôi *</Label>
-            <Select value={form.household_id} onValueChange={(v) => setForm({ ...form, household_id: v })} items={householdSelectItems}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Chọn hộ..." />
-              </SelectTrigger>
-              <SelectContent>
-                {householdSelectItems.map((it) => (
-                  <SelectItem key={it.value} value={it.value}>
-                    {it.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <SearchableSelect
+            label="Hộ nuôi *"
+            value={form.household_id}
+            onChange={(v) => setForm({ ...form, household_id: v })}
+            options={householdSelectItems}
+            placeholder="Gõ tên hộ, mã hộ, đại lý, khu vực…"
+            disabled={households.length === 0}
+          />
           <div>
             <Label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Mã ao (tự sinh)</Label>
             <Input value={form.codePreview || '—'} readOnly className="mt-1 font-mono bg-muted/50" />
@@ -502,10 +511,16 @@ export default function Ponds() {
   const [cycleDateField, setCycleDateField] = useState(() => 'stock');
   const [cycleDateFrom, setCycleDateFrom] = useState('');
   const [cycleDateTo, setCycleDateTo] = useState('');
-  /** 'all' | '0'..'11' — lọc chu kỳ có phiếu thu trong tháng */
+  /** 'all' | '0'..'11' — chỉ gán Từ/Đến ngày; lọc dữ liệu theo «Lọc theo ngày» */
   const [cycleHarvestMonth, setCycleHarvestMonth] = useState('all');
   const [cycleHarvestYear, setCycleHarvestYear] = useState(() => String(new Date().getFullYear()));
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [newPondPresetHouseholdId, setNewPondPresetHouseholdId] = useState('');
+
+  const openNewPondDialog = (householdId = '') => {
+    setNewPondPresetHouseholdId(householdId ? String(householdId) : '');
+    setShowNewDialog(true);
+  };
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedPond, setSelectedPond] = useState(null);
@@ -572,7 +587,6 @@ export default function Ponds() {
     if (!Number.isFinite(m) || !Number.isFinite(y)) return;
     const mm = String(m + 1).padStart(2, '0');
     const lastD = new Date(y, m + 1, 0).getDate();
-    setCycleDateField('actual_harvest');
     setCycleDateFrom(`${y}-${mm}-01`);
     setCycleDateTo(`${y}-${mm}-${String(lastD).padStart(2, '0')}`);
   }, [cycleHarvestMonth, cycleHarvestYear]);
@@ -797,7 +811,6 @@ export default function Ponds() {
       const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
       if (!rowMatchesCycleDateRange(r, cycleDateField, cycleDateFrom, cycleDateTo)) return false;
-      if (!rowHasHarvestInMonth(r.harvest_dates_ymd, cycleHarvestYear, cycleHarvestMonth)) return false;
 
       if (isChuKyChotThuHoach(r)) return false;
 
@@ -840,8 +853,6 @@ export default function Ponds() {
     cycleDateField,
     cycleDateFrom,
     cycleDateTo,
-    cycleHarvestMonth,
-    cycleHarvestYear,
   ]);
 
   const cycleTotals = useMemo(() => {
@@ -873,7 +884,6 @@ export default function Ponds() {
       const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
       if (!rowMatchesCycleDateRange(r, cycleDateField, cycleDateFrom, cycleDateTo)) return false;
-      if (!rowHasHarvestInMonth(r.harvest_dates_ymd, cycleHarvestYear, cycleHarvestMonth)) return false;
       if (!r.cycle_id) return false;
       if (isChuKyChotThuHoach(r)) return true;
       if (isYieldNeedStillActive(r) && !isChuKyChotThuHoach(r)) return false;
@@ -882,7 +892,7 @@ export default function Ponds() {
       const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
       return hasHarvest && rem === 0;
     });
-  }, [cycleRows, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo, cycleHarvestMonth, cycleHarvestYear]);
+  }, [cycleRows, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo]);
   useEffect(() => {
     if (loading || mainTab !== 'cycles') return;
     if (filteredRows.length > 0) return;
@@ -1100,7 +1110,7 @@ export default function Ponds() {
             </h1>
             <p className="text-muted-foreground text-base sm:text-lg font-semibold mt-1">
               {mainTab === 'households'
-                ? 'Mã hộ nằm trong mã ao (khu vực–đại lý–hộ–STT).'
+                ? 'Chỉ cấm trùng bộ (Mã hộ + Khu vực + Đại lý); mã hộ có thể trùng giữa các đại lý/khu vực.'
                 : mainTab === 'ponds'
                   ? `${pondRows.length} ao • ${pondRows.filter((p) => (p.active_cycle?.status || 'CT') === 'CC').length} ao đang CC`
                   : mainTab === 'cyclesHarvested'
@@ -1108,6 +1118,15 @@ export default function Ponds() {
                     : `${cycleRows.length} chu kỳ • ${cycleRows.filter((r) => r.status === 'CC').length} đang CC`}
             </p>
           </div>
+          {mainTab === 'households' && (
+            <Button
+              onClick={() => openNewPondDialog()}
+              className="bg-primary text-white flex items-center gap-2 shrink-0 text-base font-bold h-10 px-4"
+            >
+              <Plus className="w-5 h-5" />
+              Tạo ao nuôi mới
+            </Button>
+          )}
           {mainTab !== 'households' && (
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <div className="hidden sm:block"><QRBatchDownload ponds={ponds} /></div>
@@ -1155,7 +1174,7 @@ export default function Ponds() {
                   )}
                 </>
               ) : (
-                <Button onClick={() => setShowNewDialog(true)} className="bg-primary text-white flex items-center gap-2 text-base font-bold h-10 px-4">
+                <Button onClick={() => openNewPondDialog()} className="bg-primary text-white flex items-center gap-2 text-base font-bold h-10 px-4">
                   <Plus className="w-5 h-5" />
                   <span className="hidden sm:inline">Thêm ao mới</span>
                   <span className="sm:hidden">Thêm</span>
@@ -1390,7 +1409,17 @@ export default function Ponds() {
           />
         </TabsContent>
 
-        <NewPondDialog open={showNewDialog} onClose={() => setShowNewDialog(false)} onCreated={loadPonds} agencies={agencies} appSettings={appSettings} />
+        <NewPondDialog
+          open={showNewDialog}
+          onClose={() => {
+            setShowNewDialog(false);
+            setNewPondPresetHouseholdId('');
+          }}
+          onCreated={loadPonds}
+          agencies={agencies}
+          appSettings={appSettings}
+          initialHouseholdId={newPondPresetHouseholdId}
+        />
         <EditPondDialog open={showEditDialog} onClose={() => { setShowEditDialog(false); setSelectedPond(null); }} pond={selectedPond} onUpdated={loadPonds} />
 
         <AlertDialog open={Boolean(confirmManualCloseCycleId)} onOpenChange={(open) => { if (!open) { setConfirmManualCloseCycleId(null); setConfirmManualCloseLabel(''); } }}>
@@ -1454,7 +1483,7 @@ export default function Ponds() {
         
 
         <TabsContent value="households" className="mt-3 sm:mt-4 outline-none">
-          <HouseholdsPanel embedded />
+          <HouseholdsPanel embedded onCreatePond={(householdId) => openNewPondDialog(householdId)} />
         </TabsContent>
       </Tabs>
 
