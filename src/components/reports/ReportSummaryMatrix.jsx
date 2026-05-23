@@ -2,9 +2,12 @@ import { Fragment, useMemo } from 'react';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
 import {
   cycleHarvestPlanEligibleForMonthReport,
+  harvestMatchesFilterMonthYear,
+  harvestMatchesFilterYear,
   harvestMonthIndexForReport,
+  harvestTicketMatchesFilterYear,
+  harvestTicketMonthYear,
 } from '@/lib/reportMonthHelpers';
-import { parseHarvestDateInput } from '@/lib/harvestDateParse';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `Tháng ${i + 1}`);
 
@@ -13,14 +16,15 @@ function systemCodeFromAgencyCode(agencyCode) {
   return digits ? digits : String(agencyCode || '').trim();
 }
 
-function monthIdxFromHarvestDate(dateValue) {
-  if (!dateValue) return null;
-  const d = parseHarvestDateInput(dateValue);
-  if (!d || Number.isNaN(d.getTime())) return null;
-  return d.getMonth();
-}
-
-export default function ReportSummaryMatrix({ ponds, harvests, agencies, appSettings, agencyNameByCode }) {
+export default function ReportSummaryMatrix({
+  ponds,
+  harvests,
+  agencies,
+  appSettings,
+  agencyNameByCode,
+  yearFilter,
+  monthFilter = 'all',
+}) {
   const factoryPlan = getFactoryPlanKgByMonth(appSettings);
 
   const harvestByCycleId = useMemo(() => {
@@ -40,15 +44,22 @@ export default function ReportSummaryMatrix({ ponds, harvests, agencies, appSett
       const actualMonth = Array.from({ length: 12 }, () => 0);
 
       agencyPonds.forEach((p) => {
-        if (cycleHarvestPlanEligibleForMonthReport(p)) {
+        if (
+          cycleHarvestPlanEligibleForMonthReport(p) &&
+          harvestMatchesFilterYear(p, yearFilter) &&
+          (monthFilter === 'all' || harvestMatchesFilterMonthYear(p, yearFilter, Number(monthFilter)))
+        ) {
           const miPlan = harvestMonthIndexForReport(p);
           if (miPlan != null) plannedMonth[miPlan] += Number(p.expected_yield) || 0;
         }
 
         const hs = harvestByCycleId.get(p.pond_cycle_id) || [];
         hs.forEach((h) => {
-          const miAct = monthIdxFromHarvestDate(h.harvest_date);
-          if (miAct != null) actualMonth[miAct] += Number(h.actual_yield) || 0;
+          if (!harvestTicketMatchesFilterYear(h.harvest_date, yearFilter)) return;
+          const ty = harvestTicketMonthYear(h.harvest_date);
+          if (!ty) return;
+          if (monthFilter !== 'all' && ty.month !== Number(monthFilter)) return;
+          actualMonth[ty.month] += Number(h.actual_yield) || 0;
         });
       });
 
@@ -57,7 +68,7 @@ export default function ReportSummaryMatrix({ ponds, harvests, agencies, appSett
       const agencyName = agencyNameByCode instanceof Map ? (agencyNameByCode.get(String(agency)) || agency) : agency;
       return { agency, agencyName, plannedMonth, actualMonth, totalPlan, totalAct };
     });
-  }, [agencies, ponds, harvestByCycleId, agencyNameByCode]);
+  }, [agencies, ponds, harvestByCycleId, agencyNameByCode, yearFilter, monthFilter]);
 
   const grandPlanned = useMemo(() => rows.reduce((s, r) => s + (r.totalPlan || 0), 0), [rows]);
   const grandActual = useMemo(() => rows.reduce((s, r) => s + (r.totalAct || 0), 0), [rows]);

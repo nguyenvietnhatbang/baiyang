@@ -102,3 +102,38 @@ export function harvestMatchesFilterMonthYear(cycle, yearFilter, monthIndex) {
   if (!Number.isFinite(y) || !Number.isFinite(mi)) return false;
   return my.year === y && my.month === mi;
 }
+
+/** Phiếu thu: tháng/năm theo ngày thu hoạch thực tế trên phiếu. */
+export function harvestTicketMonthYear(harvestDate) {
+  const d = parseHarvestDateInput(harvestDate);
+  if (!d || Number.isNaN(d.getTime())) return null;
+  return { month: d.getMonth(), year: d.getFullYear() };
+}
+
+export function harvestTicketMatchesFilterYear(harvestDate, yearFilter) {
+  const my = harvestTicketMonthYear(harvestDate);
+  if (!my) return false;
+  const y = Number(yearFilter);
+  if (!Number.isFinite(y)) return true;
+  return my.year === y;
+}
+
+export function harvestTicketMatchesFilterMonthYear(harvestDate, yearFilter, monthIndex) {
+  const my = harvestTicketMonthYear(harvestDate);
+  if (!my) return false;
+  const y = Number(yearFilter);
+  const mi = Number(monthIndex);
+  if (!Number.isFinite(y) || !Number.isFinite(mi)) return false;
+  return my.year === y && my.month === mi;
+}
+
+export function harvestTicketMatchesDateRange(harvestDate, fromStr, toStr) {
+  const ymd = dateYmdFromValue(harvestDate);
+  if (!ymd) return false;
+  const from = (fromStr || '').trim().slice(0, 10);
+  const to = (toStr || '').trim().slice(0, 10);
+  if (!from && !to) return true;
+  if (from && ymd < from) return false;
+  if (to && ymd > to) return false;
+  return true;
+}
