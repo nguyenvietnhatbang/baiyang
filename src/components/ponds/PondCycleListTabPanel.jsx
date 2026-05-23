@@ -11,6 +11,7 @@ import {
   isHarvestDateWithinUpcomingDays,
 } from '@/lib/harvestAlerts';
 import PondTableFilterControls from '@/components/ponds/PondTableFilterControls';
+import { canOfferManualChotThuHoach } from '@/lib/pondCycleHelpers';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,10 @@ export default function PondCycleListTabPanel({
   setCycleDateFrom,
   cycleDateTo,
   setCycleDateTo,
+  cycleHarvestMonth,
+  setCycleHarvestMonth,
+  cycleHarvestYear,
+  setCycleHarvestYear,
   checkedHarvest,
   setCheckedHarvest,
   toggleHarvestCheck,
@@ -72,7 +77,7 @@ export default function PondCycleListTabPanel({
       {!isHarvestedView && checkedHarvest.size > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
           <p className="text-base font-semibold text-green-800">
-            Đã chọn <strong className="font-extrabold">{checkedHarvest.size}</strong> chu kỳ để chốt thu hoạch (chuyển sang tab Chu kỳ đã thu kể cả khi kg thực tế thấp hơn kế hoạch)
+            Đã chọn <strong className="font-extrabold">{checkedHarvest.size}</strong> chu kỳ có <strong>sản lượng cần phải thu &gt; 0</strong> (kg kế hoạch &gt; thực tế) — chốt để chuyển sang tab Chu kỳ đã thu
           </p>
           <div className="flex gap-2">
             <Button variant="outline" size="default" className="text-base font-bold h-10" onClick={() => setCheckedHarvest(new Set())}>
@@ -105,28 +110,33 @@ export default function PondCycleListTabPanel({
         setDateFrom={setCycleDateFrom}
         dateTo={cycleDateTo}
         setDateTo={setCycleDateTo}
+        harvestMonth={cycleHarvestMonth}
+        setHarvestMonth={setCycleHarvestMonth}
+        harvestYear={cycleHarvestYear}
+        setHarvestYear={setCycleHarvestYear}
+        showHarvestMonthPicker
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-        <div className="rounded-lg border border-border bg-card p-2.5">
-          <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide">Tổng ao</p>
-          <p className="text-lg font-extrabold text-foreground mt-0.5">{totals.ponds.toLocaleString()}</p>
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-sm font-extrabold text-muted-foreground uppercase tracking-wide">Tổng ao</p>
+          <p className="text-xl font-extrabold text-foreground mt-0.5">{totals.ponds.toLocaleString()}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-2.5">
-          <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide">Tổng chu kỳ</p>
-          <p className="text-lg font-extrabold text-foreground mt-0.5">{totals.cycles.toLocaleString()}</p>
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-sm font-extrabold text-muted-foreground uppercase tracking-wide">Tổng chu kỳ</p>
+          <p className="text-xl font-extrabold text-foreground mt-0.5">{totals.cycles.toLocaleString()}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-2.5">
-          <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide">Cá ban đầu</p>
-          <p className="text-lg font-extrabold text-foreground mt-0.5">{totals.sum_total_fish ? totals.sum_total_fish.toLocaleString() : '—'}</p>
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-sm font-extrabold text-muted-foreground uppercase tracking-wide">Cá ban đầu</p>
+          <p className="text-xl font-extrabold text-foreground mt-0.5">{totals.sum_total_fish ? totals.sum_total_fish.toLocaleString() : '—'}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-2.5">
-          <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide">Thả thêm</p>
-          <p className="text-lg font-extrabold text-foreground mt-0.5">{totals.sum_stocked_added ? totals.sum_stocked_added.toLocaleString() : '—'}</p>
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-sm font-extrabold text-muted-foreground uppercase tracking-wide">Thả thêm</p>
+          <p className="text-xl font-extrabold text-foreground mt-0.5">{totals.sum_stocked_added ? totals.sum_stocked_added.toLocaleString() : '—'}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-2.5">
-          <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide">{isHarvestedView ? 'Thực thu (kg)' : 'Cá hiện tại'}</p>
-          <p className="text-lg font-extrabold text-foreground mt-0.5">
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-sm font-extrabold text-muted-foreground uppercase tracking-wide">{isHarvestedView ? 'Sản lượng đã thu (kg)' : 'Cá hiện tại'}</p>
+          <p className="text-xl font-extrabold text-foreground mt-0.5">
             {isHarvestedView
               ? totals.sum_actual_yield
                 ? totals.sum_actual_yield.toLocaleString()
@@ -136,13 +146,13 @@ export default function PondCycleListTabPanel({
                 : '—'}
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-2.5">
-          <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide">SL dự kiến (kg)</p>
-          <p className="text-lg font-extrabold text-foreground mt-0.5">{totals.sum_expected_yield ? totals.sum_expected_yield.toLocaleString() : '—'}</p>
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-sm font-extrabold text-muted-foreground uppercase tracking-wide">Sản lượng dự kiến (kg)</p>
+          <p className="text-xl font-extrabold text-foreground mt-0.5">{totals.sum_expected_yield ? totals.sum_expected_yield.toLocaleString() : '—'}</p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-2.5">
-          <p className="text-xs font-extrabold text-muted-foreground uppercase tracking-wide">Tổng thức ăn (kg)</p>
-          <p className="text-lg font-extrabold text-foreground mt-0.5">{totals.sum_total_feed_used ? totals.sum_total_feed_used.toLocaleString() : '—'}</p>
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-sm font-extrabold text-muted-foreground uppercase tracking-wide">Tổng thức ăn (kg)</p>
+          <p className="text-xl font-extrabold text-foreground mt-0.5">{totals.sum_total_feed_used ? totals.sum_total_feed_used.toLocaleString() : '—'}</p>
         </div>
       </div>
 
@@ -159,9 +169,11 @@ export default function PondCycleListTabPanel({
               key={r.row_id}
               harvestAlertDays={harvestAlertDays}
               pond={{
+                cycle_id: r.cycle_id,
                 code: `${r.pond_code} · ${r.cycle_name}`,
                 owner_name: r.owner_name,
                 status: r.status,
+                harvest_done: r.harvest_done,
                 area: r.area,
                 current_fish: r.current_fish,
                 expected_yield: r.expected_yield,
@@ -254,17 +266,18 @@ export default function PondCycleListTabPanel({
                       className={`hover:bg-primary/5 cursor-pointer transition-colors ${isNewGroup ? 'border-t-2 border-t-muted/40' : ''} ${isOverdue ? 'bg-red-50/40' : isUrgent ? 'bg-yellow-50/40' : isUpcomingHarvest ? 'bg-amber-50/25' : ''}`}
                     >
                       <td className="px-4 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        {isUrgent && cycleIsCc && r.cycle_id && (
+                        {canOfferManualChotThuHoach(r) && (
                           <input
                             type="checkbox"
                             checked={checkedHarvest.has(r.cycle_id)}
                             onChange={(e) => toggleHarvestCheck(r.cycle_id, e)}
                             className="w-4 h-4 accent-green-600 cursor-pointer"
+                            title="Chốt chuyển sang Chu kỳ đã thu (khi kg kế hoạch > thực tế)"
                           />
                         )}
                       </td>
                       {visibleCols.agency_code && (
-                        <td className="px-4 py-3.5 text-muted-foreground text-sm font-semibold whitespace-nowrap">{r.agency_code || '—'}</td>
+                        <td className="px-4 py-3.5 text-muted-foreground text-base font-semibold whitespace-nowrap">{r.agency_code || '—'}</td>
                       )}
                       {visibleCols.owner_name && <td className="px-4 py-3.5 text-slate-700 font-semibold whitespace-nowrap">{r.owner_name}</td>}
                       {visibleCols.pond_code && <td className="px-4 py-3.5 font-extrabold text-slate-800 whitespace-nowrap">{r.pond_code}</td>}
@@ -275,7 +288,7 @@ export default function PondCycleListTabPanel({
                         </td>
                       )}
                       {visibleCols.stock_date && (
-                        <td className="px-4 py-3.5 text-slate-600 text-sm font-semibold whitespace-nowrap">{formatDateDisplay(r.stock_date)}</td>
+                        <td className="px-4 py-3.5 text-slate-600 text-base font-semibold whitespace-nowrap">{formatDateDisplay(r.stock_date)}</td>
                       )}
                       {visibleCols.total_fish && (
                         <td className="px-4 py-3.5 text-right font-semibold text-slate-800 whitespace-nowrap">
@@ -333,7 +346,7 @@ export default function PondCycleListTabPanel({
                       )}
                       {visibleCols.expected_harvest_date && (
                         <td
-                          className={`px-4 py-3.5 text-sm whitespace-nowrap ${
+                          className={`px-4 py-3.5 text-base whitespace-nowrap ${
                             isUrgent ? 'font-extrabold text-red-600' : isUpcomingHarvest ? 'font-bold text-amber-800' : 'text-slate-700 font-semibold'
                           }`}
                         >
@@ -420,8 +433,7 @@ export default function PondCycleListTabPanel({
                               >
                                 <Edit className="w-4 h-4 mr-2" /> Sửa
                               </DropdownMenuItem>
-                              {cycleIsCc &&
-                                r.cycle_id &&
+                              {canOfferManualChotThuHoach(r) &&
                                 canManualCloseCycle &&
                                 typeof onManualCloseCycle === 'function' && (
                                   <DropdownMenuItem

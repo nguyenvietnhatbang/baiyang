@@ -123,6 +123,8 @@ export function SearchableMultiFilterPopover({
   );
 }
 
+const HARVEST_MONTH_LABELS = Array.from({ length: 12 }, (_, i) => `Tháng ${i + 1}`);
+
 export function CycleDateRangeFilterBar({
   dateField,
   setDateField,
@@ -130,6 +132,11 @@ export function CycleDateRangeFilterBar({
   setDateFrom,
   dateTo,
   setDateTo,
+  harvestMonth,
+  setHarvestMonth,
+  harvestYear,
+  setHarvestYear,
+  showHarvestMonthPicker = false,
 }) {
   const clearDates = () => {
     setDateFrom('');
@@ -137,13 +144,47 @@ export function CycleDateRangeFilterBar({
   };
   const hasRange = Boolean((dateFrom || '').trim() || (dateTo || '').trim());
 
+  const clearHarvestMonth = () => {
+    setHarvestMonth?.('all');
+  };
+
   return (
     <div className="flex flex-col gap-1">
       <div className="flex flex-wrap items-end gap-2">
+        {showHarvestMonthPicker && setHarvestMonth && setHarvestYear && (
+          <>
+            <div className="flex flex-col gap-0.5 min-w-[5.5rem]">
+              <label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Năm thu</label>
+              <Input
+                type="number"
+                className="h-10 w-[5.5rem] text-base font-semibold"
+                min={2020}
+                max={2100}
+                value={harvestYear}
+                onChange={(e) => setHarvestYear(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-0.5 min-w-[9.5rem]">
+              <label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Tháng thu hoạch</label>
+              <select
+                className="h-10 rounded-md border border-input bg-background px-2 text-base font-semibold"
+                value={harvestMonth}
+                onChange={(e) => setHarvestMonth(e.target.value)}
+              >
+                <option value="all">Tất cả tháng</option>
+                {HARVEST_MONTH_LABELS.map((label, i) => (
+                  <option key={label} value={String(i)}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
         <div className="flex flex-col gap-0.5 min-w-[10.5rem]">
-          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Lọc theo ngày</label>
+          <label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Lọc theo ngày</label>
           <select
-            className="h-10 rounded-md border border-input bg-background px-2 text-sm font-semibold"
+            className="h-10 rounded-md border border-input bg-background px-2 text-base font-semibold"
             value={
               dateField === 'expected_harvest' ? 'expected_harvest' : dateField === 'actual_harvest' ? 'actual_harvest' : 'stock'
             }
@@ -160,23 +201,34 @@ export function CycleDateRangeFilterBar({
           </select>
         </div>
         <div className="flex flex-col gap-0.5">
-          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Từ ngày</label>
-          <Input type="date" className="h-10 w-[11rem] text-sm font-semibold" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Từ ngày</label>
+          <Input type="date" className="h-10 w-[11rem] text-base font-semibold" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
         </div>
         <div className="flex flex-col gap-0.5">
-          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Đến ngày</label>
-          <Input type="date" className="h-10 w-[11rem] text-sm font-semibold" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          <label className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Đến ngày</label>
+          <Input type="date" className="h-10 w-[11rem] text-base font-semibold" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </div>
         {hasRange && (
-          <Button type="button" variant="outline" size="sm" className="h-10 gap-1 text-sm font-bold shrink-0" onClick={clearDates}>
+          <Button type="button" variant="outline" size="sm" className="h-10 gap-1 text-base font-bold shrink-0" onClick={clearDates}>
             <X className="h-3.5 w-3.5" />
             Xóa ngày
           </Button>
         )}
+        {showHarvestMonthPicker && harvestMonth !== 'all' && setHarvestMonth && (
+          <Button type="button" variant="outline" size="sm" className="h-10 gap-1 text-base font-bold shrink-0" onClick={clearHarvestMonth}>
+            <X className="h-3.5 w-3.5" />
+            Bỏ lọc tháng
+          </Button>
+        )}
       </div>
-      {dateField === 'actual_harvest' && (
-        <p className="text-xs font-semibold text-muted-foreground max-w-xl">
-          Lọc theo tháng: chọn cùng ngày đầu và cuối tháng trên lịch (hoặc khoảng bất kỳ). So khớp theo ngày phiếu thu mới nhất của chu kỳ.
+      {showHarvestMonthPicker && (
+        <p className="text-sm font-semibold text-muted-foreground max-w-2xl">
+          Lọc ao/chu kỳ có <strong>ít nhất một phiếu thu</strong> trong tháng đã chọn (theo ngày trên phiếu, không chỉ ngày thu mới nhất).
+        </p>
+      )}
+      {dateField === 'actual_harvest' && !showHarvestMonthPicker && (
+        <p className="text-sm font-semibold text-muted-foreground max-w-xl">
+          Khoảng ngày so khớp theo ngày phiếu thu mới nhất của chu kỳ.
         </p>
       )}
     </div>
@@ -206,6 +258,11 @@ export default function PondTableFilterControls({
   setDateFrom,
   dateTo,
   setDateTo,
+  harvestMonth,
+  setHarvestMonth,
+  harvestYear,
+  setHarvestYear,
+  showHarvestMonthPicker = false,
 }) {
   const statusOptions = useMemo(
     () => statusFilterItems.map((it) => ({ key: it.value, label: it.label })),
@@ -265,6 +322,11 @@ export default function PondTableFilterControls({
           setDateFrom={setDateFrom}
           dateTo={dateTo}
           setDateTo={setDateTo}
+          harvestMonth={harvestMonth}
+          setHarvestMonth={setHarvestMonth}
+          harvestYear={harvestYear}
+          setHarvestYear={setHarvestYear}
+          showHarvestMonthPicker={showHarvestMonthPicker}
         />
       )}
     </div>

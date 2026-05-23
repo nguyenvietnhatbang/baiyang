@@ -32,6 +32,18 @@ const CYCLE_FIELDS = [
  * @param {Array<object>|undefined|null} cycles
  * @returns {object|null}
  */
+/**
+ * Cho phép chốt thủ công sang tab «Chu kỳ đã thu» khi còn kg theo kế hoạch (KH > thực tế).
+ * Áp dụng chu kỳ CC, chưa chốt.
+ */
+export function canOfferManualChotThuHoach(row) {
+  if (!row?.cycle_id) return false;
+  if (String(row.status ?? '').toUpperCase() !== 'CC') return false;
+  if (row.harvest_done === true && String(row.status ?? '').toUpperCase() === 'CT') return false;
+  const need = row.yield_need_harvest;
+  return need != null && Number.isFinite(Number(need)) && Number(need) > 0;
+}
+
 /** Nhãn hiển thị một chu kỳ (tên / ngày thả / Chu kỳ n). */
 export function cycleDisplayLabel(c, idx = 0) {
   if (!c) return '—';

@@ -42,7 +42,7 @@ import CycleViewDialog from '@/components/ponds/CycleViewDialog';
 import CycleEditDialog from '@/components/ponds/CycleEditDialog';
 import PondCycleListTabPanel from '@/components/ponds/PondCycleListTabPanel';
 import PondTableFilterControls from '@/components/ponds/PondTableFilterControls';
-import { rowMatchesCycleDateRange } from '@/lib/pondCycleDateFilter';
+import { harvestTicketDateYmd, rowHasHarvestInMonth, rowMatchesCycleDateRange } from '@/lib/pondCycleDateFilter';
 import { harvestRecordsForCycleRow, latestActualHarvestDate } from '@/lib/reportPondDedupe';
 import { recalculateAllCycleMetricsFromLogs } from '@/lib/recalculateCycleMetrics';
 import {
@@ -502,6 +502,9 @@ export default function Ponds() {
   const [cycleDateField, setCycleDateField] = useState(() => 'stock');
   const [cycleDateFrom, setCycleDateFrom] = useState('');
   const [cycleDateTo, setCycleDateTo] = useState('');
+  /** 'all' | '0'..'11' — lọc chu kỳ có phiếu thu trong tháng */
+  const [cycleHarvestMonth, setCycleHarvestMonth] = useState('all');
+  const [cycleHarvestYear, setCycleHarvestYear] = useState(() => String(new Date().getFullYear()));
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -536,7 +539,7 @@ export default function Ponds() {
   const [confirmManualCloseLabel, setConfirmManualCloseLabel] = useState('');
   const [closingManualCycle, setClosingManualCycle] = useState(false);
   const [recalculatingFromLogs, setRecalculatingFromLogs] = useState(false);
-  const canManualCloseCycle = user?.role === 'admin';
+  const canManualCloseCycle = true;
 
   const loadPonds = async () => {
     const [data, agencyData, logRows, harvestRows] = await Promise.all([
@@ -561,6 +564,18 @@ export default function Ponds() {
   useEffect(() => {
     void loadPonds();
   }, []);
+
+  useEffect(() => {
+    if (cycleHarvestMonth === 'all') return;
+    const m = Number(cycleHarvestMonth);
+    const y = Number(cycleHarvestYear);
+    if (!Number.isFinite(m) || !Number.isFinite(y)) return;
+    const mm = String(m + 1).padStart(2, '0');
+    const lastD = new Date(y, m + 1, 0).getDate();
+    setCycleDateField('actual_harvest');
+    setCycleDateFrom(`${y}-${mm}-01`);
+    setCycleDateTo(`${y}-${mm}-${String(lastD).padStart(2, '0')}`);
+  }, [cycleHarvestMonth, cycleHarvestYear]);
 
   const handleRecalculateFromLogs = async () => {
     setRecalculatingFromLogs(true);
@@ -652,6 +667,7 @@ export default function Ponds() {
           fcr: null,
           total_feed_used: 0,
           latest_harvest_date: null,
+          harvest_dates_ymd: [],
           raw: p,
         };
         const fish = computeFishHarvestCounts(base, ticketFishByCycle);
@@ -670,6 +686,9 @@ export default function Ponds() {
             { cyclesOnSamePond: cyclesOnPond }
           );
           const latest_harvest_date = latestActualHarvestDate(pondHarvests);
+          const harvest_dates_ymd = (pondHarvests || [])
+            .map((h) => harvestTicketDateYmd(h.harvest_date))
+            .filter(Boolean);
           const base = {
             row_id: `${p.id}::${c.id}`,
             pond_id: p.id,
@@ -701,6 +720,7 @@ export default function Ponds() {
             fcr: c.fcr,
             total_feed_used: c.total_feed_used ?? 0,
             latest_harvest_date,
+            harvest_dates_ymd,
             raw: p,
           };
           const fish = computeFishHarvestCounts(base, ticketFishByCycle);
@@ -777,6 +797,9 @@ export default function Ponds() {
       const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
       if (!rowMatchesCycleDateRange(r, cycleDateField, cycleDateFrom, cycleDateTo)) return false;
+      if (!rowHasHarvestInMonth(r.harvest_dates_ymd, cycleHarvestYear, cycleHarvestMonth)) return false;
+
+      if (isChuKyChotThuHoach(r)) return false;
 
       // Còn SL cần thu (kg) theo kế hoạch → ưu tiên tab Chu kỳ, trừ khi đã chốt kết thúc chu kỳ (sang Chu kỳ đã thu)
       if (isYieldNeedStillActive(r) && !isChuKyChotThuHoach(r)) return true;
@@ -817,6 +840,8 @@ export default function Ponds() {
     cycleDateField,
     cycleDateFrom,
     cycleDateTo,
+    cycleHarvestMonth,
+    cycleHarvestYear,
   ]);
 
   const cycleTotals = useMemo(() => {
@@ -848,14 +873,16 @@ export default function Ponds() {
       const matchHousehold = householdFilters.size === 0 || (r.household_id && householdFilters.has(String(r.household_id)));
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
       if (!rowMatchesCycleDateRange(r, cycleDateField, cycleDateFrom, cycleDateTo)) return false;
+      if (!rowHasHarvestInMonth(r.harvest_dates_ymd, cycleHarvestYear, cycleHarvestMonth)) return false;
       if (!r.cycle_id) return false;
+      if (isChuKyChotThuHoach(r)) return true;
       if (isYieldNeedStillActive(r) && !isChuKyChotThuHoach(r)) return false;
       if (isYieldNeedHarvestDone(r)) return true;
       const rem = effectiveFishRemainingForTabSplit(r);
       const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
       return hasHarvest && rem === 0;
     });
-  }, [cycleRows, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo]);
+  }, [cycleRows, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo, cycleHarvestMonth, cycleHarvestYear]);
   useEffect(() => {
     if (loading || mainTab !== 'cycles') return;
     if (filteredRows.length > 0) return;
@@ -1068,7 +1095,7 @@ export default function Ponds() {
                 : mainTab === 'ponds'
                   ? 'Quản lý ao nuôi'
                   : mainTab === 'cyclesHarvested'
-                    ? 'Chu kỳ đã thu hoạch'
+                    ? 'Chu kỳ đã thu'
                     : 'Quản lý chu kỳ ao nuôi'}
             </h1>
             <p className="text-muted-foreground text-base sm:text-lg font-semibold mt-1">
@@ -1282,6 +1309,10 @@ export default function Ponds() {
             setCycleDateFrom={setCycleDateFrom}
             cycleDateTo={cycleDateTo}
             setCycleDateTo={setCycleDateTo}
+            cycleHarvestMonth={cycleHarvestMonth}
+            setCycleHarvestMonth={setCycleHarvestMonth}
+            cycleHarvestYear={cycleHarvestYear}
+            setCycleHarvestYear={setCycleHarvestYear}
             checkedHarvest={checkedHarvest}
             setCheckedHarvest={setCheckedHarvest}
             toggleHarvestCheck={toggleHarvestCheck}
@@ -1330,6 +1361,10 @@ export default function Ponds() {
             setCycleDateFrom={setCycleDateFrom}
             cycleDateTo={cycleDateTo}
             setCycleDateTo={setCycleDateTo}
+            cycleHarvestMonth={cycleHarvestMonth}
+            setCycleHarvestMonth={setCycleHarvestMonth}
+            cycleHarvestYear={cycleHarvestYear}
+            setCycleHarvestYear={setCycleHarvestYear}
             checkedHarvest={checkedHarvest}
             setCheckedHarvest={setCheckedHarvest}
             toggleHarvestCheck={toggleHarvestCheck}

@@ -2,10 +2,11 @@ import PondStatusBadge from './PondStatusBadge';
 import { formatDateDisplay } from '@/lib/dateFormat';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { calendarDaysUntilHarvest, isCycleHarvestCompleteForAlerts, isHarvestDateOnOrBeforeToday, isHarvestDateWithinUpcomingDays } from '@/lib/harvestAlerts';
+import { canOfferManualChotThuHoach } from '@/lib/pondCycleHelpers';
 
 export default function PondMobileCard({ pond, checked, onCheck, onClick, harvestAlertDays = 7 }) {
   const today = new Date();
-  const cycleIsCc = String(pond.status ?? '').toUpperCase() === 'CC';
+  const canChot = canOfferManualChotThuHoach(pond);
   const dk =
     pond.expected_harvest_date != null && String(pond.expected_harvest_date).trim() !== ''
       ? pond.expected_harvest_date
@@ -34,13 +35,14 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          {(isUrgent && cycleIsCc) && (
+          {canChot && (
             <input
               type="checkbox"
               checked={checked}
               onChange={e => { e.stopPropagation(); onCheck(e); }}
               onClick={e => e.stopPropagation()}
               className="w-5 h-5 accent-green-600 flex-shrink-0"
+              title="Chốt chuyển sang Chu kỳ đã thu"
             />
           )}
           <div className="min-w-0">
@@ -60,7 +62,7 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+      <div className="mt-3 grid grid-cols-3 gap-2 text-base">
         <div className="bg-muted/50 rounded-lg p-2.5 text-center">
           <p className="text-muted-foreground font-semibold">Diện tích</p>
           <p className="font-bold mt-0.5">{pond.area ? `${pond.area}m²` : '—'}</p>
@@ -70,8 +72,8 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
           <p className="font-bold mt-0.5">{hasCurrentFish ? currentFishNumber.toLocaleString() : '—'}</p>
         </div>
         <div className="bg-muted/50 rounded-lg p-2.5 text-center">
-          <p className="text-muted-foreground font-semibold">SL dự kiến</p>
-          <p className="font-bold mt-0.5">{pond.expected_yield != null ? `${Number(pond.expected_yield).toLocaleString()}kg` : '—'}</p>
+          <p className="text-muted-foreground font-semibold">Sản lượng dự kiến</p>
+          <p className="font-bold mt-0.5">{pond.expected_yield != null ? `${Number(pond.expected_yield).toLocaleString()} kg` : '—'}</p>
         </div>
       </div>
 
@@ -79,11 +81,11 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
         pond.fish_remaining != null ||
         pond.yield_need_harvest != null ||
         pond.actual_yield != null) && (
-        <div className="mt-2 space-y-2 text-sm">
+        <div className="mt-2 space-y-2 text-base">
           {(pond.actual_harvest_display_kg != null && Number.isFinite(Number(pond.actual_harvest_display_kg))) ||
           (pond.actual_yield != null && Number.isFinite(Number(pond.actual_yield))) ? (
             <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-2 text-center border border-green-200/60 dark:border-green-800/50">
-              <p className="text-muted-foreground font-semibold">SL thực tế (kg)</p>
+              <p className="text-muted-foreground font-semibold">Sản lượng đã thu (kg)</p>
               <p className="font-bold mt-0.5 text-green-800 dark:text-green-200">
                 {Number(pond.actual_harvest_display_kg ?? pond.actual_yield).toLocaleString()}
               </p>
@@ -91,7 +93,7 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
           ) : null}
           {pond.yield_need_harvest != null && Number.isFinite(Number(pond.yield_need_harvest)) && (
             <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2 text-center border border-amber-200/60 dark:border-amber-800/50">
-              <p className="text-muted-foreground font-semibold">SL cần phải thu (kg)</p>
+              <p className="text-muted-foreground font-semibold">Sản lượng cần phải thu (kg)</p>
               <p className="font-bold mt-0.5 text-amber-900 dark:text-amber-100">
                 {Number(pond.yield_need_harvest).toLocaleString()}
               </p>
@@ -118,7 +120,7 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
         </div>
       )}
 
-      <div className="mt-2 flex items-center justify-between text-sm font-semibold text-muted-foreground">
+      <div className="mt-2 flex items-center justify-between text-base font-semibold text-muted-foreground">
         <span>Đại lý: <span className="font-bold text-foreground">{pond.agency_code || '—'}</span></span>
         {dk && (
           <span className={isUrgent ? 'text-red-600 font-extrabold' : isUpcomingHarvest ? 'text-amber-800 font-bold' : 'font-semibold text-foreground'}>

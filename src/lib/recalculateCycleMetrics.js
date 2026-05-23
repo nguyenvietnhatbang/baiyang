@@ -29,11 +29,13 @@ export function metricsPatchFromLogs(cycle, logs, harvests) {
     fcr = Math.round((totalFeedUsed / expectedYield) * 100) / 100;
   }
 
-  const isHarvested = totalActualYield > 0;
+  const manuallyChot =
+    Boolean(cycle.harvest_done) && String(cycle.status || '').toUpperCase() === 'CT';
+  const isHarvested = totalActualYield > 0 || manuallyChot;
 
   return {
     total_feed_used: totalFeedUsed,
-    current_fish: newCurrentFish,
+    current_fish: isHarvested ? 0 : newCurrentFish,
     expected_yield: expectedYield,
     actual_yield: totalActualYield,
     harvest_done: isHarvested,
