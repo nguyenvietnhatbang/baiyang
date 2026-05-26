@@ -16,6 +16,7 @@ import {
   originalHarvestMonthIndexForReport,
 } from '@/lib/reportMonthHelpers';
 import { parseHarvestDateInput } from '@/lib/harvestDateParse';
+import { normalizeReportAgencyCode, sumActualKgByAgencyMonth } from '@/lib/reportAgencyCode';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `T${i + 1}`);
 const MONTH_LABELS_LONG = Array.from({ length: 12 }, (_, i) => `Tháng ${i + 1}`);
@@ -659,7 +660,10 @@ function buildSummary(sheet, { granularity, ponds, harvests, agencies, filterLin
   finalizeSheetView(sheet, 4);
 }
 
-function buildSummaryMatrix(sheet, { granularity, ponds, harvests, agencies, filterLine, factoryPlanKgByMonth, agencyNameByCode }) {
+function buildSummaryMatrix(
+  sheet,
+  { granularity, ponds, harvests, agencies, filterLine, factoryPlanKgByMonth, agencyNameByCode, yearFilter }
+) {
   if (granularity !== 'agency') {
     // Template ảnh chỉ dành cho tổng hợp theo hệ thống.
     const headers = ['Chỉ hỗ trợ xuất theo hệ thống (agency).'];
@@ -703,11 +707,9 @@ function buildSummaryMatrix(sheet, { granularity, ponds, harvests, agencies, fil
     return { headerRowIndex: 5, ncol: ncolLocal };
   })();
 
-  const harvestByCycleId = new Map();
-  (harvests || []).forEach((h) => {
-    if (!h?.pond_cycle_id) return;
-    if (!harvestByCycleId.has(h.pond_cycle_id)) harvestByCycleId.set(h.pond_cycle_id, []);
-    harvestByCycleId.get(h.pond_cycle_id).push(h);
+  const actualByAgencyMonth = sumActualKgByAgencyMonth(harvests, ponds, {
+    yearFilter: yearFilter || new Date().getFullYear(),
+    monthFilter: 'all',
   });
 
   const numFmt = [
@@ -719,22 +721,16 @@ function buildSummaryMatrix(sheet, { granularity, ponds, harvests, agencies, fil
   ];
 
   const agencyRows = (agencies || []).map((agency) => {
-    const ap = (ponds || []).filter((p) => p.agency_code === agency);
+    const agencyNorm = normalizeReportAgencyCode(agency);
+    const ap = (ponds || []).filter((p) => normalizeReportAgencyCode(p.agency_code) === agencyNorm);
     const planM = Array.from({ length: 12 }, () => 0);
-    const actM = Array.from({ length: 12 }, () => 0);
     ap.forEach((p) => {
       if (cycleHarvestPlanEligibleForMonthReport(p)) {
         const mi = harvestMonthIndexForReport(p);
         if (mi != null) planM[mi] += Number(p.expected_yield) || 0;
       }
-      const hs = harvestByCycleId.get(p.pond_cycle_id) || [];
-      hs.forEach((h) => {
-        if (!h.harvest_date) return;
-        const hd = parseHarvestDateInput(h.harvest_date);
-        if (!hd || Number.isNaN(hd.getTime())) return;
-        actM[hd.getMonth()] += Number(h.actual_yield) || 0;
-      });
     });
+    const actM = actualByAgencyMonth.get(agencyNorm) || Array.from({ length: 12 }, () => 0);
     const totalPlan = planM.reduce((s, v) => s + v, 0);
     const totalAct = actM.reduce((s, v) => s + v, 0);
     const sysName = agencyNameByCode instanceof Map ? (agencyNameByCode.get(String(agency)) || agency) : agency;
@@ -837,6 +833,7 @@ export async function downloadReportsExcel(opts) {
     filterLine,
     factoryPlanKgByMonth: getFactoryPlanKgByMonth(appSettings),
     agencyNameByCode,
+    yearFilter,
   };
 
   switch (reportType) {

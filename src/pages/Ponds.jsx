@@ -170,7 +170,10 @@ function insertColumnsBeforeKey(base, beforeKey, toInsert) {
 
 function cycleColumnDefsForMainTab(mainTab) {
   if (mainTab === 'cyclesHarvested') {
-    return insertColumnsBeforeKey(CYCLE_COLUMNS_BASE, 'expected_harvest_date', HARVESTED_TAB_FISH_COLUMNS);
+    const withoutYieldKgCols = CYCLE_COLUMNS_BASE.filter(
+      (c) => c.key !== 'actual_yield' && c.key !== 'yield_need_harvest'
+    );
+    return insertColumnsBeforeKey(withoutYieldKgCols, 'expected_harvest_date', HARVESTED_TAB_FISH_COLUMNS);
   }
   return CYCLE_COLUMNS_BASE;
 }
@@ -585,6 +588,7 @@ export default function Ponds() {
     const m = Number(cycleHarvestMonth);
     const y = Number(cycleHarvestYear);
     if (!Number.isFinite(m) || !Number.isFinite(y)) return;
+    setCycleDateField('actual_harvest');
     const mm = String(m + 1).padStart(2, '0');
     const lastD = new Date(y, m + 1, 0).getDate();
     setCycleDateFrom(`${y}-${mm}-01`);

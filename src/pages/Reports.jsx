@@ -17,6 +17,7 @@ import ReportOriginal from '@/components/reports/ReportOriginal';
 import ReportAdjusted from '@/components/reports/ReportAdjusted';
 import ReportDailyProductionPlan from '@/components/reports/ReportDailyProductionPlan';
 import ReportSummaryMatrix from '@/components/reports/ReportSummaryMatrix';
+import { reportTable, reportTableScroll, reportTd, reportTdRight, reportTh } from '@/components/reports/reportTableClasses';
 import { calcOriginalYieldKg } from '@/lib/calculateYield';
 import {
   harvestMatchesFilterMonthYear,
@@ -26,7 +27,9 @@ import {
   harvestTicketMatchesFilterMonthYear,
   harvestTicketMatchesFilterYear,
 } from '@/lib/reportMonthHelpers';
+import { buildCycleAgencyByCycleId, harvestAgencyForReport, normalizeReportAgencyCode } from '@/lib/reportAgencyCode';
 import { flattenPondsToCycleRows, filterHarvestsForCycleScope } from '@/lib/reportCycleRows';
+import { cn } from '@/lib/utils';
 
 const MONTHS = ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'];
 
@@ -64,7 +67,7 @@ function SearchableInlineSelect({ value, onChange, options, placeholder }) {
         type="button"
         variant="outline"
         onClick={() => setOpen((v) => !v)}
-        className={`h-8 w-[18rem] justify-between px-2 text-xs font-medium ${!cur ? 'text-muted-foreground' : ''}`}
+        className={`h-10 w-[18rem] justify-between px-2 text-base font-semibold ${!cur ? 'text-muted-foreground' : ''}`}
       >
         <span className="truncate">{cur?.label || placeholder}</span>
         <ChevronsUpDown className="w-4 h-4 opacity-50" aria-hidden />
@@ -77,18 +80,18 @@ function SearchableInlineSelect({ value, onChange, options, placeholder }) {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Gõ để tìm..."
-              className="h-8 text-xs"
+              className="h-10 text-base font-semibold"
             />
           </div>
           <div className="max-h-72 overflow-auto">
             {filtered.length === 0 ? (
-              <div className="px-3 py-3 text-xs text-muted-foreground">Không có kết quả</div>
+              <div className="px-3 py-3 text-base font-semibold text-muted-foreground">Không có kết quả</div>
             ) : (
               filtered.map((o) => (
                 <button
                   key={o.value}
                   type="button"
-                  className={`w-full text-left px-3 py-2 text-xs hover:bg-muted/40 ${String(o.value) === String(value) ? 'bg-muted/30 font-bold' : ''}`}
+                  className={`w-full text-left px-3 py-2 text-base font-semibold hover:bg-muted/40 ${String(o.value) === String(value) ? 'bg-muted/30 font-bold' : ''}`}
                   onClick={() => {
                     onChange(o.value);
                     setOpen(false);
@@ -222,10 +225,14 @@ export default function Reports() {
     []
   );
 
-  const allAgencies = useMemo(
-    () => [...new Set(ponds.map((p) => p.agency_code).filter(Boolean))].sort(),
-    [ponds]
-  );
+  const allAgencies = useMemo(() => {
+    const codes = new Set();
+    for (const p of ponds) {
+      const norm = normalizeReportAgencyCode(p.agency_code);
+      if (norm) codes.add(norm);
+    }
+    return [...codes].sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [ponds]);
 
   const agencyFilterItems = useMemo(
     () => [{ value: 'all', label: 'Tất cả đại lý' }, ...allAgencies.map((a) => ({ value: a, label: a }))],
@@ -247,7 +254,11 @@ export default function Reports() {
   );
 
   const filteredPonds = useMemo(
-    () => ponds.filter((p) => agencyFilter === 'all' || p.agency_code === agencyFilter),
+    () =>
+      ponds.filter(
+        (p) =>
+          agencyFilter === 'all' || normalizeReportAgencyCode(p.agency_code) === normalizeReportAgencyCode(agencyFilter)
+      ),
     [ponds, agencyFilter]
   );
 
@@ -294,16 +305,14 @@ export default function Reports() {
     });
   }, [scopedCycleRows, monthFilter, yearFilter]);
 
-  /** Phiếu thu thực tế: phạm vi đại lý/chu kỳ + ngày thu hoạch thực tế (không phụ thuộc ngày thu DK). */
+  /** Phiếu thu thực tế: phạm vi chu kỳ + ngày thu thực tế; đại lý theo chu kỳ gắn phiếu (không gộp phiếu thiếu mã vào mọi hệ thống). */
   const harvestsForActualReport = useMemo(() => {
+    const cycleAgencyById = buildCycleAgencyByCycleId(scopedCycleRows);
     const scoped = filterHarvestsForCycleScope(harvests, scopedCycleRows);
+    const agencyNorm = agencyFilter === 'all' ? null : normalizeReportAgencyCode(agencyFilter);
     return scoped.filter((h) => {
-      const matchAgency =
-        agencyFilter === 'all' ||
-        h.agency_code === agencyFilter ||
-        h.agency_code == null ||
-        String(h.agency_code).trim() === '';
-      if (!matchAgency) return false;
+      const hAgency = harvestAgencyForReport(h, cycleAgencyById);
+      if (agencyNorm && hAgency !== agencyNorm) return false;
       if (!harvestTicketMatchesFilterYear(h.harvest_date, yearFilter)) return false;
       if (monthFilter !== 'all' && !harvestTicketMatchesFilterMonthYear(h.harvest_date, yearFilter, Number(monthFilter))) {
         return false;
@@ -314,7 +323,10 @@ export default function Reports() {
 
   const filteredHarvests = harvestsForActualReport;
 
-  const agencies = agencyFilter === 'all' ? allAgencies : allAgencies.filter((a) => a === agencyFilter);
+  const agencies =
+    agencyFilter === 'all'
+      ? allAgencies
+      : allAgencies.filter((a) => a === normalizeReportAgencyCode(agencyFilter));
   const cycleFilterLabel = useMemo(() => {
     const q = cycleSearch.trim();
     if (cycleIdFilter !== 'all') {
@@ -420,7 +432,7 @@ export default function Reports() {
   };
 
   return (
-    <div className="p-4 space-y-4 max-w-full">
+    <div className="p-4 space-y-4 max-w-full text-base font-semibold">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Báo cáo tổng hợp</h1>
@@ -459,19 +471,19 @@ export default function Reports() {
 
       <div className="flex gap-2 flex-wrap items-end">
         <Select value={reportType} onValueChange={setReportType}>
-          <SelectTrigger className="w-56 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-56 h-10 text-base font-semibold"><SelectValue /></SelectTrigger>
           <SelectContent>
             {REPORT_TYPE_ITEMS.map((it) => <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={agencyFilter} onValueChange={setAgencyFilter}>
-          <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-28 h-10 text-base font-semibold"><SelectValue /></SelectTrigger>
           <SelectContent>
             {agencyFilterItems.map((it) => <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={yearFilter} onValueChange={setYearFilter}>
-          <SelectTrigger className="w-20 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-20 h-10 text-base font-semibold"><SelectValue /></SelectTrigger>
           <SelectContent>
             {yearFilterItems.map((y) => <SelectItem key={y.value} value={y.value}>{y.label}</SelectItem>)}
           </SelectContent>
@@ -479,7 +491,7 @@ export default function Reports() {
         <div className="flex flex-col gap-1">
           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Tháng</span>
           <Select value={monthFilter} onValueChange={setMonthFilter}>
-            <SelectTrigger className="w-[7.25rem] h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[7.25rem] h-10 text-base font-semibold"><SelectValue /></SelectTrigger>
             <SelectContent>
               {monthFilterItems.map((m) => (
                 <SelectItem key={m.value} value={m.value}>
@@ -500,11 +512,11 @@ export default function Reports() {
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Từ ngày</span>
-          <Input className="h-8 w-[9.5rem] text-xs" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <Input className="h-10 w-[9.5rem] text-base font-semibold" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Đến ngày</span>
-          <Input className="h-8 w-[9.5rem] text-xs" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          <Input className="h-10 w-[9.5rem] text-base font-semibold" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </div>
       </div>
 
@@ -512,23 +524,23 @@ export default function Reports() {
         <div className="px-4 py-2.5 border-b border-border">
           <h3 className="font-semibold text-foreground text-sm">Sản lượng ngày</h3>
         </div>
-        <div className="overflow-x-auto [&_table]:border-2 [&_table]:border-slate-400 [&_th]:border-2 [&_th]:border-slate-400 [&_td]:border-2 [&_td]:border-slate-400 dark:[&_table]:border-slate-500 dark:[&_th]:border-slate-500 dark:[&_td]:border-slate-500">
-          <table className="w-full text-xs border-collapse">
+        <div className={reportTableScroll}>
+          <table className={reportTable}>
             <thead>
               <tr className="bg-muted/60">
-                <th className="px-3 py-2 text-left font-semibold text-foreground">Ngày</th>
-                <th className="px-3 py-2 text-right font-semibold text-foreground">Nhu cầu</th>
-                <th className="px-3 py-2 text-right font-semibold text-foreground">Sản lượng</th>
-                <th className="px-3 py-2 text-right font-semibold text-foreground">Chênh lệch</th>
+                <th className={cn(reportTh, 'text-left border-r-0')}>Ngày</th>
+                <th className={cn(reportTh, 'text-right')}>Nhu cầu</th>
+                <th className={cn(reportTh, 'text-right')}>Sản lượng</th>
+                <th className={cn(reportTh, 'text-right border-r-0')}>Chênh lệch</th>
               </tr>
             </thead>
             <tbody>
               {dailyProductionRows.map((row, idx) => (
                 <tr key={`${row.date}-${idx}`}>
-                  <td className="px-3 py-2">{row.date}</td>
-                  <td className="px-3 py-2 text-right">{row.demand.toLocaleString()}</td>
-                  <td className="px-3 py-2 text-right">{row.production.toLocaleString()}</td>
-                  <td className="px-3 py-2 text-right">{row.variance.toLocaleString()}</td>
+                  <td className={reportTd}>{row.date}</td>
+                  <td className={reportTdRight}>{row.demand.toLocaleString()}</td>
+                  <td className={reportTdRight}>{row.production.toLocaleString()}</td>
+                  <td className={reportTdRight}>{row.variance.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -625,7 +637,7 @@ export default function Reports() {
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
             <h3 className="font-semibold text-foreground">Báo cáo tổng hợp</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Kế hoạch (theo ngày thu dự kiến) vs Thực hiện (theo ngày thu thực tế) theo tháng.</p>
+            <p className="text-sm text-muted-foreground mt-0.5 font-semibold">Kế hoạch (theo ngày thu dự kiến) vs Thực hiện (theo ngày thu thực tế) theo tháng.</p>
           </div>
           <ReportSummaryMatrix
             ponds={scopedCycleRows}
@@ -644,8 +656,8 @@ export default function Reports() {
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-foreground">{reportMeta[reportType]?.label}</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {reportMeta[reportType]?.desc} — Năm {yearFilter}
+            <p className="text-sm text-muted-foreground mt-0.5 font-semibold">
+              {reportMeta[reportType]?.desc} — Năm {yearFilter}
                 {monthFilter !== 'all' ? ` · ${monthFilterLabel}` : ''}
               </p>
             </div>
@@ -674,13 +686,13 @@ export default function Reports() {
           if (!nextOpen) setExpandedReport(null);
         }}
       >
-        <DialogContent className="!top-0 !left-0 !translate-x-0 !translate-y-0 !w-screen !h-screen !max-w-none !max-h-none !rounded-none !p-0 !gap-0 overflow-hidden flex flex-col m-0">
+        <DialogContent className="!top-0 !left-0 !translate-x-0 !translate-y-0 !w-screen !h-screen !max-w-none !max-h-none !rounded-none !p-0 !gap-0 overflow-hidden flex flex-col m-0 !text-base">
           <DialogHeader className="px-4 py-3 border-b border-border flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Maximize2 className="w-5 h-5 text-primary" />
               {expandedReport && reportMeta[expandedReport]?.label}
             </DialogTitle>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-1 font-semibold">
               {expandedReport && reportMeta[expandedReport]?.desc} — Năm {yearFilter}
               {monthFilter !== 'all' ? ` · ${monthFilterLabel}` : ''} • {agencyFilterLabel} • {cycleFilterLabel}
             </p>

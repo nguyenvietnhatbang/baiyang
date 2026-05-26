@@ -93,3 +93,40 @@
   50% { box-shadow: 0 0 0 8px rgba(220,38,38,0); }
 }
 .pulse-urgent { animation: pulse-red 2s infinite; }
+
+/* Báo cáo: ép cùng cỡ chữ / độ đậm mọi ô (tránh lệch cột Ao nuôi). */
+@layer components {
+  .report-table-shell table {
+    font-size: 16px;
+    line-height: 1.375;
+  }
+  .report-table-shell thead th {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.375;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    -webkit-font-smoothing: antialiased;
+  }
+  .report-table-shell tbody td {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    line-height: 1.375 !important;
+    color: hsl(var(--foreground)) !important;
+    font-variant-numeric: normal;
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  .report-table-shell tbody td.report-table-num {
+    font-variant-numeric: tabular-nums;
+  }
+  .report-table-shell tbody td.report-table-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-weight: 600 !important;
+    letter-spacing: 0.02em;
+  }
+  .report-table-shell tbody td.report-table-total {
+    font-weight: 700 !important;
+  }
+}

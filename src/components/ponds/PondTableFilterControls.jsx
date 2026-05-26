@@ -225,7 +225,7 @@ export function CycleDateRangeFilterBar({
       </div>
       {showHarvestMonthPicker && (
         <p className="text-sm font-semibold text-muted-foreground max-w-2xl">
-          <strong>Tháng thu hoạch</strong> chỉ điền sẵn Từ/Đến ngày. Danh sách lọc theo mục <strong>Lọc theo ngày</strong> (thả / thu DK / thu thực tế).
+          <strong>Tháng thu hoạch</strong> tự chọn <strong>Ngày thu hoạch thực tế (phiếu thu)</strong> và điền Từ/Đến — khớp cột Thực hiện trên báo cáo tổng hợp.
         </p>
       )}
       {dateField === 'actual_harvest' && (

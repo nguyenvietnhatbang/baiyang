@@ -2,6 +2,19 @@ import { useMemo } from 'react';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { formatDateDisplay } from '@/lib/dateFormat';
 import { harvestRecordsForCycleRow, latestActualHarvestDate } from '@/lib/reportPondDedupe';
+import {
+  reportTable,
+  reportTableScroll,
+  reportTd,
+  reportTdCenter,
+  reportTdLeft,
+  reportTdCode,
+  reportTdRight,
+  reportTdBoldRight,
+  reportTh,
+  reportThLast,
+} from './reportTableClasses';
+import { cn } from '@/lib/utils';
 
 function systemCodeFromAgencyCode(agencyCode) {
   const digits = String(agencyCode || '').replace(/\D/g, '');
@@ -27,7 +40,6 @@ export default function ReportDailyProductionPlan({ ponds, harvests, agencyNameB
       const plannedKg = Number(p.expected_yield) || 0;
       const fromRecords = pondHarvests.reduce((s, h) => s + (Number(h.actual_yield) || 0), 0);
       const fromCycle = Number(p.actual_yield) || 0;
-      /** Phiếu thu + đồng bộ trên chu kỳ (lấy max để không mất số khi lệch phiếu / RLS) */
       const actualKg = Math.max(fromRecords, fromCycle);
       const feedKg = Number(p.total_feed_used) || 0;
       const denom = actualKg > 0 ? actualKg : plannedKg;
@@ -73,27 +85,32 @@ export default function ReportDailyProductionPlan({ ponds, harvests, agencyNameB
     return { plannedKg, actualKg, feedKg, fcr };
   }, [rows]);
 
+  const headers = [
+    'Mã hệ thống',
+    'Hệ thống',
+    'Hộ nuôi',
+    'Ao nuôi',
+    'Chu kỳ',
+    'Diện tích',
+    'Kế hoạch thu (ngày thu kế)',
+    'Ngày thu thực tế',
+    'Sản lượng Kế hoạch (ban đầu)',
+    'Sản lượng thực tế',
+    'Tổng lượng thức ăn',
+    'FCR',
+    'Ghi chú',
+  ];
+
   return (
-    <div className="overflow-x-auto max-w-full pb-2 [&_table]:border-2 [&_table]:border-slate-400 [&_th]:border-2 [&_th]:border-slate-400 [&_td]:border-2 [&_td]:border-slate-400 dark:[&_table]:border-slate-500 dark:[&_th]:border-slate-500 dark:[&_td]:border-slate-500">
-      <table className="w-full min-w-max text-sm font-semibold border-collapse">
+    <div className={reportTableScroll}>
+      <table className={reportTable}>
         <thead>
           <tr className="bg-muted/60 border-b border-border">
-            {[
-              'Mã hệ thống',
-              'Hệ thống',
-              'Hộ nuôi',
-              'Ao nuôi',
-              'Chu kỳ',
-              'Diện tích',
-              'Kế hoạch thu (ngày thu kế)',
-              'Ngày thu thực tế',
-              'Sản lượng Kế hoạch (ban đầu)',
-              'Sản lượng thực tế',
-              'Tổng lượng thức ăn',
-              'FCR',
-              'Ghi chú',
-            ].map((h) => (
-              <th key={h} className="px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border last:border-r-0">
+            {headers.map((h, i) => (
+              <th
+                key={h}
+                className={i < headers.length - 1 ? reportTh : cn(reportThLast, 'border-r-0')}
+              >
                 {h}
               </th>
             ))}
@@ -102,29 +119,35 @@ export default function ReportDailyProductionPlan({ ponds, harvests, agencyNameB
         <tbody>
           {rows.map((r) => (
             <tr key={r.id} className="hover:bg-muted/20">
-              <td className="px-2 py-2 text-center font-bold">{r.sysCode}</td>
-              <td className="px-2 py-2 font-bold text-primary">{r.sysName}</td>
-              <td className="px-2 py-2 font-semibold whitespace-nowrap">{r.owner}</td>
-              <td className="px-2 py-2 font-bold text-primary whitespace-nowrap">{r.pond}</td>
-              <td className="px-2 py-2 whitespace-nowrap">{r.cycle}</td>
-              <td className="px-2 py-2 text-right whitespace-nowrap">{r.area != null ? r.area.toLocaleString() : '—'}</td>
-              <td className="px-2 py-2 text-center whitespace-nowrap">{formatDateDisplay(r.plannedDate)}</td>
-              <td className="px-2 py-2 text-center whitespace-nowrap">{formatDateDisplay(r.actualDate)}</td>
-              <td className="px-2 py-2 text-right font-bold whitespace-nowrap">{r.plannedKg > 0 ? r.plannedKg.toLocaleString() : '—'}</td>
-              <td className="px-2 py-2 text-right font-extrabold text-green-700 whitespace-nowrap">{r.actualKg > 0 ? r.actualKg.toLocaleString() : '—'}</td>
-              <td className="px-2 py-2 text-right font-bold whitespace-nowrap">{r.feedKg > 0 ? r.feedKg.toLocaleString() : '—'}</td>
-              <td className="px-2 py-2 text-center font-bold whitespace-nowrap">{r.fcr != null ? r.fcr.toLocaleString() : '—'}</td>
-              <td className="px-2 py-2 whitespace-nowrap max-w-[16rem] truncate" title={r.note || ''}>{r.note || ''}</td>
+              <td className={reportTdCenter}>{r.sysCode}</td>
+              <td className={reportTdLeft}>{r.sysName}</td>
+              <td className={reportTdLeft}>{r.owner}</td>
+              <td className={reportTdCode}>{r.pond}</td>
+              <td className={reportTdCenter}>{r.cycle}</td>
+              <td className={reportTdRight}>{r.area != null ? r.area.toLocaleString() : '—'}</td>
+              <td className={reportTdCenter}>{formatDateDisplay(r.plannedDate)}</td>
+              <td className={reportTdCenter}>{formatDateDisplay(r.actualDate)}</td>
+              <td className={reportTdRight}>{r.plannedKg > 0 ? r.plannedKg.toLocaleString() : '—'}</td>
+              <td className={reportTdRight}>{r.actualKg > 0 ? r.actualKg.toLocaleString() : '—'}</td>
+              <td className={reportTdRight}>{r.feedKg > 0 ? r.feedKg.toLocaleString() : '—'}</td>
+              <td className={reportTdCenter}>{r.fcr != null ? r.fcr.toLocaleString() : '—'}</td>
+              <td className={cn(reportTd, 'max-w-[16rem] truncate')} title={r.note || ''}>
+                {r.note || ''}
+              </td>
             </tr>
           ))}
 
-          <tr className="bg-primary/5 font-bold border-t-2 border-primary/20">
-            <td className="px-2 py-2.5 text-center" colSpan={8}>Tổng</td>
-            <td className="px-2 py-2.5 text-right font-extrabold whitespace-nowrap">{total.plannedKg > 0 ? total.plannedKg.toLocaleString() : ''}</td>
-            <td className="px-2 py-2.5 text-right font-extrabold text-green-700 whitespace-nowrap">{total.actualKg > 0 ? total.actualKg.toLocaleString() : ''}</td>
-            <td className="px-2 py-2.5 text-right font-extrabold whitespace-nowrap">{total.feedKg > 0 ? total.feedKg.toLocaleString() : ''}</td>
-            <td className="px-2 py-2.5 text-center font-extrabold whitespace-nowrap">{total.fcr != null ? total.fcr.toLocaleString() : ''}</td>
-            <td className="px-2 py-2.5" />
+          <tr className="bg-primary/5 border-t-2 border-primary/20">
+            <td className={cn(reportTdCenter, 'report-table-total')} colSpan={8}>
+              Tổng
+            </td>
+            <td className={reportTdBoldRight}>{total.plannedKg > 0 ? total.plannedKg.toLocaleString() : ''}</td>
+            <td className={reportTdBoldRight}>{total.actualKg > 0 ? total.actualKg.toLocaleString() : ''}</td>
+            <td className={reportTdBoldRight}>{total.feedKg > 0 ? total.feedKg.toLocaleString() : ''}</td>
+            <td className={cn(reportTdCenter, 'report-table-total')}>
+              {total.fcr != null ? total.fcr.toLocaleString() : ''}
+            </td>
+            <td className={reportTd} />
           </tr>
         </tbody>
       </table>

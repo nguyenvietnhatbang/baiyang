@@ -13,6 +13,19 @@ import {
 import { countCycleRows, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
 import { calculateYieldFromPond } from '@/lib/calculateYield';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
+import {
+  reportBanner,
+  reportNumCellClass,
+  reportTable,
+  reportTableScroll,
+  reportTdCenter,
+  reportTdLeft,
+  reportTdTotalLabel,
+  reportTh,
+  reportThLeft,
+  reportThSub,
+} from '@/components/reports/reportTableClasses';
+import { cn } from '@/lib/utils';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `Tháng ${i + 1}`);
 
@@ -130,7 +143,7 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
   const deltaTotalTH = grandTotalTH - factoryTotalTH;
 
   const renderNumCell = (value, { bold = false, border = false, cls = '' } = {}) => (
-    <td className={`px-2 py-2 text-right text-xs ${bold ? 'font-bold' : ''} ${cls} ${border ? 'border-r border-border' : ''}`}>
+    <td className={reportNumCellClass({ bold, border, extra: cls })}>
       {Number(value) > 0 ? Number(value).toLocaleString() : ''}
     </td>
   );
@@ -139,7 +152,7 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
     const n = Number(value || 0);
     const cls = n >= 0 ? 'text-green-700' : 'text-red-700';
     return (
-      <td className={`px-2 py-2 text-right text-xs font-bold ${cls} ${border ? 'border-r border-border' : ''}`}>
+      <td className={reportNumCellClass({ bold: true, border, extra: cls })}>
         {n !== 0 ? Math.round(n).toLocaleString() : ''}
       </td>
     );
@@ -147,45 +160,45 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
 
   return (
     <div>
-      <div className="px-5 py-3.5 bg-muted/30 border-b border-border text-sm text-muted-foreground font-semibold">
+      <div className={reportBanner}>
         Bảng sắp xếp theo dạng tháng: mỗi tháng gồm <strong>CC</strong>, <strong>CT</strong>, <strong>TH</strong> (tổng) cho kế hoạch điều chỉnh. Cột theo tháng chỉ tính khi có{' '}
         <strong>ngày thả hợp lệ</strong>, có <strong>ngày thu dự kiến</strong> (đã lưu hoặc ước từ thả) và ngày thu không trước ngày thả.
       </div>
 
-      <div className="overflow-x-auto max-w-full pb-2 [&_table]:border-2 [&_table]:border-slate-400 [&_th]:border-2 [&_th]:border-slate-400 [&_td]:border-2 [&_td]:border-slate-400 dark:[&_table]:border-slate-500 dark:[&_th]:border-slate-500 dark:[&_td]:border-slate-500">
-        <table className="w-full min-w-max text-sm font-semibold border-collapse">
+      <div className={reportTableScroll}>
+        <table className={reportTable}>
           <thead>
             <tr className="bg-muted/60 border-b border-border">
-              <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+              <th className={cn(reportTh, 'border-r border-border')} rowSpan={2}>
                 Mã hệ thống
               </th>
-              <th className="text-left px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+              <th className={cn(reportThLeft, 'border-r border-border')} rowSpan={2}>
                 Hệ thống
               </th>
-              <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+              <th className={cn(reportTh, 'border-r border-border')} rowSpan={2}>
                 Số chu kỳ
               </th>
-              <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" rowSpan={2}>
+              <th className={cn(reportTh, 'border-r border-border')} rowSpan={2}>
                 Diện tích (m²)
               </th>
               {visibleMonthIdx.map((mi) => (
-                <th key={mi} className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap border-r border-border" colSpan={3}>
+                <th key={mi} className={cn(reportTh, 'border-r border-border')} colSpan={3}>
                   {MONTHS[mi]}
                 </th>
               ))}
-              <th className="text-center px-2 py-2 font-extrabold text-slate-700 uppercase whitespace-nowrap" colSpan={3}>Tổng</th>
+              <th className={reportTh} colSpan={3}>Tổng</th>
             </tr>
             <tr className="bg-muted/40 border-b border-border">
               {visibleMonthIdx.map((mi) => (
                 <Fragment key={mi}>
-                  <th className="text-right px-2 py-1.5 font-bold text-blue-700 whitespace-nowrap">CC</th>
-                  <th className="text-right px-2 py-1.5 font-bold text-slate-600 whitespace-nowrap">CT</th>
-                  <th className="text-right px-2 py-1.5 font-extrabold text-slate-900 whitespace-nowrap border-r border-border">TH</th>
+                  <th className={cn(reportThSub, 'text-right text-blue-700')}>CC</th>
+                  <th className={cn(reportThSub, 'text-right text-slate-600')}>CT</th>
+                  <th className={cn(reportThSub, 'text-right text-slate-900 border-r border-border')}>TH</th>
                 </Fragment>
               ))}
-              <th className="text-right px-2 py-1.5 font-bold text-blue-700 whitespace-nowrap">CC</th>
-              <th className="text-right px-2 py-1.5 font-bold text-slate-600 whitespace-nowrap">CT</th>
-              <th className="text-right px-2 py-1.5 font-extrabold text-slate-900 whitespace-nowrap">TH</th>
+              <th className={cn(reportThSub, 'text-right text-blue-700')}>CC</th>
+              <th className={cn(reportThSub, 'text-right text-slate-600')}>CT</th>
+              <th className={cn(reportThSub, 'text-right text-slate-900')}>TH</th>
             </tr>
           </thead>
           <tbody>
@@ -198,14 +211,12 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
             ) : (
               rows.map((r) => (
                 <tr key={r.agency} className="hover:bg-muted/20">
-                  <td className="px-2 py-2 text-center font-semibold text-slate-700 border-r border-border whitespace-nowrap">
+                  <td className={cn(reportTdCenter, 'border-r border-border')}>
                     {systemCodeFromAgencyCode(r.agency)}
                   </td>
-                  <td className="px-2 py-2 text-left font-semibold text-primary border-r border-border whitespace-nowrap">
-                    {r.agencyName}
-                  </td>
-                  <td className="px-2 py-2 text-center border-r border-border whitespace-nowrap">{r.cycleCount > 0 ? r.cycleCount : ''}</td>
-                  <td className="px-2 py-2 text-right border-r border-border whitespace-nowrap">{r.totalArea > 0 ? r.totalArea.toLocaleString() : ''}</td>
+                  <td className={cn(reportTdLeft, 'border-r border-border')}>{r.agencyName}</td>
+                  <td className={cn(reportTdCenter, 'border-r border-border')}>{r.cycleCount > 0 ? r.cycleCount : ''}</td>
+                  <td className={cn(reportTdCenter, 'text-right border-r border-border')}>{r.totalArea > 0 ? r.totalArea.toLocaleString() : ''}</td>
                   {visibleMonthIdx.map((mi, i) => (
                     <Fragment key={mi}>
                       {renderNumCell(r.monthCC[i])}
@@ -220,9 +231,9 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
               ))
             )}
 
-            <tr className="bg-primary/5 font-bold border-t-2 border-primary/20">
-              <td className="px-3 py-3 text-center font-bold text-foreground border-r border-border">—</td>
-              <td className="px-3 py-3 text-left font-bold text-foreground border-r border-border">Tổng</td>
+            <tr className="bg-primary/5 border-t-2 border-primary/20">
+              <td className={cn(reportTdTotalLabel, 'text-center border-r border-border')}>—</td>
+              <td className={cn(reportTdTotalLabel, 'border-r border-border')}>Tổng</td>
               <td className="px-3 py-3 text-center border-r border-border">{grandTotalCycles}</td>
               <td className="px-3 py-3 text-right border-r border-border">{grandTotalArea > 0 ? grandTotalArea.toLocaleString() : ''}</td>
               {visibleMonthIdx.map((mi, i) => (
@@ -238,42 +249,42 @@ export default function ReportAdjusted({ ponds, agencies, dateFrom, dateTo, appS
             </tr>
 
             <tr className="bg-amber-50/40 border-t border-border">
-              <td className="px-3 py-2.5 text-center font-bold text-foreground border-r border-border">—</td>
-              <td className="px-3 py-2.5 text-left font-bold text-foreground border-r border-border whitespace-nowrap">
+              <td className={cn(reportTdTotalLabel, 'text-center border-r border-border')}>—</td>
+              <td className={cn(reportTdTotalLabel, 'border-r border-border')}>
                 Sản lượng Nhà máy giao
               </td>
               <td className="px-3 py-2.5 text-center border-r border-border">—</td>
               <td className="px-3 py-2.5 text-right border-r border-border">—</td>
               {visibleMonthIdx.map((mi, i) => (
                 <Fragment key={mi}>
-                  <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
-                  <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
-                  <td className="px-2 py-2 text-right text-xs font-bold text-amber-700 border-r border-border">
+                  <td className={reportNumCellClass({ extra: 'text-muted-foreground' })} />
+                  <td className={reportNumCellClass({ extra: 'text-muted-foreground' })} />
+                  <td className={reportNumCellClass({ bold: true, border: true, extra: 'text-amber-700' })}>
                     {factoryMonthTH[i] > 0 ? factoryMonthTH[i].toLocaleString() : ''}
                   </td>
                 </Fragment>
               ))}
-              <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
-              <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
-              <td className="px-2 py-2 text-right text-xs font-bold text-amber-700">{factoryTotalTH > 0 ? factoryTotalTH.toLocaleString() : ''}</td>
+              <td className={reportNumCellClass({ extra: 'text-muted-foreground' })} />
+              <td className={reportNumCellClass({ extra: 'text-muted-foreground' })} />
+              <td className={reportNumCellClass({ bold: true, extra: 'text-amber-700' })}>{factoryTotalTH > 0 ? factoryTotalTH.toLocaleString() : ''}</td>
             </tr>
 
             <tr className="bg-amber-50/40">
-              <td className="px-3 py-2.5 text-center font-bold text-foreground border-r border-border">—</td>
-              <td className="px-3 py-2.5 text-left font-bold text-foreground border-r border-border whitespace-nowrap">
+              <td className={cn(reportTdTotalLabel, 'text-center border-r border-border')}>—</td>
+              <td className={cn(reportTdTotalLabel, 'border-r border-border')}>
                 Cân đối
               </td>
               <td className="px-3 py-2.5 text-center border-r border-border">—</td>
               <td className="px-3 py-2.5 text-right border-r border-border">—</td>
               {visibleMonthIdx.map((mi, i) => (
                 <Fragment key={mi}>
-                  <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
-                  <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
+                  <td className={reportNumCellClass({ extra: 'text-muted-foreground' })} />
+                  <td className={reportNumCellClass({ extra: 'text-muted-foreground' })} />
                   {renderSignedCell(deltaMonthTH[i], { border: true })}
                 </Fragment>
               ))}
-              <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
-              <td className="px-2 py-2 text-right text-xs text-muted-foreground"></td>
+              <td className={reportNumCellClass({ extra: 'text-muted-foreground' })} />
+              <td className={reportNumCellClass({ extra: 'text-muted-foreground' })} />
               {renderSignedCell(deltaTotalTH)}
             </tr>
           </tbody>
