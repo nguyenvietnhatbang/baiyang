@@ -527,6 +527,7 @@ export default function Ponds() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedPond, setSelectedPond] = useState(null);
+  const [selectedPondIds, setSelectedPondIds] = useState(() => new Set());
   const [checkedHarvest, setCheckedHarvest] = useState(new Set());
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -642,6 +643,43 @@ export default function Ponds() {
     });
     return rows.sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')));
   }, [ponds, harvestRecords, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo]);
+
+  useEffect(() => {
+    setSelectedPondIds((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(pondRows.map((p) => String(p.id)));
+      const next = new Set([...prev].filter((id) => visible.has(String(id))));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [pondRows]);
+
+  const selectedPondsForQr = useMemo(
+    () => pondRows.filter((p) => selectedPondIds.has(String(p.id))),
+    [pondRows, selectedPondIds]
+  );
+
+  const allPondRowsSelected = pondRows.length > 0 && selectedPondIds.size === pondRows.length;
+
+  const togglePondCheck = (pondId, e) => {
+    e.stopPropagation();
+    const id = String(pondId);
+    setSelectedPondIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllPondChecks = (e) => {
+    e.stopPropagation();
+    const checked = e.target.checked;
+    if (checked) {
+      setSelectedPondIds(new Set(pondRows.map((p) => String(p.id))));
+    } else {
+      setSelectedPondIds(new Set());
+    }
+  };
 
   const cycleRows = useMemo(() => {
     const ticketFishByCycle = new Map();
@@ -1133,7 +1171,13 @@ export default function Ponds() {
           )}
           {mainTab !== 'households' && (
             <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <div className="hidden sm:block"><QRBatchDownload ponds={ponds} /></div>
+              <div className="hidden sm:block">
+                {mainTab === 'ponds' ? (
+                  selectedPondsForQr.length > 0 ? <QRBatchDownload ponds={selectedPondsForQr} /> : null
+                ) : (
+                  <QRBatchDownload ponds={ponds} />
+                )}
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -1211,6 +1255,25 @@ export default function Ponds() {
                 setDateTo={setCycleDateTo}
               />
 
+              {selectedPondsForQr.length > 0 && (
+                <div className="rounded-xl border border-teal-200 bg-teal-50/70 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-teal-900 font-bold">
+                    Đã chọn {selectedPondsForQr.length} ao để in QR
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <QRBatchDownload ponds={selectedPondsForQr} />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="text-sm h-9"
+                      onClick={() => setSelectedPondIds(new Set())}
+                    >
+                      Bỏ chọn
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="sm:hidden space-y-3">
                 {loading ? (
                   Array(4).fill(0).map((_, i) => <div key={i} className="h-32 bg-muted rounded-xl animate-pulse" />)
@@ -1247,6 +1310,15 @@ export default function Ponds() {
                   <table className="w-full text-base min-w-[640px]">
                     <thead>
                       <tr className="bg-muted/30 border-b border-border">
+                        <th className="w-12 px-3 py-3.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={allPondRowsSelected}
+                            onChange={toggleAllPondChecks}
+                            className="w-4 h-4 accent-primary cursor-pointer"
+                            aria-label="Chọn tất cả ao trong bảng"
+                          />
+                        </th>
                         <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">MÃ AO</th>
                         <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">CHỦ HỘ</th>
                         <th className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">ĐẠI LÝ</th>
@@ -1258,20 +1330,30 @@ export default function Ponds() {
                     <tbody className="divide-y divide-border/60">
                       {loading ? (
                         Array(6).fill(0).map((_, i) => (
-                          <tr key={i}><td className="px-4 py-3" colSpan={6}><div className="h-4 bg-muted rounded animate-pulse w-32" /></td></tr>
+                          <tr key={i}><td className="px-4 py-3" colSpan={7}><div className="h-4 bg-muted rounded animate-pulse w-32" /></td></tr>
                         ))
                       ) : pondRows.length === 0 ? (
-                        <tr><td colSpan={6} className="text-center py-12 text-muted-foreground text-base font-semibold">Không tìm thấy ao nào</td></tr>
+                        <tr><td colSpan={7} className="text-center py-12 text-muted-foreground text-base font-semibold">Không tìm thấy ao nào</td></tr>
                       ) : pondRows.map((p) => {
                         const status = p.active_cycle?.status || 'CT';
                         const currentFish = p.active_cycle?.current_fish ?? p.active_cycle?.total_fish ?? null;
                         const expectedYield = sumPlannedYieldAdjustedForPond(p);
+                        const checked = selectedPondIds.has(String(p.id));
                         return (
                           <tr
                             key={p.id}
                             onClick={() => setViewPondId(p.id)}
                             className="hover:bg-primary/5 cursor-pointer transition-colors"
                           >
+                            <td className="px-3 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => togglePondCheck(p.id, e)}
+                                className="w-4 h-4 accent-primary cursor-pointer"
+                                aria-label={`Chọn ao ${p.code}`}
+                              />
+                            </td>
                             <td className="px-4 py-3.5 font-extrabold text-slate-800 whitespace-nowrap">{p.code}</td>
                             <td className="px-4 py-3.5 text-slate-700 font-semibold whitespace-nowrap">{p.owner_name || '—'}</td>
                             <td className="px-4 py-3.5 text-muted-foreground text-base font-semibold whitespace-nowrap">{p.agency_code || '—'}</td>
