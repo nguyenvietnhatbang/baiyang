@@ -4,7 +4,13 @@ import { differenceInDays, parseISO } from 'date-fns';
 import { base44 } from '@/api/base44Client';
 import { Camera, ChevronRight, Search } from 'lucide-react';
 import QRScanner from '@/components/scanner/QRScanner';
-import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
+import {
+  isPondInFieldUserScope,
+  loadPondsForFieldUser,
+  parsePondCodeFromQr,
+  pondCodesEqual,
+} from '@/lib/fieldAuthHelpers';
+import { useAuth } from '@/lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import PondStatusBadge from '@/components/ponds/PondStatusBadge';
@@ -19,6 +25,7 @@ const FIELD_HOME_HERO_STYLE = {
 };
 
 export default function FieldHome() {
+  const { user } = useAuth();
   const [ponds, setPonds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -26,8 +33,10 @@ export default function FieldHome() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!user) return;
     let cancelled = false;
-    base44.entities.Pond.listWithHouseholds('-updated_at', 500)
+    setLoading(true);
+    loadPondsForFieldUser(user)
       .then((rows) => {
         if (!cancelled) setPonds(rows || []);
       })
@@ -40,7 +49,7 @@ export default function FieldHome() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user]);
 
   const filteredPonds = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -67,8 +76,11 @@ export default function FieldHome() {
     }
     try {
       const p = await base44.entities.Pond.findByCodeFlattened(code);
-      if (p) navigate(`/field/log?pond=${encodeURIComponent(p.id)}`);
-      else toast.error('Không tìm thấy ao trong phạm vi của bạn');
+      if (p && isPondInFieldUserScope(user, p)) {
+        navigate(`/field/log?pond=${encodeURIComponent(p.id)}`);
+      } else {
+        toast.error('Không tìm thấy ao trong phạm vi của bạn');
+      }
     } catch {
       toast.error('Không tra được ao');
     }
@@ -82,27 +94,34 @@ export default function FieldHome() {
       >
         <div className="flex flex-col lg:flex-row lg:items-center lg:gap-6">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-[0.12em] text-white/80">
+            <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-[0.12em] text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]">
               Làm việc nhanh
             </p>
-            <h1 className="text-lg sm:text-xl font-bold mt-1.5 leading-snug text-white">
+            <h1 className="text-xl sm:text-2xl font-extrabold mt-1.5 leading-snug text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
               Chọn ao hoặc quét QR để ghi nhật ký
             </h1>
-            <p className="text-xs sm:text-sm text-white/90 mt-1.5 leading-relaxed max-w-xl">
-              Mã trên ao thường có dạng <span className="font-mono font-semibold text-emerald-200">POND:…</span>
+            <p className="text-sm sm:text-base text-white/95 mt-1.5 leading-relaxed max-w-xl font-semibold">
+              Mã trên ao thường có dạng{' '}
+              <span className="font-mono font-extrabold text-emerald-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]">
+                POND:…
+              </span>
             </p>
           </div>
           <button
             type="button"
             onClick={() => setScannerOpen(true)}
-            className="mt-4 lg:mt-0 w-full lg:w-auto lg:shrink-0 rounded-xl bg-white/95 hover:bg-white text-teal-900 font-bold text-sm sm:text-base py-3 px-4 flex items-center justify-center gap-3 shadow-sm border border-white/50 transition-colors active:scale-[0.99] min-h-[3rem] lg:min-w-[16rem]"
+            className="mt-4 lg:mt-0 w-full lg:w-auto lg:shrink-0 rounded-xl bg-teal-800/70 hover:bg-teal-800/85 !text-white font-bold text-sm sm:text-base py-3 px-4 flex items-center justify-center gap-3 shadow-sm border border-white/25 transition-colors active:scale-[0.99] min-h-[3rem] lg:min-w-[16rem]"
           >
-            <span className="w-10 h-10 rounded-lg bg-teal-700 text-white flex items-center justify-center shrink-0">
+            <span className="w-10 h-10 rounded-lg bg-white/15 text-white flex items-center justify-center shrink-0 border border-white/20">
               <Camera className="w-5 h-5" strokeWidth={2.25} />
             </span>
             <span className="text-left leading-tight">
-              Quét QR ao
-              <span className="block text-[11px] font-medium text-teal-800/75 mt-0.5">Cho phép camera khi trình duyệt hỏi</span>
+              <span className="block font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.20)]">
+                Quét QR ao
+              </span>
+              <span className="block text-[11px] font-extrabold text-white/80 mt-0.5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.16)]">
+                Cho phép camera khi trình duyệt hỏi
+              </span>
             </span>
           </button>
         </div>
@@ -112,9 +131,9 @@ export default function FieldHome() {
         <div className="flex flex-col gap-3 mb-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
             <div className="shrink-0">
-              <h2 className="text-lg font-bold text-stone-900 tracking-tight">Danh sách ao</h2>
+              <h2 className="text-lg font-bold text-stone-900 tracking-tight">Ao bạn phụ trách</h2>
               <p className="text-sm text-stone-500 mt-0.5 tabular-nums">
-                {loading ? 'Đang tải…' : `${filteredPonds.length} / ${ponds.length} ao`}
+                {loading ? 'Đang tải…' : `${filteredPonds.length} / ${ponds.length} ao trong phạm vi`}
               </p>
             </div>
             <div className="relative flex-1 min-w-0 w-full">

@@ -84,7 +84,7 @@ export default function FieldLayout() {
         </aside>
 
         <div className="flex-1 flex flex-col min-w-0 pb-[5.5rem] md:pb-0">
-          <header className="sticky top-0 z-30 md:hidden border-b border-stone-200 bg-white shadow-sm px-4 py-3.5 flex items-center justify-between gap-2">
+          <header className="sticky top-0 z-30 md:hidden border-b border-stone-200 bg-white shadow-sm px-4 py-3 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[10px] font-extrabold text-teal-950 uppercase tracking-[0.12em]">Hiện trường</p>
               <p className="text-base font-bold text-stone-900 truncate leading-tight mt-0.5">
@@ -100,13 +100,13 @@ export default function FieldLayout() {
             </button>
           </header>
 
-          <main className="px-4 py-5 md:px-8 md:py-8 w-full max-w-6xl mx-auto flex-1">
+          <main className="px-3 py-4 sm:px-4 sm:py-5 md:px-8 md:py-8 w-full max-w-6xl mx-auto flex-1">
             <Outlet />
           </main>
         </div>
       </div>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-stone-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex items-end justify-between px-1 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-stone-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex items-end justify-between px-2 h-16 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
         {nav.map(({ to, label, icon: Icon, end }) => {
           const active = end ? location.pathname === to : location.pathname.startsWith(to);
           return (
@@ -114,7 +114,7 @@ export default function FieldLayout() {
               key={to}
               to={to}
               className={cn(
-                'flex flex-col items-center justify-center gap-0.5 py-2 px-1.5 min-w-[3.75rem] rounded-xl text-[11px] font-semibold transition-colors',
+                'flex flex-col items-center justify-center gap-0.5 py-2 px-1 min-w-[3.7rem] rounded-xl text-[11px] font-semibold transition-colors',
                 active ? 'text-teal-800 bg-teal-50' : 'text-stone-700 hover:text-stone-900 hover:bg-stone-100'
               )}
             >
@@ -126,7 +126,7 @@ export default function FieldLayout() {
         <Link
           to="/field/scan"
           className={cn(
-            'flex flex-col items-center justify-center gap-1 py-2.5 px-4 min-w-[4.5rem] -mt-4 mx-0.5 rounded-2xl text-[11px] font-bold shadow-lg active:scale-[0.98] transition-transform border-2',
+            'flex flex-col items-center justify-center gap-1 py-2.5 px-3 min-w-[4.25rem] mx-0.5 rounded-2xl text-[11px] font-bold shadow-md active:scale-[0.99] transition-transform border-2',
             scanActive
               ? 'bg-teal-700 text-white border-teal-800'
               : 'bg-white text-teal-900 border-teal-600 shadow-stone-300/60'

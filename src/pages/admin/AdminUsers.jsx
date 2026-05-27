@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { normalizeVnPhone } from '@/lib/fieldAuthHelpers';
 import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
@@ -27,6 +27,86 @@ const ROLE_SELECT_ITEMS = [
   { value: 'agency', label: 'Đại lý' },
   { value: 'household_owner', label: 'Chủ hộ' },
 ];
+
+function HouseholdSearchSelect({ value, onChange, options, placeholder = 'Chọn hộ' }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) setSearch('');
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointerDown = (e) => {
+      const root = rootRef.current;
+      if (!root) return;
+      if (!root.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [open]);
+
+  const q = search.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!q) return options;
+    return options.filter((o) => {
+      const hay = String(o.searchText ?? o.label ?? '').toLowerCase();
+      return hay.includes(q);
+    });
+  }, [options, q]);
+
+  const cur = options.find((o) => String(o.value) === String(value)) || null;
+
+  return (
+    <div ref={rootRef} className="relative">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setOpen((v) => !v)}
+        className={`mt-1 h-10 w-full justify-between px-2 text-sm font-semibold ${!cur ? 'text-muted-foreground' : ''}`}
+      >
+        <span className="truncate text-left">{cur?.label || placeholder}</span>
+        <span className="ml-2 text-xs text-muted-foreground">▼</span>
+      </Button>
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 w-full min-w-[14rem] rounded-lg border border-border bg-popover shadow-md">
+          <div className="p-2 border-b border-border">
+            <Input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Gõ tên, mã hộ…"
+              className="h-9 text-sm font-semibold"
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto p-1">
+            {filtered.length === 0 ? (
+              <div className="px-2 py-2 text-xs font-semibold text-muted-foreground">Không có kết quả</div>
+            ) : (
+              filtered.map((o) => (
+                <button
+                  key={String(o.value)}
+                  type="button"
+                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm font-semibold hover:bg-accent hover:text-accent-foreground ${
+                    String(o.value) === String(value) ? 'bg-accent/60' : ''
+                  }`}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                >
+                  {o.label}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AdminUsers() {
   const [rows, setRows] = useState([]);
@@ -98,10 +178,12 @@ export default function AdminUsers() {
   );
   const householdSelectItems = useMemo(
     () =>
-      households.map((h) => ({
-        value: h.id,
-        label: `${h.name} (${formatHouseholdSegmentDisplay(h.household_segment)})`,
-      })),
+      households.map((h) => {
+        const seg = formatHouseholdSegmentDisplay(h.household_segment);
+        const label = `${h.name} (${seg})`;
+        const searchText = [h.name, seg, h.phone, h.address, h.region_code].filter(Boolean).join(' ');
+        return { value: h.id, label, searchText };
+      }),
     [households]
   );
 
@@ -404,18 +486,12 @@ export default function AdminUsers() {
             ) : (
               <div>
                 <Label>Hộ nuôi</Label>
-                <Select value={householdId} onValueChange={setHouseholdId}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Chọn hộ" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {households.map((h) => (
-                      <SelectItem key={h.id} value={h.id}>
-                        {h.name} ({formatHouseholdSegmentDisplay(h.household_segment)})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <HouseholdSearchSelect
+                  value={householdId}
+                  onChange={setHouseholdId}
+                  options={householdSelectItems}
+                  placeholder="Chọn hộ"
+                />
               </div>
             )}
             <DialogFooter>
@@ -475,18 +551,12 @@ export default function AdminUsers() {
             ) : (
               <div>
                 <Label>Hộ nuôi</Label>
-                <Select value={householdId} onValueChange={setHouseholdId}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Chọn hộ" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {households.map((h) => (
-                      <SelectItem key={h.id} value={h.id}>
-                        {h.name} ({formatHouseholdSegmentDisplay(h.household_segment)})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <HouseholdSearchSelect
+                  value={householdId}
+                  onChange={setHouseholdId}
+                  options={householdSelectItems}
+                  placeholder="Chọn hộ"
+                />
               </div>
             )}
             <DialogFooter>

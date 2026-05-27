@@ -2,31 +2,30 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
-import { isPondInFieldUserScope, parsePondCodeFromQr } from '@/lib/fieldAuthHelpers';
-import { useAuth } from '@/lib/AuthContext';
+import { parsePondCodeFromQr } from '@/lib/fieldAuthHelpers';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, ScanLine } from 'lucide-react';
 
-export default function FieldScanPage() {
-  const { user } = useAuth();
+export default function ScanPage() {
   const [rawCode, setRawCode] = useState('');
   const [resolving, setResolving] = useState(false);
   const navigate = useNavigate();
 
-  const handleScan = async (raw) => {
+  const resolveAndGo = async (raw) => {
     const code = parsePondCodeFromQr(raw);
     if (!code) {
       toast.error('Mã không hợp lệ');
       return;
     }
+    setResolving(true);
     try {
       const p = await base44.entities.Pond.findByCodeFlattened(code);
-      if (!p || !isPondInFieldUserScope(user, p)) {
-        toast.error('Không tìm thấy ao trong phạm vi của bạn');
+      if (!p?.id) {
+        toast.error('Không tìm thấy ao');
         return;
       }
-      navigate(`/field/log?pond=${encodeURIComponent(p.id)}`);
+      navigate(`/ponds/${encodeURIComponent(p.id)}?tab=log`);
     } catch {
       toast.error('Lỗi tra ao');
     } finally {
@@ -41,28 +40,21 @@ export default function FieldScanPage() {
       toast.error('Nhập hoặc quét mã trước khi tiếp tục');
       return;
     }
-    setResolving(true);
-    await handleScan(value);
+    await resolveAndGo(value);
   };
 
   return (
-    <div className="min-h-[70dvh] max-w-2xl mx-auto">
+    <div className="p-3 sm:p-6 w-full max-w-3xl mx-auto min-h-[60dvh] text-base font-semibold leading-normal">
       <div className="flex items-center gap-2 mb-4">
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          className="h-12 text-base border-stone-300 text-stone-900 font-medium"
-          onClick={() => navigate('/field', { replace: true })}
-        >
+        <Button type="button" variant="outline" className="h-11 text-base" onClick={() => navigate('/ponds')}>
           <ArrowLeft className="w-5 h-5 mr-1" />
-          Về trang chủ
+          Về quản lý ao
         </Button>
       </div>
 
-      <div className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5 shadow-sm">
-        <h1 className="text-lg sm:text-xl font-bold text-stone-900">Quét QR ao nuôi</h1>
-        <p className="text-sm text-stone-600 mt-1.5">
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-sm">
+        <h1 className="text-lg sm:text-xl font-extrabold text-foreground">Quét QR ao nuôi</h1>
+        <p className="text-sm text-muted-foreground mt-1.5 font-semibold">
           Dùng máy quét hoặc dán nội dung QR vào ô nhập bên cạnh.
         </p>
 
@@ -75,23 +67,28 @@ export default function FieldScanPage() {
             value={rawCode}
             onChange={(e) => setRawCode(e.target.value)}
             placeholder="Ví dụ: POND:17-01-001-01 hoặc 17-01-001-01"
-            className="h-14 text-base border-stone-300"
+            className="h-14 text-base"
           />
-          <Button type="submit" className="h-14 px-6 text-base font-bold bg-teal-600 hover:bg-teal-700" disabled={resolving}>
+          <Button
+            type="submit"
+            className="h-14 px-6 text-base font-extrabold bg-teal-600 hover:bg-teal-700 text-white"
+            disabled={resolving}
+          >
             {resolving ? 'Đang mở…' : 'Vào form nhật ký'}
           </Button>
         </form>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4 sm:p-5">
-        <p className="text-sm font-bold text-stone-900">Hướng dẫn sử dụng</p>
-        <ol className="mt-2 space-y-1.5 text-sm text-stone-700 list-decimal list-inside">
+      <div className="mt-4 rounded-2xl border border-border bg-muted/30 p-4 sm:p-5">
+        <p className="text-sm font-extrabold text-foreground">Hướng dẫn sử dụng</p>
+        <ol className="mt-2 space-y-1.5 text-sm text-muted-foreground list-decimal list-inside font-semibold">
           <li>Bấm vào ô nhập, đặt con trỏ sẵn.</li>
           <li>Dùng máy quét QR quét tem dán trên ao (hoặc dán mã thủ công).</li>
-          <li>Nhấn Enter hoặc bấm nút "Vào form nhật ký".</li>
+          <li>Nhấn Enter hoặc bấm nút &quot;Vào form nhật ký&quot;.</li>
           <li>Hệ thống tự chuyển sang form điền nhật ký của ao tương ứng.</li>
         </ol>
       </div>
     </div>
   );
 }
+

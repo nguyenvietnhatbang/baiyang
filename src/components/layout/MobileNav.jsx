@@ -1,11 +1,13 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Fish, ClipboardList, BarChart3, Building2, Settings, UserPlus } from 'lucide-react';
+import { LayoutDashboard, Fish, ClipboardList, BarChart3, Building2, Settings, UserPlus, ScanLine, LogIn } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
 const baseNavItems = [
   { path: '/', icon: LayoutDashboard, label: 'Tổng quan' },
   { path: '/ponds', icon: Fish, label: 'Ao' },
+  { path: '/scan', icon: ScanLine, label: 'QR' },
   { path: '/logs', icon: ClipboardList, label: 'Nhật ký' },
+  { path: '/login?view=1', matchPath: '/login', icon: LogIn, label: 'Login' },
   { path: '/reports', icon: BarChart3, label: 'BC' },
   { path: '/agencies', icon: Building2, label: 'ĐL' },
 ];
@@ -22,7 +24,7 @@ export default function MobileNav({ alertCount = 0 }) {
       style={{ background: 'hsl(var(--sidebar-background))' }}
     >
       {navItems.map(item => {
-        const active = location.pathname === item.path;
+        const active = location.pathname === (item.matchPath || item.path);
         return (
           <Link
             key={item.path}

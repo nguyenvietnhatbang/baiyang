@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { base44 } from '@/api/base44Client';
+import { isPondInFieldUserScope } from '@/lib/fieldAuthHelpers';
+import { useAuth } from '@/lib/AuthContext';
 import { submitPondLogEntry } from '@/lib/pondLogSubmit';
 import { POND_LOG_ENV_RANGES, pondLogEnvOutOfRange } from '@/lib/pondLogEnvRanges';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
@@ -85,6 +87,7 @@ function SectionToggle({ open, onToggle, label, subtitle }) {
 }
 
 export default function FieldLogPage() {
+  const { user } = useAuth();
   const [params] = useSearchParams();
   const pondId = params.get('pond');
 
@@ -121,6 +124,10 @@ export default function FieldLogPage() {
       .getWithCycles(pondId)
       .then((p) => {
         if (cancelled) return;
+        if (p && !isPondInFieldUserScope(user, p)) {
+          setPond(null);
+          return;
+        }
         setPond(p || null);
         const cycles = p?.pond_cycles || [];
         const def = pickActiveCycle(cycles)?.id || cycles[0]?.id || '';
@@ -138,7 +145,7 @@ export default function FieldLogPage() {
     return () => {
       cancelled = true;
     };
-  }, [pondId]);
+  }, [pondId, user]);
 
   useEffect(() => {
     if (!fieldCycleId) {

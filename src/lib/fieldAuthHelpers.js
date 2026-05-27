@@ -72,3 +72,55 @@ export function parsePondCodeFromQr(text) {
 export function pondCodesEqual(a, b) {
   return String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
 }
+
+function pondHouseholdId(pond) {
+  return pond?.household_id ?? pond?.households?.id ?? null;
+}
+
+/** Ao có nằm trong phạm vi tài khoản hiện trường (đại lý / chủ hộ) không. */
+export function isPondInFieldUserScope(user, pond) {
+  if (!user || !pond) return false;
+  if (user.role === 'household_owner') {
+    if (!user.household_id) return false;
+    const hid = pondHouseholdId(pond);
+    return hid != null && String(hid) === String(user.household_id);
+  }
+  if (user.role === 'agency') {
+    if (user.agency_code && pond.agency_code) {
+      return String(pond.agency_code) === String(user.agency_code);
+    }
+    const hhAgency = pond?.households?.agency_id;
+    if (user.agency_id && hhAgency) {
+      return String(hhAgency) === String(user.agency_id);
+    }
+    return false;
+  }
+  return false;
+}
+
+export function filterPondsForFieldUser(user, ponds) {
+  if (!user) return [];
+  return (ponds || []).filter((p) => isPondInFieldUserScope(user, p));
+}
+
+/** Danh sách ao thuộc phạm vi phụ trách của user hiện trường. */
+export async function loadPondsForFieldUser(user) {
+  const { base44 } = await import('@/api/base44Client');
+  const allPonds = await base44.entities.Pond.listWithHouseholds('code', 500);
+  if (!user) return [];
+
+  if (user.role === 'household_owner' && user.household_id) {
+    return (allPonds || []).filter((p) => String(pondHouseholdId(p)) === String(user.household_id));
+  }
+
+  if (user.role === 'agency' && user.agency_id) {
+    const hh = await base44.entities.Household.filter({ agency_id: user.agency_id }, 'name', 500);
+    const hhIds = new Set((hh || []).map((h) => String(h.id)));
+    return (allPonds || []).filter((p) => {
+      const hid = pondHouseholdId(p);
+      return hid && hhIds.has(String(hid));
+    });
+  }
+
+  return filterPondsForFieldUser(user, allPonds || []);
+}

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { base44, isSupabaseConfigured } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Fish, LogIn } from 'lucide-react';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { normalizeVnPhone, isFieldRole } from '@/lib/fieldAuthHelpers';
@@ -14,16 +15,42 @@ function looksLikeEmail(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
 }
 
+const LOGIN_BG_STYLE = {
+  backgroundImage:
+    "linear-gradient(rgba(9, 30, 66, 0.78), rgba(9, 30, 66, 0.88)), url('https://images.unsplash.com/photo-1757489383041-04e15c2adb1e?auto=format&fit=crop&w=2200&q=80')",
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  backgroundRepeat: 'no-repeat',
+};
+
 export default function Login() {
   const { user, isAuthenticated, isLoadingAuth, isLoadingPublicSettings, checkUserAuth } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const from = location.state?.from || '/';
+  const forceLoginView = useMemo(() => {
+    const sp = new URLSearchParams(location.search || '');
+    return sp.get('view') === '1';
+  }, [location.search]);
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const initialMode = useMemo(() => {
+    const sp = new URLSearchParams(location.search || '');
+    // Mặc định luôn mở vào "Hiện trường"
+    if (sp.get('office') === '1' || sp.get('mode') === 'office') return 'office';
+    if (sp.get('mode') === 'field') return 'field';
+    return 'field';
+  }, [location.search]);
+
+  const [loginMode, setLoginMode] = useState(initialMode);
+
+  useEffect(() => {
+    setLoginMode(initialMode);
+  }, [initialMode]);
 
   useEffect(() => {
     document.title = 'Đăng nhập';
@@ -52,7 +79,7 @@ export default function Login() {
     );
   }
 
-  if (isAuthenticated && !user?.fieldSession) {
+  if (isAuthenticated && !user?.fieldSession && !forceLoginView) {
     if (isFieldRole(user?.role)) {
       return <Navigate to="/field" replace />;
     }
@@ -64,12 +91,17 @@ export default function Login() {
     setError('');
     const idRaw = identifier.trim();
     if (!idRaw || !password) {
-      setError('Nhập email hoặc số điện thoại và mật khẩu');
+      setError(loginMode === 'field' ? 'Nhập số điện thoại và mật khẩu' : 'Nhập email và mật khẩu');
       return;
     }
     setSubmitting(true);
     try {
-      if (looksLikeEmail(idRaw)) {
+      if (loginMode === 'office') {
+        if (!looksLikeEmail(idRaw)) {
+          setError('Tài khoản văn phòng dùng địa chỉ email.');
+          setSubmitting(false);
+          return;
+        }
         await base44.auth.signInWithPassword(idRaw, password);
         base44.auth.clearDevLoggedOutFlag();
         await checkUserAuth({ silent: true });
@@ -80,6 +112,11 @@ export default function Login() {
           navigate(from, { replace: true });
         }
       } else {
+        if (looksLikeEmail(idRaw)) {
+          setError('Tab hiện trường dùng số điện thoại. Chuyển sang tab Văn phòng nếu đăng nhập bằng email.');
+          setSubmitting(false);
+          return;
+        }
         const norm = normalizeVnPhone(idRaw);
         if (!norm || norm.length < 10) {
           setError('Số điện thoại không hợp lệ. Tài khoản văn phòng dùng địa chỉ email.');
@@ -109,14 +146,14 @@ export default function Login() {
   const fieldSessionActive = isAuthenticated && user?.fieldSession;
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[hsl(213,65%,18%)]">
+    <div className="min-h-screen flex items-center justify-center p-4" style={LOGIN_BG_STYLE}>
       <div className="w-full max-w-md rounded-2xl border border-blue-900/50 bg-[hsl(213,55%,22%)] shadow-xl p-8 space-y-6">
         <div className="flex flex-col items-center text-center gap-2">
           <div className="w-12 h-12 rounded-xl bg-blue-400/20 flex items-center justify-center">
             <Fish className="w-6 h-6 text-blue-300" />
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Đăng nhập</h1>
-          <p className="text-sm text-slate-300 leading-snug max-w-xs">
+          <h1 className="text-3xl font-extrabold text-white tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]">Đăng nhập</h1>
+          <p className="text-base text-slate-100 leading-snug max-w-xs font-semibold">
             Một ô duy nhất: <strong className="text-white font-semibold">email</strong> (văn phòng) hoặc{' '}
             <strong className="text-white font-semibold">số điện thoại</strong> (hiện trường), cùng mật khẩu.
           </p>
@@ -160,9 +197,27 @@ export default function Login() {
           {error ? (
             <p className="text-sm text-red-200 bg-red-950/40 border border-red-800/50 rounded-lg px-3 py-2">{error}</p>
           ) : null}
+
+          <Tabs value={loginMode} onValueChange={(v) => setLoginMode(v)} className="w-full">
+            <TabsList className="grid grid-cols-2 w-full bg-[hsl(213,45%,18%)] border border-slate-400/60 h-12">
+              <TabsTrigger
+                value="office"
+                className="text-lg font-extrabold text-slate-100 data-[state=active]:text-white data-[state=active]:bg-teal-700 data-[state=active]:shadow-sm"
+              >
+                Văn phòng
+              </TabsTrigger>
+              <TabsTrigger
+                value="field"
+                className="text-lg font-extrabold text-slate-100 data-[state=active]:text-white data-[state=active]:bg-teal-700 data-[state=active]:shadow-sm"
+              >
+                Hiện trường
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           <div>
-            <Label htmlFor="login-identifier" className="text-slate-100 text-xs font-semibold">
-              Email hoặc số điện thoại
+            <Label htmlFor="login-identifier" className="text-slate-50 text-lg font-bold">
+              {loginMode === 'field' ? 'Số điện thoại' : 'Email'}
             </Label>
             <Input
               id="login-identifier"
@@ -172,11 +227,11 @@ export default function Login() {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               className="mt-1.5 h-12 text-base bg-[hsl(213,45%,18%)] border-slate-500/50 text-white placeholder:text-slate-400"
-              placeholder="email@congty.com hoặc 0987 654 321"
+              placeholder={loginMode === 'field' ? '0987 654 321' : 'email@congty.com'}
             />
           </div>
           <div>
-            <Label htmlFor="login-password" className="text-slate-100 text-xs font-semibold">
+            <Label htmlFor="login-password" className="text-slate-50 text-lg font-bold">
               Mật khẩu
             </Label>
             <Input

@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Fish, ClipboardList, BarChart3, 
   Building2, Factory, ChevronRight, ChevronLeft, Menu, Settings, LogOut, UserPlus,
+  ScanLine, LogIn,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/AuthContext';
@@ -9,7 +10,9 @@ import { useAuth } from '@/lib/AuthContext';
 const baseNavItems = [
   { path: '/', icon: LayoutDashboard, label: 'Tổng quan' },
   { path: '/ponds', icon: Fish, label: 'Quản lý ao' },
+  { path: '/scan', icon: ScanLine, label: 'Quét QR' },
   { path: '/logs', icon: ClipboardList, label: 'Nhật ký' },
+  { path: '/login?view=1', matchPath: '/login', icon: LogIn, label: 'Đăng nhập' },
   { path: '/reports', icon: BarChart3, label: 'Báo cáo' },
   { path: '/factory-plan', icon: Factory, label: 'Kế hoạch nhà máy' },
   { path: '/agencies', icon: Building2, label: 'Đại lý' },
@@ -77,7 +80,7 @@ export default function Sidebar({ alertCount = 0, collapsed, onToggle }) {
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          const active = location.pathname === item.path;
+          const active = location.pathname === (item.matchPath || item.path);
           return (
             <Link
               key={item.path}

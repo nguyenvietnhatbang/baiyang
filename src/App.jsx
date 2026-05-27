@@ -26,6 +26,7 @@ import FieldLogPage from '@/pages/field/FieldLogPage';
 import FieldHouseholdPage from '@/pages/field/FieldHouseholdPage';
 import FieldScanPage from '@/pages/field/FieldScanPage';
 import AdminUsers from '@/pages/admin/AdminUsers';
+import ScanPage from '@/pages/ScanPage';
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
               <Route element={<OfficeRoleGate />}>
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<Dashboard />} />
+                  <Route path="/scan" element={<ScanPage />} />
                   <Route path="/ponds" element={<Ponds />} />
                   <Route path="/ponds/:pondId" element={<PondDetailPage />} />
                   <Route path="/logs" element={<Logs />} />
