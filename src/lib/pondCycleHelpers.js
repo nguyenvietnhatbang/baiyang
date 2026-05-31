@@ -39,7 +39,7 @@ const CYCLE_FIELDS = [
 export function canOfferManualChotThuHoach(row) {
   if (!row?.cycle_id) return false;
   if (String(row.status ?? '').toUpperCase() !== 'CC') return false;
-  if (row.harvest_done === true && String(row.status ?? '').toUpperCase() === 'CT') return false;
+  if (String(row.notes ?? '').includes('[chot_thu]')) return false;
   const need = row.yield_need_harvest;
   return need != null && Number.isFinite(Number(need)) && Number(need) > 0;
 }

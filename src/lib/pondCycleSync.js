@@ -1,5 +1,5 @@
 import { base44 } from '@/api/base44Client';
-import { computeFcr } from '@/lib/fcr';
+import { harvestSyncPatchFromRecords } from '@/lib/cycleHarvestCompletion';
 
 const LIST_LIMIT = 8000;
 
@@ -44,36 +44,19 @@ export async function syncPondCyclesWithHarvests() {
 
   for (const cycle of allCycles) {
     const hs = byCycleId.get(String(cycle.id)) || [];
-    const totalActualYield = hs.reduce((sum, x) => sum + (Number(x.actual_yield) || 0), 0);
-    const manuallyClosedNoTickets =
-      Boolean(cycle.harvest_done) &&
-      String(cycle.status || '').toUpperCase() === 'CT' &&
-      totalActualYield === 0;
-    const isHarvested = totalActualYield > 0 || manuallyClosedNoTickets;
+    const patch = harvestSyncPatchFromRecords(cycle, hs);
 
-    let fcr = null;
-    if (cycle.total_feed_used && totalActualYield > 0) {
-      fcr = computeFcr(cycle.total_feed_used, totalActualYield);
-    }
-
-    const nextStatus = isHarvested ? 'CT' : cycle.status;
-    const patch = {
-      actual_yield: totalActualYield,
-      harvest_done: isHarvested,
-      fcr,
-      status: nextStatus,
-      ...(isHarvested ? { current_fish: 0 } : {}),
-    };
-
-    const yMatch = Math.abs(Number(cycle.actual_yield || 0) - totalActualYield) < 0.01;
-    const dMatch = Boolean(cycle.harvest_done) === isHarvested;
+    const yMatch = Math.abs(Number(cycle.actual_yield || 0) - patch.actual_yield) < 0.01;
+    const dMatch = Boolean(cycle.harvest_done) === Boolean(patch.harvest_done);
     const fMatch =
-      (cycle.fcr == null && fcr == null) ||
+      (cycle.fcr == null && patch.fcr == null) ||
       (cycle.fcr != null &&
-        fcr != null &&
-        Math.abs(Number(cycle.fcr) - Number(fcr)) < 0.0001);
-    const sMatch = cycle.status === nextStatus;
-    const fishOk = !isHarvested || Number(cycle.current_fish || 0) === 0;
+        patch.fcr != null &&
+        Math.abs(Number(cycle.fcr) - Number(patch.fcr)) < 0.0001);
+    const sMatch = cycle.status === patch.status;
+    const fishOk =
+      patch.current_fish == null ||
+      Math.abs(Number(cycle.current_fish || 0) - Number(patch.current_fish || 0)) < 0.5;
 
     if (yMatch && dMatch && fMatch && sMatch && fishOk) continue;
 
@@ -104,19 +87,7 @@ export async function recalculateFcrForCycle(cycleId) {
   }
 
   const harvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycleId });
-  const totalActualYield = harvests.reduce((sum, h) => sum + (h.actual_yield || 0), 0);
-
-  let fcr = null;
-  if (cycle.total_feed_used && totalActualYield > 0) {
-    fcr = computeFcr(cycle.total_feed_used, totalActualYield);
-  }
-
-  await base44.entities.PondCycle.update(cycleId, {
-    actual_yield: totalActualYield,
-    harvest_done: totalActualYield > 0,
-    fcr,
-    status: totalActualYield > 0 ? 'CT' : cycle.status,
-  });
-
-  return { cycleId, actual_yield: totalActualYield, fcr };
+  const patch = harvestSyncPatchFromRecords(cycle, harvests);
+  await base44.entities.PondCycle.update(cycleId, patch);
+  return { cycleId, actual_yield: patch.actual_yield, fcr: patch.fcr };
 }

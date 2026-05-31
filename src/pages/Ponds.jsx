@@ -53,6 +53,7 @@ import {
   isHarvestDateOnOrBeforeToday,
   isHarvestDateWithinUpcomingDays,
 } from '@/lib/harvestAlerts';
+import { appendManualCloseNote, shouldShowCycleOnHarvestedTab } from '@/lib/cycleHarvestCompletion';
 
 function SearchableSelect({ label, value, onChange, options, placeholder = 'Chọn...', disabled }) {
   const [open, setOpen] = useState(false);
@@ -138,28 +139,28 @@ const POND_STATUS_FILTER_ITEMS = [
 
 /** Thứ tự bảng Chu kỳ (khớp màn hình quản lý); cột Thao tác luôn cuối (render sticky riêng). */
 const CYCLE_COLUMNS_BASE = [
-  { key: 'agency_code', label: 'ĐẠI LÝ' },
-  { key: 'owner_name', label: 'CHỦ HỘ' },
-  { key: 'pond_code', label: 'MÃ AO' },
-  { key: 'cycle_name', label: 'CHU KỲ' },
-  { key: 'status', label: 'TRẠNG THÁI' },
-  { key: 'stock_date', label: 'NGÀY THẢ' },
-  { key: 'total_fish', label: 'SỐ CÁ BAN ĐẦU' },
-  { key: 'stocked_fish_added', label: 'SỐ CÁ THẢ THÊM' },
-  { key: 'current_fish', label: 'SỐ CÁ HIỆN TẠI' },
-  { key: 'expected_yield', label: 'SẢN LƯỢNG DỰ KIẾN' },
-  { key: 'actual_yield', label: 'SẢN LƯỢNG ĐÃ THU' },
-  { key: 'yield_need_harvest', label: 'SẢN LƯỢNG CẦN PHẢI THU' },
-  { key: 'expected_harvest_date', label: 'THU HOẠCH DỰ KIẾN' },
-  { key: 'total_feed_used', label: 'TỔNG THỨC ĂN' },
-  { key: 'fcr', label: 'FCR' },
-  { key: 'alerts', label: 'CẢNH BÁO' },
-  { key: 'actions', label: '' },
+  { key: 'agency_code', label: 'ĐL', title: 'Đại lý' },
+  { key: 'owner_name', label: 'CHỦ HỘ', title: 'Chủ hộ' },
+  { key: 'pond_code', label: 'MÃ AO', title: 'Mã ao' },
+  { key: 'cycle_name', label: 'CHU KỲ', title: 'Chu kỳ' },
+  { key: 'status', label: 'TT', title: 'Trạng thái' },
+  { key: 'stock_date', label: 'NGÀY THẢ', title: 'Ngày thả' },
+  { key: 'total_fish', label: 'CÁ BĐ', title: 'Số cá ban đầu' },
+  { key: 'stocked_fish_added', label: 'THẢ THÊM', title: 'Số cá thả thêm' },
+  { key: 'current_fish', label: 'CÁ HIỆN', title: 'Số cá hiện tại' },
+  { key: 'expected_yield', label: 'SL DK', title: 'Sản lượng dự kiến (kg)' },
+  { key: 'actual_yield', label: 'SL THU', title: 'Sản lượng đã thu (kg)' },
+  { key: 'yield_need_harvest', label: 'SL CẦN', title: 'Sản lượng cần phải thu (kg)' },
+  { key: 'expected_harvest_date', label: 'THU DK', title: 'Thu hoạch dự kiến' },
+  { key: 'total_feed_used', label: 'THỨC ĂN', title: 'Tổng thức ăn (kg)' },
+  { key: 'fcr', label: 'FCR', title: 'FCR' },
+  { key: 'alerts', label: 'CB', title: 'Cảnh báo' },
+  { key: 'actions', label: '', title: 'Thao tác' },
 ];
 
 const HARVESTED_TAB_FISH_COLUMNS = [
-  { key: 'fish_harvested', label: 'SỐ CÁ ĐÃ THU' },
-  { key: 'fish_remaining', label: 'SỐ CÁ CÒN PHẢI THU' },
+  { key: 'fish_harvested', label: 'CÁ THU', title: 'Số cá đã thu' },
+  { key: 'fish_remaining', label: 'CÁ CÒN', title: 'Số cá còn phải thu' },
 ];
 
 function insertColumnsBeforeKey(base, beforeKey, toInsert) {
@@ -173,7 +174,12 @@ function cycleColumnDefsForMainTab(mainTab) {
     const withoutYieldKgCols = CYCLE_COLUMNS_BASE.filter(
       (c) => c.key !== 'actual_yield' && c.key !== 'yield_need_harvest'
     );
-    return insertColumnsBeforeKey(withoutYieldKgCols, 'expected_harvest_date', HARVESTED_TAB_FISH_COLUMNS);
+    const withFishCols = insertColumnsBeforeKey(withoutYieldKgCols, 'expected_harvest_date', HARVESTED_TAB_FISH_COLUMNS);
+    return withFishCols.map((c) =>
+      c.key === 'expected_harvest_date'
+        ? { ...c, label: 'NGÀY THU', title: 'Ngày thu hoạch thực tế' }
+        : c
+    );
   }
   return CYCLE_COLUMNS_BASE;
 }
@@ -230,43 +236,6 @@ function computeYieldNeedFromPlanMinusActual(planKg, actualKg) {
   const a = Number(actualKg) || 0;
   if (!Number.isFinite(p) || p <= 0) return null;
   return Math.max(0, p - a);
-}
-
-/** Đã chốt kết thúc chu kỳ (xác nhận trong danh sách / thao tác thủ công): sang tab Chu kỳ đã thu kể cả khi kg kế hoạch > thực tế. */
-function isChuKyChotThuHoach(r) {
-  return r.harvest_done === true && String(r.status ?? '').toUpperCase() === 'CT';
-}
-
-/**
- * Số cá còn lại để phân tab: chỉ sang «Chu kỳ đã thu» khi đã có hoạt động thu và còn = 0.
- * null = chưa xác định / chưa thu — giữ ở Chu kỳ.
- */
-function effectiveFishRemainingForTabSplit(r) {
-  if (r.fish_remaining != null && !Number.isNaN(Number(r.fish_remaining))) {
-    return Number(r.fish_remaining);
-  }
-  const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
-  if (!hasHarvest) return null;
-  if (r.current_fish != null && !Number.isNaN(Number(r.current_fish))) {
-    return Math.max(0, Number(r.current_fish));
-  }
-  // Đã chốt CT + có thực thu nhưng thiếu tồn/phiếu con: coi là đã thu hết (tránh kẹt ở tab Chu kỳ)
-  if (r.status === 'CT' && hasHarvest) {
-    return 0;
-  }
-  return null;
-}
-
-/** «Sản lượng cần phải thu» có giá trị số và ≤ 0 → không còn kg cần thu theo kế hoạch, hiển thị ở tab đã thu. */
-function isYieldNeedHarvestDone(r) {
-  const y = r.yield_need_harvest;
-  return y != null && !Number.isNaN(Number(y)) && Number(y) <= 0;
-}
-
-/** Còn kg theo kế hoạch cần thu (> 0) → luôn ở tab Chu kỳ, không sang «Chu kỳ đã thu» (trừ khi đã chốt thủ công). */
-function isYieldNeedStillActive(r) {
-  const y = r.yield_need_harvest;
-  return y != null && !Number.isNaN(Number(y)) && Number(y) > 0;
 }
 
 function NewPondDialog({ open, onClose, onCreated, agencies, appSettings, initialHouseholdId = '' }) {
@@ -585,6 +554,12 @@ export default function Ponds() {
   }, []);
 
   useEffect(() => {
+    if (mainTab === 'cyclesHarvested' && cycleDateField === 'expected_harvest') {
+      setCycleDateField('actual_harvest');
+    }
+  }, [mainTab, cycleDateField]);
+
+  useEffect(() => {
     if (cycleHarvestMonth === 'all') return;
     const m = Number(cycleHarvestMonth);
     const y = Number(cycleHarvestYear);
@@ -777,6 +752,7 @@ export default function Ponds() {
             total_feed_used: c.total_feed_used ?? 0,
             latest_harvest_date,
             harvest_dates_ymd,
+            cycle_notes: c.notes,
             raw: p,
           };
           const fish = computeFishHarvestCounts(base, ticketFishByCycle);
@@ -854,18 +830,10 @@ export default function Ponds() {
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
       if (!rowMatchesCycleDateRange(r, cycleDateField, cycleDateFrom, cycleDateTo)) return false;
 
-      if (isChuKyChotThuHoach(r)) return false;
+      if (shouldShowCycleOnHarvestedTab(r)) return false;
 
-      // Còn SL cần thu (kg) theo kế hoạch → ưu tiên tab Chu kỳ, trừ khi đã chốt kết thúc chu kỳ (sang Chu kỳ đã thu)
-      if (isYieldNeedStillActive(r) && !isChuKyChotThuHoach(r)) return true;
-
-      const rem = effectiveFishRemainingForTabSplit(r);
-      const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
-      // Đã thu hết cá (còn 0 con) → chỉ hiển thị tab «Chu kỳ đã thu»
-      if (hasHarvest && rem === 0) return false;
-      // SL cần phải thu ≤ 0 (đủ / vượt kế hoạch kg) → tab «Chu kỳ đã thu»
-      if (isYieldNeedHarvestDone(r)) return false;
-
+      const hasHarvest =
+        (Number(r.actual_harvest_display_kg) || Number(r.actual_yield) || 0) > 0;
       const hasPlan = Boolean(r.stock_date) || (Number(r.total_fish) || 0) > 0;
       const hasFish = String(r.status ?? '').toUpperCase() === 'CC';
       const diff = calendarDaysUntilHarvest(r.expected_harvest_date, today);
@@ -878,9 +846,7 @@ export default function Ponds() {
         !harvestComplete && r.withdrawal_end_date && withdrawalDiff !== null && withdrawalDiff >= 0;
       const hasAlert = Boolean(isUrgent || isWithdrawal || isUpcomingHarvest);
 
-      // Thu một phần (còn cá) — luôn ở Chu kỳ để theo dõi
-      const partialHarvest = hasHarvest && rem != null && rem > 0;
-      if (partialHarvest) return true;
+      if (hasHarvest) return true;
 
       return hasPlan || hasFish || hasAlert;
     });
@@ -927,12 +893,7 @@ export default function Ponds() {
       if (!(matchSearch && matchStatus && matchAgency && matchHousehold)) return false;
       if (!rowMatchesCycleDateRange(r, cycleDateField, cycleDateFrom, cycleDateTo)) return false;
       if (!r.cycle_id) return false;
-      if (isChuKyChotThuHoach(r)) return true;
-      if (isYieldNeedStillActive(r) && !isChuKyChotThuHoach(r)) return false;
-      if (isYieldNeedHarvestDone(r)) return true;
-      const rem = effectiveFishRemainingForTabSplit(r);
-      const hasHarvest = r.harvest_done === true || (Number(r.actual_yield) || 0) > 0;
-      return hasHarvest && rem === 0;
+      return shouldShowCycleOnHarvestedTab(r);
     });
   }, [cycleRows, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo]);
   useEffect(() => {
@@ -987,10 +948,13 @@ export default function Ponds() {
     try {
       await Promise.all(
         [...checkedHarvest].map(async (cycleId) => {
+          const rows = await base44.entities.PondCycle.filter({ id: cycleId }, '-updated_at', 1);
+          const c = rows?.[0];
           await base44.entities.PondCycle.update(cycleId, {
             harvest_done: true,
             status: 'CT',
             current_fish: 0,
+            notes: appendManualCloseNote(c?.notes),
           });
         })
       );
@@ -1007,10 +971,13 @@ export default function Ponds() {
     if (!confirmManualCloseCycleId) return;
     setClosingManualCycle(true);
     try {
+      const rows = await base44.entities.PondCycle.filter({ id: confirmManualCloseCycleId }, '-updated_at', 1);
+      const c = rows?.[0];
       await base44.entities.PondCycle.update(confirmManualCloseCycleId, {
         harvest_done: true,
         status: 'CT',
         current_fish: 0,
+        notes: appendManualCloseNote(c?.notes),
       });
       setConfirmManualCloseCycleId(null);
       setConfirmManualCloseLabel('');
@@ -1581,7 +1548,7 @@ export default function Ponds() {
           <div className="space-y-2 py-1">
             {cycleColumnDefs.map((col) => (
               <label key={col.key} className="flex items-center justify-between gap-3 text-base font-semibold">
-                <span>{col.label}</span>
+                <span title={col.title || col.label}>{col.title || col.label}</span>
                 <input
                   type="checkbox"
                   checked={Boolean(effectiveVisibleCols[col.key])}

@@ -1,6 +1,7 @@
 import { differenceInCalendarDays, startOfDay } from 'date-fns';
 import { parseHarvestDateInput } from '@/lib/harvestDateParse';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { cycleNotesHaveManualClose, isLegacyAccidentalPartialClose } from '@/lib/cycleHarvestCompletion';
 
 export { parseHarvestDateInput };
 
@@ -49,16 +50,16 @@ export function isHarvestDateWithinUpcomingDays(diff, alertDays) {
 /**
  * Chu kỳ đã xong thu (tắt cảnh báo THU): đủ kg kế hoạch, SL cần thu ≤ 0, hoặc hết cá (theo phiếu/ước).
  *
- * Không dùng `harvest_done` một mình: đồng bộ phiếu thu (`harvestRecordSync`) đặt harvest_done = true
- * chỉ cần totalActualYield > 0 (thu một phần) — sẽ làm tắt nhầm mọi cảnh báo.
+ * Không dùng `harvest_done` một mình khi chưa chốt thủ công (tag [chot_thu]).
  */
 export function isCycleHarvestCompleteForAlerts(row) {
   if (!row) return false;
-  if (row.harvest_done === true && String(row.status ?? '').toUpperCase() === 'CT') return true;
+  const actual = Number(row.actual_harvest_display_kg) || Number(row.actual_yield) || 0;
+  if (isLegacyAccidentalPartialClose(row, actual)) return false;
+  if (cycleNotesHaveManualClose(row.cycle_notes ?? row.notes)) return true;
   const yNeed = row.yield_need_harvest;
   if (yNeed != null && Number.isFinite(Number(yNeed)) && Number(yNeed) <= 0) return true;
   const planned = Number(row.expected_yield) || 0;
-  const actual = Number(row.actual_harvest_display_kg) || Number(row.actual_yield) || 0;
   if (planned > 0 && actual >= planned) return true;
   const remFish = row.fish_remaining;
   if (remFish != null && Number.isFinite(Number(remFish)) && Number(remFish) <= 0) {

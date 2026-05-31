@@ -13,6 +13,13 @@ import {
 import PondTableFilterControls from '@/components/ponds/PondTableFilterControls';
 import { canOfferManualChotThuHoach } from '@/lib/pondCycleHelpers';
 import {
+  cycleTable,
+  cycleColgroupPlan,
+  cycleThClass,
+  cycleTdClass,
+  cycleTdOpts,
+} from '@/components/ponds/cycleTableLayout';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -71,6 +78,15 @@ export default function PondCycleListTabPanel({
 
   /** Chỉ render ô dữ liệu khi cột có trong columnDefs — tránh lệch với thead (tab Chu kỳ không có cột cá đã thu). */
   const defKeys = useMemo(() => new Set(columnDefs.map((c) => c.key)), [columnDefs]);
+  const colPlan = useMemo(
+    () => cycleColgroupPlan(columnDefs, visibleCols, { showCheck: true, showActions: Boolean(visibleCols.actions) }),
+    [columnDefs, visibleCols]
+  );
+  const thAlignFor = (key) =>
+    ['total_fish', 'stocked_fish_added', 'current_fish', 'expected_yield', 'actual_yield', 'yield_need_harvest', 'fish_harvested', 'fish_remaining', 'total_feed_used', 'fcr'].includes(key)
+      ? 'right'
+      : 'left';
+  const cell = (key, extra = '') => `${cycleTdClass(key, cycleTdOpts(key))}${extra ? ` ${extra}` : ''}`;
 
   return (
     <>
@@ -177,12 +193,11 @@ export default function PondCycleListTabPanel({
                 area: r.area,
                 current_fish: r.current_fish,
                 expected_yield: r.expected_yield,
-                expected_harvest_date: r.expected_harvest_date,
-                harvest_date_estimated: r.expected_harvest_date_estimated,
+                expected_harvest_date: isHarvestedView ? r.latest_harvest_date : r.expected_harvest_date,
+                harvest_date_estimated: isHarvestedView ? false : r.expected_harvest_date_estimated,
                 withdrawal_end_date: r.withdrawal_end_date,
                 fcr: r.fcr,
                 agency_code: r.agency_code,
-                harvest_done: r.harvest_done,
                 actual_yield: r.actual_yield,
                 actual_harvest_display_kg: r.actual_harvest_display_kg,
                 yield_need_harvest: r.yield_need_harvest,
@@ -199,18 +214,26 @@ export default function PondCycleListTabPanel({
 
       <div className="hidden sm:block bg-card rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-base min-w-[1200px]">
+          <table className={cycleTable.root}>
+            <colgroup>
+              {colPlan.map((col) => (
+                <col key={col.key} style={{ width: `${col.pct}%` }} />
+              ))}
+            </colgroup>
             <thead>
               <tr className="bg-muted/30 border-b border-border">
-                <th className="px-4 py-3.5 w-8 whitespace-nowrap" />
+                <th className={cycleTable.checkCol} />
                 {columnDefs.filter((c) => visibleCols[c.key] && c.key !== 'actions').map((h) => (
-                  <th key={h.key} className="text-left px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                  <th key={h.key} title={h.title || h.label} className={cycleThClass(h.key, thAlignFor(h.key))}>
                     {h.label}
                   </th>
                 ))}
                 {visibleCols.actions && (
-                  <th className="sticky right-0 bg-muted/30 text-center px-4 py-3.5 text-base font-extrabold text-muted-foreground uppercase tracking-wide whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]">
-                    THAO TÁC
+                  <th
+                    title="Thao tác"
+                    className={`sticky right-0 bg-muted/30 ${cycleTable.th} ${cycleTable.thCenter} ${cycleTable.actionsCol} border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]`}
+                  >
+                    ···
                   </th>
                 )}
               </tr>
@@ -265,7 +288,7 @@ export default function PondCycleListTabPanel({
                       onClick={() => (r.cycle_id ? setViewCycleId(r.cycle_id) : setViewPondId(r.pond_id))}
                       className={`hover:bg-primary/5 cursor-pointer transition-colors ${isNewGroup ? 'border-t-2 border-t-muted/40' : ''} ${isOverdue ? 'bg-red-50/40' : isUrgent ? 'bg-yellow-50/40' : isUpcomingHarvest ? 'bg-amber-50/25' : ''}`}
                     >
-                      <td className="px-4 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <td className={cycleTable.checkCol} onClick={(e) => e.stopPropagation()}>
                         {canOfferManualChotThuHoach(r) && (
                           <input
                             type="checkbox"
@@ -277,43 +300,53 @@ export default function PondCycleListTabPanel({
                         )}
                       </td>
                       {visibleCols.agency_code && (
-                        <td className="px-4 py-3.5 text-muted-foreground text-base font-semibold whitespace-nowrap">{r.agency_code || '—'}</td>
+                        <td className={cell('agency_code', 'text-muted-foreground font-semibold')}>{r.agency_code || '—'}</td>
                       )}
-                      {visibleCols.owner_name && <td className="px-4 py-3.5 text-slate-700 font-semibold whitespace-nowrap">{r.owner_name}</td>}
-                      {visibleCols.pond_code && <td className="px-4 py-3.5 font-extrabold text-slate-800 whitespace-nowrap">{r.pond_code}</td>}
-                      {visibleCols.cycle_name && <td className="px-4 py-3.5 text-slate-700 font-semibold whitespace-nowrap">{r.cycle_name}</td>}
+                      {visibleCols.owner_name && (
+                        <td className={cell('owner_name', 'text-slate-700 font-semibold')} title={r.owner_name || ''}>
+                          {r.owner_name || '—'}
+                        </td>
+                      )}
+                      {visibleCols.pond_code && (
+                        <td className={cell('pond_code', 'font-bold text-slate-800')}>{r.pond_code}</td>
+                      )}
+                      {visibleCols.cycle_name && (
+                        <td className={cell('cycle_name', 'text-slate-700 font-semibold')} title={r.cycle_name || ''}>
+                          {r.cycle_name}
+                        </td>
+                      )}
                       {visibleCols.status && (
-                        <td className="px-4 py-3.5 whitespace-nowrap">
-                          <PondStatusBadge status={r.status} />
+                        <td className={cell('status')}>
+                          <PondStatusBadge status={r.status} compact />
                         </td>
                       )}
                       {visibleCols.stock_date && (
-                        <td className="px-4 py-3.5 text-slate-600 text-base font-semibold whitespace-nowrap">{formatDateDisplay(r.stock_date)}</td>
+                        <td className={cell('stock_date', 'text-slate-600 font-semibold')}>{formatDateDisplay(r.stock_date)}</td>
                       )}
                       {visibleCols.total_fish && (
-                        <td className="px-4 py-3.5 text-right font-semibold text-slate-800 whitespace-nowrap">
+                        <td className={cell('total_fish', 'font-semibold text-slate-800')}>
                           {r.total_fish != null && !Number.isNaN(Number(r.total_fish)) ? Number(r.total_fish).toLocaleString() : '—'}
                         </td>
                       )}
                       {visibleCols.stocked_fish_added && (
-                        <td className="px-4 py-3.5 text-right font-semibold text-emerald-800 whitespace-nowrap">
+                        <td className={cell('stocked_fish_added', 'font-semibold text-emerald-800')}>
                           {r.stocked_fish_added != null && !Number.isNaN(Number(r.stocked_fish_added))
                             ? Number(r.stocked_fish_added).toLocaleString()
                             : '—'}
                         </td>
                       )}
                       {visibleCols.current_fish && (
-                        <td className="px-4 py-3.5 text-right font-semibold text-slate-800 whitespace-nowrap">
+                        <td className={cell('current_fish', 'font-semibold text-slate-800')}>
                           {r.current_fish != null && !Number.isNaN(Number(r.current_fish)) ? Number(r.current_fish).toLocaleString() : '—'}
                         </td>
                       )}
                       {visibleCols.expected_yield && (
-                        <td className="px-4 py-3.5 text-right font-extrabold text-slate-900 whitespace-nowrap">
+                        <td className={cell('expected_yield', 'font-bold text-slate-900')}>
                           {r.expected_yield != null ? Number(r.expected_yield).toLocaleString() : '—'}
                         </td>
                       )}
                       {defKeys.has('actual_yield') && visibleCols.actual_yield && (
-                        <td className="px-4 py-3.5 text-right font-extrabold text-green-800 whitespace-nowrap">
+                        <td className={cell('actual_yield', 'font-bold text-green-800')}>
                           {(() => {
                             const v =
                               r.actual_harvest_display_kg != null
@@ -324,21 +357,21 @@ export default function PondCycleListTabPanel({
                         </td>
                       )}
                       {defKeys.has('yield_need_harvest') && visibleCols.yield_need_harvest && (
-                        <td className="px-4 py-3.5 text-right font-extrabold text-amber-900 whitespace-nowrap">
+                        <td className={cell('yield_need_harvest', 'font-bold text-amber-900')}>
                           {r.yield_need_harvest != null && Number.isFinite(Number(r.yield_need_harvest))
                             ? Number(r.yield_need_harvest).toLocaleString()
                             : '—'}
                         </td>
                       )}
                       {defKeys.has('fish_harvested') && visibleCols.fish_harvested && (
-                        <td className="px-4 py-3.5 text-right font-bold text-emerald-900 whitespace-nowrap">
+                        <td className={cell('fish_harvested', 'font-bold text-emerald-900')}>
                           {r.fish_harvested != null && !Number.isNaN(Number(r.fish_harvested))
                             ? Number(r.fish_harvested).toLocaleString()
                             : '—'}
                         </td>
                       )}
                       {defKeys.has('fish_remaining') && visibleCols.fish_remaining && (
-                        <td className="px-4 py-3.5 text-right font-bold text-amber-950 whitespace-nowrap">
+                        <td className={cell('fish_remaining', 'font-bold text-amber-950')}>
                           {r.fish_remaining != null && !Number.isNaN(Number(r.fish_remaining))
                             ? Number(r.fish_remaining).toLocaleString()
                             : '—'}
@@ -346,29 +379,35 @@ export default function PondCycleListTabPanel({
                       )}
                       {visibleCols.expected_harvest_date && (
                         <td
-                          className={`px-4 py-3.5 text-base whitespace-nowrap ${
-                            isUrgent ? 'font-extrabold text-red-600' : isUpcomingHarvest ? 'font-bold text-amber-800' : 'text-slate-700 font-semibold'
+                          className={`${cell('expected_harvest_date')} ${
+                            isHarvestedView
+                              ? 'text-slate-700 font-semibold'
+                              : isUrgent
+                                ? 'font-bold text-red-600'
+                                : isUpcomingHarvest
+                                  ? 'font-semibold text-amber-800'
+                                  : 'text-slate-700 font-semibold'
                           }`}
                         >
-                          {formatDateDisplay(r.expected_harvest_date)}
-                          {r.expected_harvest_date_estimated && (
+                          {formatDateDisplay(isHarvestedView ? r.latest_harvest_date : r.expected_harvest_date)}
+                          {!isHarvestedView && r.expected_harvest_date_estimated && (
                             <span className="text-muted-foreground font-normal ml-1">(ước)</span>
                           )}
-                          {isOverdue && <span className="text-red-500 ml-1">(QH)</span>}
+                          {!isHarvestedView && isOverdue && <span className="text-red-500 ml-1">(QH)</span>}
                         </td>
                       )}
                       {visibleCols.total_feed_used && (
-                        <td className="px-4 py-3.5 text-right text-blue-700 font-semibold whitespace-nowrap">
+                        <td className={cell('total_feed_used', 'text-blue-700 font-semibold')}>
                           {r.total_feed_used > 0 ? Number(r.total_feed_used).toLocaleString() : '—'}
                         </td>
                       )}
                       {visibleCols.fcr && (
-                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        <td className={cell('fcr', 'text-center')}>
                           {(() => {
                             if (r.fcr != null) {
                               return (
                                 <span
-                                  className={`px-2 py-0.5 rounded text-sm font-bold ${
+                                  className={`px-1.5 py-0.5 rounded text-xs font-bold tabular-nums ${
                                     r.fcr <= 1.3 ? 'bg-green-100 text-green-700' : r.fcr <= 1.6 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
                                   }`}
                                 >
@@ -382,7 +421,7 @@ export default function PondCycleListTabPanel({
                               if (yieldDen <= 0) return '—';
                               const tempFcr = Math.round((r.total_feed_used / yieldDen) * 100) / 100;
                               return (
-                                <span className="px-2 py-0.5 rounded text-sm font-bold bg-slate-100 text-slate-600">{tempFcr}</span>
+                                <span className="px-1.5 py-0.5 rounded text-xs font-bold tabular-nums bg-slate-100 text-slate-600">{tempFcr}</span>
                               );
                             }
                             return '—';
@@ -390,30 +429,30 @@ export default function PondCycleListTabPanel({
                         </td>
                       )}
                       {visibleCols.alerts && (
-                        <td className="px-4 py-3.5">
-                          <div className="flex flex-wrap gap-1">
+                        <td className={cell('alerts')}>
+                          <div className="flex flex-wrap gap-0.5">
                             {isUrgent && (
-                              <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-sm font-extrabold tracking-tight">THU</span>
+                              <span className="text-[10px] px-1 py-0.5 bg-red-100 text-red-600 rounded-sm font-bold">THU</span>
                             )}
                             {isUpcomingHarvest && (
-                              <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-sm font-extrabold tracking-tight">
-                                SẮP THU
+                              <span className="text-[10px] px-1 py-0.5 bg-amber-100 text-amber-800 rounded-sm font-bold">
+                                SẮP
                               </span>
                             )}
                             {isWithdrawal && (
-                              <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-600 rounded-sm font-extrabold tracking-tight">THUỐC</span>
+                              <span className="text-[10px] px-1 py-0.5 bg-orange-100 text-orange-600 rounded-sm font-bold">THUỐC</span>
                             )}
                           </div>
                         </td>
                       )}
                       {visibleCols.actions && (
                         <td
-                          className={`sticky right-0 ${rowBgClass} px-4 py-3.5 text-center whitespace-nowrap border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]`}
+                          className={`sticky right-0 ${rowBgClass} ${cycleTable.actionsCol} text-center border-l border-border shadow-[-2px_0_4px_rgba(0,0,0,0.05)]`}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
                                 <MoreHorizontal className="w-4 h-4" />
                               </Button>
                             </DropdownMenuTrigger>

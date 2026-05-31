@@ -1,5 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { calculateCurrentYield } from '@/lib/calculateYield';
+import { harvestSyncPatchFromRecords } from '@/lib/cycleHarvestCompletion';
 
 const LIST_LIMIT = 8000;
 
@@ -29,18 +30,19 @@ export function metricsPatchFromLogs(cycle, logs, harvests) {
     fcr = Math.round((totalFeedUsed / expectedYield) * 100) / 100;
   }
 
-  const manuallyChot =
-    Boolean(cycle.harvest_done) && String(cycle.status || '').toUpperCase() === 'CT';
-  const isHarvested = totalActualYield > 0 || manuallyChot;
+  const harvestPatch = harvestSyncPatchFromRecords(
+    { ...cycle, current_fish: newCurrentFish },
+    harvestRows
+  );
 
   return {
     total_feed_used: totalFeedUsed,
-    current_fish: isHarvested ? 0 : newCurrentFish,
+    current_fish: harvestPatch.harvest_done ? 0 : newCurrentFish,
     expected_yield: expectedYield,
-    actual_yield: totalActualYield,
-    harvest_done: isHarvested,
-    status: isHarvested ? 'CT' : newCurrentFish > 0 ? 'CC' : 'CT',
-    fcr,
+    actual_yield: harvestPatch.actual_yield,
+    harvest_done: harvestPatch.harvest_done,
+    status: harvestPatch.harvest_done ? 'CT' : newCurrentFish > 0 ? 'CC' : 'CT',
+    fcr: harvestPatch.fcr ?? fcr,
   };
 }
 

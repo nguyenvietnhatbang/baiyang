@@ -9,6 +9,7 @@ import { Calculator, Save, AlertTriangle, RefreshCw, Lock, ClipboardCopy } from 
 import { addDays, format, parseISO } from 'date-fns';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
+import { appendManualCloseNote } from '@/lib/cycleHarvestCompletion';
 
 function calcInitialRegisterYield(totalFish, survivalRate, targetWeight) {
   if (!totalFish || !survivalRate || !targetWeight) return 0;
@@ -243,6 +244,7 @@ export default function PondPlanTab({
           current_fish: 0,
           harvest_done: true,
           expected_yield: null,
+          notes: appendManualCloseNote(cycle.notes),
         });
         await base44.entities.PondCycle.create({
           pond_id: pond.id,

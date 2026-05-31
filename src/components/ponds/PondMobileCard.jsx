@@ -128,7 +128,7 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
         </span>
         {dk && (
           <span className={isUrgent ? 'text-red-600 font-extrabold' : isUpcomingHarvest ? 'text-amber-800 font-bold' : 'font-semibold text-foreground'}>
-            Thu: {formatDateDisplay(dk)}
+            {pond.harvest_done || (Number(pond.actual_yield) || 0) > 0 ? 'Thu thực tế' : 'Thu'}: {formatDateDisplay(dk)}
             {pond.harvest_date_estimated && <span className="text-muted-foreground font-normal"> (ước)</span>}
             {isOverdue && ' (QH)'}
           </span>
