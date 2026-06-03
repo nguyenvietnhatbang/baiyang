@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
-import { pondQrPayload } from '@/lib/fieldAuthHelpers';
+import { pondQrPayload, isFieldRole, filterPondsForFieldUser } from '@/lib/fieldAuthHelpers';
 import { plannedHarvestDateForDisplay, isPlannedHarvestDateEstimated, plannedYieldAdjustedForTable, sumPlannedYieldAdjustedForPond } from '@/lib/planReportHelpers';
 import { calculateCurrentYield } from '@/lib/calculateYield';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -529,6 +529,12 @@ export default function Ponds() {
   const [recalculatingFromLogs, setRecalculatingFromLogs] = useState(false);
   const canManualCloseCycle = true;
 
+  const isScopedUser = isFieldRole(user?.role);
+  const scopedPonds = useMemo(
+    () => (isScopedUser ? filterPondsForFieldUser(user, ponds) : ponds),
+    [ponds, user, isScopedUser]
+  );
+
   const loadPonds = async () => {
     const [data, agencyData, logRows, harvestRows] = await Promise.all([
       base44.entities.Pond.listWithHouseholds('-updated_date', 500),
@@ -588,7 +594,7 @@ export default function Ponds() {
 
   const pondRows = useMemo(() => {
     const q = search.toLowerCase();
-    const rows = (ponds || []).filter((p) => {
+    const rows = (scopedPonds || []).filter((p) => {
       const matchSearch = !q || [p.code, p.owner_name, p.agency_code].filter(Boolean).some((x) => String(x).toLowerCase().includes(q));
       const status = p.active_cycle?.status || 'CT';
       const matchStatus = statusFilters.size === 0 || statusFilters.has(status);
@@ -617,7 +623,7 @@ export default function Ponds() {
       return matchSearch && matchStatus && matchAgency && matchHousehold && matchDate;
     });
     return rows.sort((a, b) => String(a.code || '').localeCompare(String(b.code || '')));
-  }, [ponds, harvestRecords, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo]);
+  }, [scopedPonds, harvestRecords, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo]);
 
   useEffect(() => {
     setSelectedPondIds((prev) => {
@@ -668,7 +674,7 @@ export default function Ponds() {
     }
 
     const rows = [];
-    for (const p of ponds) {
+    for (const p of scopedPonds) {
       const cycles = Array.isArray(p.pond_cycles) ? p.pond_cycles : [];
       if (cycles.length === 0) {
         const base = {
@@ -778,14 +784,14 @@ export default function Ponds() {
       if (!b.stock_date) return -1;
       return String(b.stock_date).localeCompare(String(a.stock_date));
     });
-  }, [ponds, stockedFishByCycle, harvestRecords]);
+  }, [scopedPonds, stockedFishByCycle, harvestRecords]);
 
   const agencyCodes = [...new Set(cycleRows.map((r) => r.agency_code).filter(Boolean))];
   const agencyFilterItems = useMemo(() => agencyCodes.sort((a, b) => String(a).localeCompare(String(b), 'vi')), [agencyCodes]);
 
   const householdFilterItems = useMemo(() => {
     const map = new Map();
-    (ponds || []).forEach((p) => {
+    (scopedPonds || []).forEach((p) => {
       const hid = p?.household_id || p?.households?.id || null;
       if (!hid) return;
       const name = (p?.owner_name || p?.households?.name || '').trim();
@@ -798,7 +804,7 @@ export default function Ponds() {
       if (aa !== 0) return aa;
       return String(a.name).localeCompare(String(b.name), 'vi');
     });
-  }, [ponds]);
+  }, [scopedPonds]);
 
   const statusFilterItems = useMemo(
     () => [
@@ -1026,8 +1032,8 @@ export default function Ponds() {
   };
 
   const pondSelectItems = useMemo(
-    () => [{ value: '__none__', label: '— Chọn ao —' }, ...(ponds || []).map((p) => ({ value: p.id, label: `${p.code} — ${p.owner_name || '—'}` }))],
-    [ponds]
+    () => [{ value: '__none__', label: '— Chọn ao —' }, ...(scopedPonds || []).map((p) => ({ value: p.id, label: `${p.code} — ${p.owner_name || '—'}` }))],
+    [scopedPonds]
   );
 
   const handleCreateCycle = async () => {
@@ -1142,7 +1148,7 @@ export default function Ponds() {
                 {mainTab === 'ponds' ? (
                   selectedPondsForQr.length > 0 ? <QRBatchDownload ponds={selectedPondsForQr} /> : null
                 ) : (
-                  <QRBatchDownload ponds={ponds} />
+                  <QRBatchDownload ponds={scopedPonds} />
                 )}
               </div>
               <Button
@@ -1536,7 +1542,7 @@ export default function Ponds() {
         
 
         <TabsContent value="households" className="mt-3 sm:mt-4 outline-none">
-          <HouseholdsPanel embedded onCreatePond={(householdId) => openNewPondDialog(householdId)} />
+          <HouseholdsPanel embedded scopeUser={isScopedUser ? user : null} onCreatePond={(householdId) => openNewPondDialog(householdId)} />
         </TabsContent>
       </Tabs>
 

@@ -1,16 +1,19 @@
-import { useEffect, useState, useCallback } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useNavigate, useParams, useSearchParams, Navigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 import PondManageView from '@/components/ponds/PondManageView';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
+import { useAuth } from '@/lib/AuthContext';
+import { isFieldRole, isPondInFieldUserScope, filterPondsForFieldUser } from '@/lib/fieldAuthHelpers';
 
 const VALID_TABS = new Set(['plan', 'log', 'harvest', 'qr']);
 
 export default function PondDetailPage() {
   const { pondId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const activeTab = tabParam && VALID_TABS.has(tabParam) ? tabParam : 'plan';
@@ -30,18 +33,24 @@ export default function PondDetailPage() {
         base44.entities.Pond.listWithHouseholds('-updated_at', 500),
       ]);
       setPond(p);
-      setSiblingPonds(all || []);
+      const allScoped = isFieldRole(user?.role) ? filterPondsForFieldUser(user, all || []) : all || [];
+      setSiblingPonds(allScoped);
       if (!p) setError('Không tìm thấy ao.');
     } catch (e) {
       setError(formatSupabaseError(e));
       setPond(null);
     }
     setLoading(false);
-  }, [pondId]);
+  }, [pondId, user]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const outOfScope = useMemo(
+    () => !loading && pond && isFieldRole(user?.role) && !isPondInFieldUserScope(user, pond),
+    [loading, pond, user]
+  );
 
   const setTab = (v) => {
     const next = new URLSearchParams(searchParams);
@@ -49,6 +58,10 @@ export default function PondDetailPage() {
     else next.set('tab', v);
     setSearchParams(next, { replace: true });
   };
+
+  if (outOfScope) {
+    return <Navigate to="/ponds" replace />;
+  }
 
   return (
     <div className="p-3 sm:p-6 max-w-5xl mx-auto min-h-0">

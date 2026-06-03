@@ -81,7 +81,8 @@ export default function Login() {
 
   if (isAuthenticated && !user?.fieldSession && !forceLoginView) {
     if (isFieldRole(user?.role)) {
-      return <Navigate to="/field" replace />;
+      const dest = typeof from === 'string' && (from.startsWith('/ponds') || from === '/scan') ? from : '/ponds';
+      return <Navigate to={dest} replace />;
     }
     return <Navigate to={from} replace />;
   }
@@ -107,7 +108,8 @@ export default function Login() {
         await checkUserAuth({ silent: true });
         const me = await base44.auth.me();
         if (isFieldRole(me?.role)) {
-          navigate('/field', { replace: true });
+          const dest = typeof from === 'string' && (from.startsWith('/ponds') || from === '/scan') ? from : '/ponds';
+          navigate(dest, { replace: true });
         } else {
           navigate(from, { replace: true });
         }

@@ -103,6 +103,25 @@ export function filterPondsForFieldUser(user, ponds) {
   return (ponds || []).filter((p) => isPondInFieldUserScope(user, p));
 }
 
+/** Hộ nuôi có nằm trong phạm vi đại lý / chủ hộ không. */
+export function isHouseholdInFieldUserScope(user, household) {
+  if (!user || !household) return false;
+  if (user.role === 'household_owner') {
+    if (!user.household_id) return false;
+    return String(household.id) === String(user.household_id);
+  }
+  if (user.role === 'agency') {
+    if (!user.agency_id) return false;
+    return String(household.agency_id) === String(user.agency_id);
+  }
+  return false;
+}
+
+export function filterHouseholdsForFieldUser(user, households) {
+  if (!user || !isFieldRole(user.role)) return households || [];
+  return (households || []).filter((h) => isHouseholdInFieldUserScope(user, h));
+}
+
 /** Danh sách ao thuộc phạm vi phụ trách của user hiện trường. */
 export async function loadPondsForFieldUser(user) {
   const { base44 } = await import('@/api/base44Client');

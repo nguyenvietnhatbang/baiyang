@@ -18,6 +18,7 @@ import {
   householdTripleKey,
   isDuplicateHouseholdTriple,
 } from '@/lib/householdSegment';
+import { isFieldRole, filterHouseholdsForFieldUser } from '@/lib/fieldAuthHelpers';
 
 function SearchablePicker({
   label,
@@ -359,7 +360,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
 }
 
 /** Danh sách + dialog hộ nuôi — dùng trong trang Ao (tab) hoặc đứng riêng. */
-export function HouseholdsPanel({ embedded = false, onCreatePond }) {
+export function HouseholdsPanel({ embedded = false, onCreatePond, scopeUser = null }) {
   const [rows, setRows] = useState([]);
   const [agencies, setAgencies] = useState([]);
   const [regions, setRegions] = useState([]);
@@ -403,9 +404,15 @@ export function HouseholdsPanel({ embedded = false, onCreatePond }) {
     [agencies]
   );
 
+  const isScoped = scopeUser && isFieldRole(scopeUser.role);
+  const scopedRows = useMemo(
+    () => (isScoped ? filterHouseholdsForFieldUser(scopeUser, rows) : rows),
+    [rows, scopeUser, isScoped]
+  );
+
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
+    return scopedRows.filter((r) => {
       if (agencyFilterId && String(r.agency_id) !== String(agencyFilterId)) return false;
       if (!q) return true;
       const agency = agencyMap[r.agency_id];
@@ -423,7 +430,7 @@ export function HouseholdsPanel({ embedded = false, onCreatePond }) {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, agencyFilterId, search, agencyMap]);
+  }, [scopedRows, agencyFilterId, search, agencyMap]);
 
   const agencyCodeMap = useMemo(() => {
     const m = new Map();

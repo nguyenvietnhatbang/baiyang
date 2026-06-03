@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Fish, ClipboardList, BarChart3, Building2, Settings, UserPlus, ScanLine, LogIn } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import { isFieldRole } from '@/lib/fieldAuthHelpers';
 
 const baseNavItems = [
   { path: '/', icon: LayoutDashboard, label: 'Tổng quan' },
@@ -12,12 +13,19 @@ const baseNavItems = [
   { path: '/agencies', icon: Building2, label: 'ĐL' },
 ];
 
+const scopedNavItems = [
+  { path: '/ponds', icon: Fish, label: 'Ao' },
+  { path: '/scan', icon: ScanLine, label: 'QR' },
+];
+
 export default function MobileNav({ alertCount = 0 }) {
   const { user } = useAuth();
   const location = useLocation();
   const navItems = user?.role === 'admin'
     ? [...baseNavItems, { path: '/admin', icon: UserPlus, label: 'Hiện trường' }, { path: '/settings', icon: Settings, label: 'Cài đặt' }]
-    : baseNavItems;
+    : isFieldRole(user?.role)
+      ? scopedNavItems
+      : baseNavItems;
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-40 sm:hidden border-t border-border flex overflow-x-auto"

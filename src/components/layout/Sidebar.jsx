@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/AuthContext';
+import { isFieldRole } from '@/lib/fieldAuthHelpers';
 
 const baseNavItems = [
   { path: '/', icon: LayoutDashboard, label: 'Tổng quan' },
@@ -16,6 +17,11 @@ const baseNavItems = [
   { path: '/reports', icon: BarChart3, label: 'Báo cáo' },
   { path: '/factory-plan', icon: Factory, label: 'Kế hoạch nhà máy' },
   { path: '/agencies', icon: Building2, label: 'Đại lý' },
+];
+
+const scopedNavItems = [
+  { path: '/ponds', icon: Fish, label: 'Quản lý ao' },
+  { path: '/scan', icon: ScanLine, label: 'Quét QR' },
 ];
 
 export default function Sidebar({ alertCount = 0, collapsed, onToggle }) {
@@ -30,7 +36,9 @@ export default function Sidebar({ alertCount = 0, collapsed, onToggle }) {
   const location = useLocation();
   const navItems = user?.role === 'admin'
     ? [...baseNavItems, { path: '/admin', icon: UserPlus, label: 'Tài khoản hiện trường' }, { path: '/settings', icon: Settings, label: 'Cài đặt' }]
-    : baseNavItems;
+    : isFieldRole(user?.role)
+      ? scopedNavItems
+      : baseNavItems;
 
   return (
     <aside

@@ -28,7 +28,7 @@ const ROLE_SELECT_ITEMS = [
   { value: 'household_owner', label: 'Chủ hộ' },
 ];
 
-function HouseholdSearchSelect({ value, onChange, options, placeholder = 'Chọn hộ' }) {
+function SearchSelect({ value, onChange, options, placeholder = 'Chọn…' }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const rootRef = useRef(null);
@@ -77,7 +77,7 @@ function HouseholdSearchSelect({ value, onChange, options, placeholder = 'Chọn
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Gõ tên, mã hộ…"
+              placeholder="Gõ để tìm…"
               className="h-9 text-sm font-semibold"
             />
           </div>
@@ -173,7 +173,12 @@ export default function AdminUsers() {
   }, []);
 
   const agencySelectItems = useMemo(
-    () => agencies.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` })),
+    () =>
+      agencies.map((a) => ({
+        value: String(a.id),
+        label: `${a.code} — ${a.name}`,
+        searchText: `${a.code} ${a.name}`,
+      })),
     [agencies]
   );
   const householdSelectItems = useMemo(
@@ -182,10 +187,11 @@ export default function AdminUsers() {
         const seg = formatHouseholdSegmentDisplay(h.household_segment);
         const label = `${h.name} (${seg})`;
         const searchText = [h.name, seg, h.phone, h.address, h.region_code].filter(Boolean).join(' ');
-        return { value: h.id, label, searchText };
+        return { value: String(h.id), label, searchText };
       }),
     [households]
   );
+  const roleLabel = ROLE_SELECT_ITEMS.find((r) => r.value === role)?.label ?? '';
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -328,8 +334,8 @@ export default function AdminUsers() {
     setPassword('');
     setDisplayName(account.display_name || '');
     setRole(account.role || 'household_owner');
-    setAgencyId(account.agency_id || '');
-    setHouseholdId(account.household_id || '');
+    setAgencyId(account.agency_id != null ? String(account.agency_id) : '');
+    setHouseholdId(account.household_id != null ? String(account.household_id) : '');
     setShowEditDialog(true);
   };
 
@@ -348,8 +354,8 @@ export default function AdminUsers() {
     );
   }
 
-  const agMap = Object.fromEntries(agencies.map((a) => [a.id, a]));
-  const hhMap = Object.fromEntries(households.map((h) => [h.id, h]));
+  const agMap = Object.fromEntries(agencies.map((a) => [String(a.id), a]));
+  const hhMap = Object.fromEntries(households.map((h) => [String(h.id), h]));
 
   return (
     <div className="p-3 sm:p-6 space-y-6 max-w-6xl mx-auto w-full">
@@ -376,10 +382,11 @@ export default function AdminUsers() {
           <h2 className="text-sm font-semibold text-foreground">Đã cấp quyền ({rows.length})</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[800px]">
+          <table className="w-full text-sm min-w-[920px]">
             <thead>
               <tr className="bg-muted/50 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 <th className="px-4 py-3 whitespace-nowrap">SĐT</th>
+                <th className="px-4 py-3 whitespace-nowrap">Mật khẩu</th>
                 <th className="px-4 py-3 whitespace-nowrap">Tên hiển thị</th>
                 <th className="px-4 py-3 whitespace-nowrap">Vai trò</th>
                 <th className="px-4 py-3 whitespace-nowrap">Đại lý / Hộ</th>
@@ -391,6 +398,9 @@ export default function AdminUsers() {
               {rows.map((r) => (
                 <tr key={r.id} className="hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono text-foreground whitespace-nowrap">{r.phone || '—'}</td>
+                  <td className="px-4 py-3 font-mono text-sm text-foreground whitespace-nowrap">
+                    {r.password_plaintext || '—'}
+                  </td>
                   <td className="px-4 py-3 text-foreground whitespace-nowrap">{r.display_name || '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -401,8 +411,8 @@ export default function AdminUsers() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                     {r.role === 'agency'
-                      ? agMap[r.agency_id]?.code || '—'
-                      : hhMap[r.household_id]?.name || '—'}
+                      ? agMap[String(r.agency_id)]?.code || '—'
+                      : hhMap[String(r.household_id)]?.name || '—'}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
                     {r.created_at ? new Date(r.created_at).toLocaleDateString('vi-VN') : '—'}
@@ -461,32 +471,29 @@ export default function AdminUsers() {
               <Label>Vai trò</Label>
               <Select value={role} onValueChange={setRole}>
                 <SelectTrigger className="mt-1">
-                  <SelectValue />
+                  <SelectValue placeholder="Chọn vai trò">{roleLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="agency">Đại lý</SelectItem>
-                  <SelectItem value="household_owner">Chủ hộ</SelectItem>
+                  {ROLE_SELECT_ITEMS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             {role === 'agency' ? (
               <div>
                 <Label>Đại lý</Label>
-                <Select value={agencyId} onValueChange={setAgencyId}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Chọn đại lý" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {agencies.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.code} — {a.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchSelect
+                  value={agencyId}
+                  onChange={setAgencyId}
+                  options={agencySelectItems}
+                  placeholder="Chọn đại lý"
+                />
               </div>
             ) : (
               <div>
                 <Label>Hộ nuôi</Label>
-                <HouseholdSearchSelect
+                <SearchSelect
                   value={householdId}
                   onChange={setHouseholdId}
                   options={householdSelectItems}
@@ -526,32 +533,29 @@ export default function AdminUsers() {
               <Label>Vai trò</Label>
               <Select value={role} onValueChange={setRole}>
                 <SelectTrigger className="mt-1">
-                  <SelectValue />
+                  <SelectValue placeholder="Chọn vai trò">{roleLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="agency">Đại lý</SelectItem>
-                  <SelectItem value="household_owner">Chủ hộ</SelectItem>
+                  {ROLE_SELECT_ITEMS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             {role === 'agency' ? (
               <div>
                 <Label>Đại lý</Label>
-                <Select value={agencyId} onValueChange={setAgencyId}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Chọn đại lý" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {agencies.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.code} — {a.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchSelect
+                  value={agencyId}
+                  onChange={setAgencyId}
+                  options={agencySelectItems}
+                  placeholder="Chọn đại lý"
+                />
               </div>
             ) : (
               <div>
                 <Label>Hộ nuôi</Label>
-                <HouseholdSearchSelect
+                <SearchSelect
                   value={householdId}
                   onChange={setHouseholdId}
                   options={householdSelectItems}
@@ -602,8 +606,14 @@ export default function AdminUsers() {
                 <span className="text-muted-foreground">{selectedAccount.role === 'agency' ? 'Đại lý:' : 'Hộ nuôi:'}</span>
                 <span className="col-span-2 font-semibold">
                   {selectedAccount.role === 'agency'
-                    ? agMap[selectedAccount.agency_id]?.name || '—'
-                    : hhMap[selectedAccount.household_id]?.name || '—'}
+                    ? (() => {
+                        const ag = agMap[String(selectedAccount.agency_id)];
+                        return ag ? `${ag.code} — ${ag.name}` : '—';
+                      })()
+                    : (() => {
+                        const hh = hhMap[String(selectedAccount.household_id)];
+                        return hh ? `${hh.name} (${formatHouseholdSegmentDisplay(hh.household_segment)})` : '—';
+                      })()}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2 text-sm">

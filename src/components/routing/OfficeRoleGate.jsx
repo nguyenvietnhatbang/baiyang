@@ -2,7 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { isFieldRole } from '@/lib/fieldAuthHelpers';
 
-/** Chỉ admin dùng bảng điều khiển văn phòng + /admin. Đại lý/chủ hộ → /field */
+/** Admin: toàn bộ văn phòng. Đại lý/chủ hộ (email văn phòng): chỉ /ponds và /scan. */
 export default function OfficeRoleGate() {
   const { user, isLoadingAuth } = useAuth();
   const location = useLocation();
@@ -16,7 +16,11 @@ export default function OfficeRoleGate() {
   }
 
   if (user && isFieldRole(user.role)) {
-    return <Navigate to="/field" replace state={{ from: location.pathname }} />;
+    const path = location.pathname;
+    const allowed = path === '/ponds' || path.startsWith('/ponds/') || path === '/scan';
+    if (!allowed) {
+      return <Navigate to="/ponds" replace />;
+    }
   }
 
   return <Outlet />;
