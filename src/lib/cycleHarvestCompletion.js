@@ -54,6 +54,27 @@ function rowAsCycle(row) {
   return { ...row, notes: row.cycle_notes ?? row.notes };
 }
 
+/** Sản lượng đã thu (kg) — tab Chu kỳ đã thu, cột SL THU. */
+export function harvestedTabKgHarvested(row) {
+  const v = row?.actual_harvest_display_kg ?? row?.actual_yield;
+  const n = Number(v);
+  if (v == null || Number.isNaN(n)) return null;
+  return n;
+}
+
+/** Sản lượng còn phải thu (kg) — tab Chu kỳ đã thu, cột SL CÒN. */
+export function harvestedTabKgRemaining(row) {
+  const y = row?.yield_need_harvest;
+  if (y == null || Number.isNaN(Number(y))) return null;
+  return Number(y);
+}
+
+/** «SL cần thu» (kg) có giá trị và ≤ 0 — đủ/vượt kế hoạch theo kg. */
+export function isYieldNeedHarvestDone(row) {
+  const y = row?.yield_need_harvest;
+  return y != null && !Number.isNaN(Number(y)) && Number(y) <= 0;
+}
+
 /** Chu kỳ hiển thị tab «Chu kỳ đã thu». */
 export function shouldShowCycleOnHarvestedTab(row) {
   if (!row?.cycle_id) return false;
@@ -61,16 +82,13 @@ export function shouldShowCycleOnHarvestedTab(row) {
   const actualKg = Number(row.actual_harvest_display_kg) || Number(row.actual_yield) || 0;
   if (isLegacyAccidentalPartialClose(cycle, actualKg)) return false;
   if (isCycleManuallyChotThu(cycle)) return true;
-  const planned = Number(row.expected_yield) || 0;
-  const actual = Number(row.actual_harvest_display_kg) || Number(row.actual_yield) || 0;
-  if (planned <= 0) return false;
-  if (actual < planned - 0.01) return false;
+  if (isYieldNeedHarvestDone(row)) return true;
   const rem = row.fish_remaining;
-  if (rem != null && !Number.isNaN(Number(rem)) && Number(rem) > 0) return false;
-  if (rem != null && Number(rem) <= 0) return true;
-  const cur = row.current_fish;
-  if (cur != null && !Number.isNaN(Number(cur)) && Number(cur) > 0) return false;
-  return true;
+  if (rem != null && !Number.isNaN(Number(rem)) && Number(rem) <= 0) {
+    const hasHarvest = actualKg > 0 || Boolean(row.harvest_done);
+    if (hasHarvest) return true;
+  }
+  return false;
 }
 
 /** Dữ liệu cũ: harvest_done+CT do sync nhầm khi thu một phần — không có tag chốt thủ công. */

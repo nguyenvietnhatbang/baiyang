@@ -159,8 +159,8 @@ const CYCLE_COLUMNS_BASE = [
 ];
 
 const HARVESTED_TAB_FISH_COLUMNS = [
-  { key: 'fish_harvested', label: 'CÁ THU', title: 'Số cá đã thu' },
-  { key: 'fish_remaining', label: 'CÁ CÒN', title: 'Số cá còn phải thu' },
+  { key: 'fish_harvested', label: 'SL THU', title: 'Sản lượng đã thu (kg)' },
+  { key: 'fish_remaining', label: 'SL CÒN', title: 'Sản lượng còn phải thu (kg)' },
 ];
 
 function insertColumnsBeforeKey(base, beforeKey, toInsert) {

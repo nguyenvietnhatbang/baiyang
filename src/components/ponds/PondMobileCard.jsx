@@ -4,7 +4,7 @@ import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { calendarDaysUntilHarvest, isCycleHarvestCompleteForAlerts, isHarvestDateOnOrBeforeToday, isHarvestDateWithinUpcomingDays } from '@/lib/harvestAlerts';
 import { canOfferManualChotThuHoach } from '@/lib/pondCycleHelpers';
 
-export default function PondMobileCard({ pond, checked, onCheck, onClick, harvestAlertDays = 7 }) {
+export default function PondMobileCard({ pond, checked, onCheck, onClick, harvestAlertDays = 7, harvestedKgColumns = false }) {
   const today = new Date();
   const canChot = canOfferManualChotThuHoach(pond);
   const dk =
@@ -101,24 +101,26 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
               </p>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-2 text-center border border-emerald-200/60 dark:border-emerald-800/50">
-              <p className="text-muted-foreground font-semibold">Đã thu (con)</p>
-              <p className="font-bold mt-0.5 text-emerald-800 dark:text-emerald-200 tabular-nums">
-                {pond.fish_harvested != null && !Number.isNaN(Number(pond.fish_harvested))
-                  ? Number(pond.fish_harvested).toLocaleString()
-                  : '—'}
-              </p>
+          {!harvestedKgColumns && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-2 text-center border border-emerald-200/60 dark:border-emerald-800/50">
+                <p className="text-muted-foreground font-semibold">Đã thu (con)</p>
+                <p className="font-bold mt-0.5 text-emerald-800 dark:text-emerald-200 tabular-nums">
+                  {pond.fish_harvested != null && !Number.isNaN(Number(pond.fish_harvested))
+                    ? Number(pond.fish_harvested).toLocaleString()
+                    : '—'}
+                </p>
+              </div>
+              <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2 text-center border border-amber-200/60 dark:border-amber-800/50">
+                <p className="text-muted-foreground font-semibold">Còn phải thu (con)</p>
+                <p className="font-bold mt-0.5 text-amber-900 dark:text-amber-100 tabular-nums">
+                  {pond.fish_remaining != null && !Number.isNaN(Number(pond.fish_remaining))
+                    ? Number(pond.fish_remaining).toLocaleString()
+                    : '—'}
+                </p>
+              </div>
             </div>
-            <div className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2 text-center border border-amber-200/60 dark:border-amber-800/50">
-              <p className="text-muted-foreground font-semibold">Còn phải thu (con)</p>
-              <p className="font-bold mt-0.5 text-amber-900 dark:text-amber-100 tabular-nums">
-                {pond.fish_remaining != null && !Number.isNaN(Number(pond.fish_remaining))
-                  ? Number(pond.fish_remaining).toLocaleString()
-                  : '—'}
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       )}
 

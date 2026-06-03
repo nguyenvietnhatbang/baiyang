@@ -19,6 +19,7 @@ import {
   cycleTdClass,
   cycleTdOpts,
 } from '@/components/ponds/cycleTableLayout';
+import { harvestedTabKgHarvested, harvestedTabKgRemaining } from '@/lib/cycleHarvestCompletion';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -184,6 +185,7 @@ export default function PondCycleListTabPanel({
             <PondMobileCard
               key={r.row_id}
               harvestAlertDays={harvestAlertDays}
+              harvestedKgColumns={isHarvestedView}
               pond={{
                 cycle_id: r.cycle_id,
                 code: `${r.pond_code} · ${r.cycle_name}`,
@@ -365,16 +367,18 @@ export default function PondCycleListTabPanel({
                       )}
                       {defKeys.has('fish_harvested') && visibleCols.fish_harvested && (
                         <td className={cell('fish_harvested', 'font-bold text-emerald-900')}>
-                          {r.fish_harvested != null && !Number.isNaN(Number(r.fish_harvested))
-                            ? Number(r.fish_harvested).toLocaleString()
-                            : '—'}
+                          {(() => {
+                            const v = isHarvestedView ? harvestedTabKgHarvested(r) : r.fish_harvested;
+                            return v != null && !Number.isNaN(Number(v)) ? Number(v).toLocaleString() : '—';
+                          })()}
                         </td>
                       )}
                       {defKeys.has('fish_remaining') && visibleCols.fish_remaining && (
                         <td className={cell('fish_remaining', 'font-bold text-amber-950')}>
-                          {r.fish_remaining != null && !Number.isNaN(Number(r.fish_remaining))
-                            ? Number(r.fish_remaining).toLocaleString()
-                            : '—'}
+                          {(() => {
+                            const v = isHarvestedView ? harvestedTabKgRemaining(r) : r.fish_remaining;
+                            return v != null && !Number.isNaN(Number(v)) ? Number(v).toLocaleString() : '—';
+                          })()}
                         </td>
                       )}
                       {visibleCols.expected_harvest_date && (
