@@ -902,21 +902,6 @@ export default function Ponds() {
       return shouldShowCycleOnHarvestedTab(r);
     });
   }, [cycleRows, search, statusFilters, agencyFilters, householdFilters, cycleDateField, cycleDateFrom, cycleDateTo]);
-  useEffect(() => {
-    if (loading || mainTab !== 'cycles') return;
-    if (filteredRows.length > 0) return;
-    if (filteredHarvestedRows.length === 0) return;
-    const next = new URLSearchParams(searchParams);
-    next.set('tab', 'harvested');
-    setSearchParams(next, { replace: true });
-  }, [
-    loading,
-    mainTab,
-    filteredRows.length,
-    filteredHarvestedRows.length,
-    searchParams,
-    setSearchParams,
-  ]);
 
   const harvestedCycleTotals = useMemo(() => {
     const rows = filteredHarvestedRows || [];
