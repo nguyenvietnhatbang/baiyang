@@ -16,11 +16,30 @@ export function isFieldRole(role) {
   return role === 'agency' || role === 'household_owner';
 }
 
+const DEFAULT_POND_APP_ORIGIN = 'https://baiyang-one.vercel.app';
+
 /** Chuỗi đưa vào QR / cột qr_code: luôn `POND:<mã>` (không hậu tố). */
 export function pondQrPayload(code) {
   const c = String(code ?? '').trim();
   if (!c) return '';
   return `POND:${c}`;
+}
+
+export function pondDetailQrUrl(pond, baseHref = DEFAULT_POND_APP_ORIGIN) {
+  const code = String(pond?.code ?? '').trim();
+  if (!code) return '';
+
+  const params = new URLSearchParams({ pond_code: code });
+  const path = `/ponds/${encodeURIComponent(code)}?${params.toString()}`;
+  const base = String(baseHref || '').trim();
+
+  if (!base) return path;
+
+  try {
+    return new URL(path, base).toString();
+  } catch {
+    return `${base.replace(/\/+$/, '')}${path}`;
+  }
 }
 
 /** Lấy mã ao sau tiền tố POND: (bỏ hậu tố kiểu `:timestamp` trong DB cũ). */
@@ -46,6 +65,10 @@ export function parsePondCodeFromQr(text) {
       const u = new URL(t);
       const q = u.searchParams.get('pond') || u.searchParams.get('code') || u.searchParams.get('pond_code');
       if (q) return parsePondCodeFromQr(q);
+      const parts = u.pathname.split('/').filter(Boolean);
+      const pondIdx = parts.findIndex((part) => part.toLowerCase() === 'ponds');
+      const pathCode = pondIdx >= 0 ? parts[pondIdx + 1] : '';
+      if (pathCode) return parsePondCodeFromQr(decodeURIComponent(pathCode));
     } catch {
       /* ignore */
     }

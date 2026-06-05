@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { pondQrPayload } from '@/lib/fieldAuthHelpers';
+import { pondDetailQrUrl } from '@/lib/fieldAuthHelpers';
 
 export default function PondQRCode({ pond, size = 180 }) {
   const canvasRef = useRef(null);
   const [dataUrl, setDataUrl] = useState('');
 
-  const qrValue = pondQrPayload(pond?.code);
+  const qrValue = pondDetailQrUrl(pond);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -34,7 +34,7 @@ export default function PondQRCode({ pond, size = 180 }) {
     return () => {
       cancelled = true;
     };
-  }, [pond?.code, size, qrValue]);
+  }, [size, qrValue]);
 
   const handleDownload = () => {
     if (!dataUrl || !pond?.code) return;
@@ -45,9 +45,7 @@ export default function PondQRCode({ pond, size = 180 }) {
   };
 
   if (!qrValue) {
-    return (
-      <p className="text-sm text-muted-foreground text-center py-6">Chưa có mã ao để tạo QR.</p>
-    );
+    return <p className="text-sm text-muted-foreground text-center py-6">Chưa có mã ao để tạo QR.</p>;
   }
 
   return (
@@ -58,7 +56,7 @@ export default function PondQRCode({ pond, size = 180 }) {
       <div className="text-center">
         <p className="font-bold text-foreground text-sm">{pond.code}</p>
         <p className="text-xs text-muted-foreground">{pond.owner_name}</p>
-        <p className="text-xs font-mono text-primary/60 mt-0.5">{qrValue}</p>
+        <p className="text-xs font-mono text-primary/60 mt-0.5 max-w-[18rem] break-all">{qrValue}</p>
       </div>
       <Button
         size="sm"

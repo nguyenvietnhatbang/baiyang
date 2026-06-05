@@ -375,7 +375,7 @@ export default function PondManageView({
             </TabsContent>
             <TabsContent value="qr" className="p-4 sm:p-6 mt-0 flex flex-col items-center">
               <p className="text-xs text-muted-foreground mb-6 text-center">
-                In mã QR này và dán tại ao để quét nhanh khi nhập nhật ký.
+                In mã QR này và dán tại ao. Khi quét sẽ mở thẳng trang chi tiết của mã ao này.
               </p>
               <PondQRCode pond={pond} size={220} />
             </TabsContent>

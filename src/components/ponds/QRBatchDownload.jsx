@@ -2,7 +2,7 @@ import { useState } from 'react';
 import QRCode from 'qrcode';
 import { Loader2, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { pondQrPayload } from '@/lib/fieldAuthHelpers';
+import { pondDetailQrUrl } from '@/lib/fieldAuthHelpers';
 
 export default function QRBatchDownload({ ponds }) {
   const [loading, setLoading] = useState(false);
@@ -39,7 +39,7 @@ export default function QRBatchDownload({ ponds }) {
     // Vẽ từng QR
     for (let i = 0; i < ponds.length; i++) {
       const pond = ponds[i];
-      const payload = pondQrPayload(pond?.code);
+      const payload = pondDetailQrUrl(pond);
       if (!payload) continue;
       const col = i % COLS;
       const row = Math.floor(i / COLS);
@@ -79,7 +79,8 @@ export default function QRBatchDownload({ ponds }) {
 
       ctx.fillStyle = '#94a3b8';
       ctx.font = '10px monospace';
-      ctx.fillText(payload, x + (CELL_W - 20) / 2, y + 194);
+      const displayLink = payload.length > 28 ? `${payload.slice(0, 25)}...` : payload;
+      ctx.fillText(displayLink, x + (CELL_W - 20) / 2, y + 194);
     }
 
     const dataUrl = canvas.toDataURL('image/png');

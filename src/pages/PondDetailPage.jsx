@@ -10,6 +10,12 @@ import { isFieldRole, isPondInFieldUserScope, filterPondsForFieldUser } from '@/
 
 const VALID_TABS = new Set(['plan', 'log', 'harvest', 'qr']);
 
+function looksLikeUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || '').trim()
+  );
+}
+
 export default function PondDetailPage() {
   const { pondId } = useParams();
   const navigate = useNavigate();
@@ -28,10 +34,12 @@ export default function PondDetailPage() {
     setError('');
     setLoading(true);
     try {
-      const [p, all] = await Promise.all([
-        base44.entities.Pond.getWithCycles(pondId),
-        base44.entities.Pond.listWithHouseholds('-updated_at', 500),
-      ]);
+      const allPromise = base44.entities.Pond.listWithHouseholds('-updated_at', 500);
+      let p = looksLikeUuid(pondId) ? await base44.entities.Pond.getWithCycles(pondId) : null;
+      if (!p) {
+        p = await base44.entities.Pond.findByCodeFlattened(pondId);
+      }
+      const all = await allPromise;
       setPond(p);
       const allScoped = isFieldRole(user?.role) ? filterPondsForFieldUser(user, all || []) : all || [];
       setSiblingPonds(allScoped);
