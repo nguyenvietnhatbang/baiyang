@@ -15,6 +15,13 @@ function looksLikeEmail(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
 }
 
+function isAllowedFieldReturnPath(path) {
+  return (
+    typeof path === 'string' &&
+    (path.startsWith('/field') || path.startsWith('/ponds') || path === '/scan')
+  );
+}
+
 const LOGIN_BG_STYLE = {
   backgroundImage:
     "linear-gradient(rgba(9, 30, 66, 0.78), rgba(9, 30, 66, 0.88)), url('https://images.unsplash.com/photo-1757489383041-04e15c2adb1e?auto=format&fit=crop&w=2200&q=80')",
@@ -136,7 +143,7 @@ export default function Login() {
           setSubmitting(false);
           return;
         }
-        const dest = typeof from === 'string' && from.startsWith('/field') ? from : '/field';
+        const dest = isAllowedFieldReturnPath(from) ? from : '/field';
         navigate(dest, { replace: true });
       }
     } catch (err) {
