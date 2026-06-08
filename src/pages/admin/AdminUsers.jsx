@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { normalizeVnPhone } from '@/lib/fieldAuthHelpers';
+import { normalizeVnPhone, FIELD_ROLE_LABELS } from '@/lib/fieldAuthHelpers';
+import { Checkbox } from '@/components/ui/checkbox';
 import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +27,63 @@ import { UserPlus, Plus, Eye, Edit, Trash2, MoreHorizontal } from 'lucide-react'
 const ROLE_SELECT_ITEMS = [
   { value: 'agency', label: 'Đại lý' },
   { value: 'household_owner', label: 'Chủ hộ' },
+  { value: 'manager', label: 'Quản lý' },
 ];
+
+const OFFICE_ROLE_LABELS = {
+  admin: 'Quản trị',
+  agency: 'Đại lý',
+  household_owner: 'Chủ hộ',
+};
+
+function normalizeFieldAccountRow(row) {
+  return {
+    ...row,
+    region_codes: Array.isArray(row?.region_codes) ? row.region_codes : [],
+  };
+}
+
+function roleBadgeClass(role) {
+  if (role === 'agency') return 'bg-blue-100 text-blue-700';
+  if (role === 'manager') return 'bg-violet-100 text-violet-700';
+  return 'bg-green-100 text-green-700';
+}
+
+function RegionCheckboxGroup({ regions, value, onChange }) {
+  const selected = useMemo(() => new Set((value || []).map(String)), [value]);
+  const toggle = (code) => {
+    const next = new Set(selected);
+    if (next.has(code)) next.delete(code);
+    else next.add(code);
+    onChange([...next].sort((a, b) => a.localeCompare(b, 'vi', { numeric: true })));
+  };
+
+  return (
+    <div className="mt-1 max-h-52 overflow-y-auto rounded-lg border border-border p-2 space-y-1">
+      {regions.length === 0 ? (
+        <p className="px-2 py-2 text-xs text-muted-foreground">Chưa có danh mục khu vực</p>
+      ) : (
+        regions.map((r) => {
+          const code = String(r.code);
+          const checked = selected.has(code);
+          return (
+            <label
+              key={code}
+              className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 cursor-pointer"
+            >
+              <Checkbox checked={checked} onCheckedChange={() => toggle(code)} />
+              <span className="text-sm font-semibold">
+                <span className="font-mono text-muted-foreground">{code}</span>
+                {' — '}
+                {r.name}
+              </span>
+            </label>
+          );
+        })
+      )}
+    </div>
+  );
+}
 
 function SearchSelect({ value, onChange, options, placeholder = 'Chọn…' }) {
   const [open, setOpen] = useState(false);
@@ -110,8 +167,10 @@ function SearchSelect({ value, onChange, options, placeholder = 'Chọn…' }) {
 
 export default function AdminUsers() {
   const [rows, setRows] = useState([]);
+  const [officeRows, setOfficeRows] = useState([]);
   const [agencies, setAgencies] = useState([]);
   const [households, setHouseholds] = useState([]);
+  const [regions, setRegions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -126,11 +185,12 @@ export default function AdminUsers() {
   const [role, setRole] = useState('household_owner');
   const [agencyId, setAgencyId] = useState('');
   const [householdId, setHouseholdId] = useState('');
+  const [regionCodes, setRegionCodes] = useState([]);
 
   const loadList = async () => {
     const { data, error } = await base44.supabase
       .from('field_accounts')
-      .select('id, phone, password_plaintext, role, agency_id, household_id, display_name, created_at')
+      .select('*')
       .order('created_at', { ascending: false })
       .limit(200);
 
@@ -141,26 +201,49 @@ export default function AdminUsers() {
       toast.error(
         missingTable
           ? 'Chưa có bảng field_accounts — chạy scripts/migrations/20260429_field_accounts.sql (và 20260430_field_account_verify_rpc.sql).'
-          : 'Không tải danh sách: ' + error.message
+          : 'Không tải danh sách hiện trường: ' + error.message
       );
+      setRows([]);
+    } else {
+      setRows((data || []).map(normalizeFieldAccountRow));
+    }
+  };
+
+  const loadOfficeUsers = async () => {
+    const { data, error } = await base44.rpc('list_office_auth_users');
+    if (!error && data != null) {
+      const list = typeof data === 'string' ? JSON.parse(data) : data;
+      setOfficeRows(Array.isArray(list) ? list : []);
       return;
     }
-    setRows(data || []);
+    const { data: profiles, error: profileErr } = await base44.supabase
+      .from('profiles')
+      .select('id, role, display_name, phone, created_at')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (profileErr) {
+      console.warn('profiles:', profileErr.message);
+      setOfficeRows([]);
+      return;
+    }
+    setOfficeRows(profiles || []);
   };
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [ag, hh] = await Promise.all([
+        const [ag, hh, reg] = await Promise.all([
           base44.entities.Agency.list('name', 500),
           base44.entities.Household.list('name', 500),
+          base44.entities.RegionCode.list('sort_order', 200),
         ]);
         if (!cancelled) {
           setAgencies(ag || []);
           setHouseholds(hh || []);
+          setRegions(reg || []);
         }
-        await loadList();
+        await Promise.all([loadList(), loadOfficeUsers()]);
       } catch {
         if (!cancelled) toast.error('Lỗi tải dữ liệu');
       } finally {
@@ -192,6 +275,31 @@ export default function AdminUsers() {
     [households]
   );
   const roleLabel = ROLE_SELECT_ITEMS.find((r) => r.value === role)?.label ?? '';
+  const regionMap = useMemo(() => Object.fromEntries(regions.map((r) => [String(r.code), r])), [regions]);
+  const agMap = useMemo(() => Object.fromEntries(agencies.map((a) => [String(a.id), a])), [agencies]);
+  const hhMap = useMemo(() => Object.fromEntries(households.map((h) => [String(h.id), h])), [households]);
+
+  const onRoleChange = (v) => {
+    setRole(v);
+    if (v !== 'agency') setAgencyId('');
+    if (v !== 'household_owner') setHouseholdId('');
+    if (v !== 'manager') setRegionCodes([]);
+  };
+
+  const formatScopeCell = (r) => {
+    if (r.role === 'agency') return agMap[String(r.agency_id)]?.code || '—';
+    if (r.role === 'manager') {
+      const codes = Array.isArray(r.region_codes) ? r.region_codes : [];
+      if (codes.length === 0) return '—';
+      return codes
+        .map((c) => {
+          const reg = regionMap[String(c)];
+          return reg ? `${c} (${reg.name})` : c;
+        })
+        .join(', ');
+    }
+    return hhMap[String(r.household_id)]?.name || '—';
+  };
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -212,6 +320,10 @@ export default function AdminUsers() {
       toast.error('Chọn hộ nuôi');
       return;
     }
+    if (role === 'manager' && regionCodes.length === 0) {
+      toast.error('Chọn ít nhất một khu vực');
+      return;
+    }
 
     const { data: dupFa } = await base44.supabase.from('field_accounts').select('id').eq('phone', norm).maybeSingle();
     if (dupFa) {
@@ -228,11 +340,17 @@ export default function AdminUsers() {
         role,
         agency_id: role === 'agency' ? agencyId : null,
         household_id: role === 'household_owner' ? householdId : null,
+        region_codes: role === 'manager' ? regionCodes : [],
         display_name: dname,
       });
 
       if (faErr) {
-        toast.error(faErr.message || 'Không tạo được tài khoản');
+        const needMigration = /region_codes|manager|field_accounts_scope_chk|field_accounts_role_check/i.test(faErr.message || '');
+        toast.error(
+          needMigration
+            ? `${faErr.message} — Chạy scripts/migrations/20260527_field_accounts_manager_role.sql trên Supabase.`
+            : faErr.message || 'Không tạo được tài khoản'
+        );
         return;
       }
 
@@ -242,6 +360,7 @@ export default function AdminUsers() {
       setDisplayName('');
       setHouseholdId('');
       setAgencyId('');
+      setRegionCodes([]);
       setShowCreateDialog(false);
       await loadList();
     } catch (err) {
@@ -263,6 +382,18 @@ export default function AdminUsers() {
       toast.error('Mật khẩu tối thiểu 6 ký tự');
       return;
     }
+    if (role === 'agency' && !agencyId) {
+      toast.error('Chọn đại lý');
+      return;
+    }
+    if (role === 'household_owner' && !householdId) {
+      toast.error('Chọn hộ nuôi');
+      return;
+    }
+    if (role === 'manager' && regionCodes.length === 0) {
+      toast.error('Chọn ít nhất một khu vực');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -272,6 +403,7 @@ export default function AdminUsers() {
         role,
         agency_id: role === 'agency' ? agencyId : null,
         household_id: role === 'household_owner' ? householdId : null,
+        region_codes: role === 'manager' ? regionCodes : [],
       };
       if (password) {
         updates.password_plaintext = password;
@@ -325,6 +457,7 @@ export default function AdminUsers() {
     setRole('household_owner');
     setAgencyId('');
     setHouseholdId('');
+    setRegionCodes([]);
     setShowCreateDialog(true);
   };
 
@@ -336,6 +469,7 @@ export default function AdminUsers() {
     setRole(account.role || 'household_owner');
     setAgencyId(account.agency_id != null ? String(account.agency_id) : '');
     setHouseholdId(account.household_id != null ? String(account.household_id) : '');
+    setRegionCodes(Array.isArray(account.region_codes) ? account.region_codes.map(String) : []);
     setShowEditDialog(true);
   };
 
@@ -354,9 +488,6 @@ export default function AdminUsers() {
     );
   }
 
-  const agMap = Object.fromEntries(agencies.map((a) => [String(a.id), a]));
-  const hhMap = Object.fromEntries(households.map((h) => [String(h.id), h]));
-
   return (
     <div className="p-3 sm:p-6 space-y-6 max-w-6xl mx-auto w-full">
       <div className="flex items-start justify-between gap-3">
@@ -365,9 +496,11 @@ export default function AdminUsers() {
             <UserPlus className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">Tài khoản hiện trường</h1>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Tài khoản</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Tài khoản hiện trường đăng nhập tại trang đăng nhập chung, tab <strong className="text-foreground font-medium">Hiện trường</strong>.
+              <strong className="text-foreground font-medium">Hiện trường</strong> — SĐT, tab Hiện trường.
+              {' '}
+              <strong className="text-foreground font-medium">Văn phòng</strong> — email, tab Văn phòng (Quản trị xem full).
             </p>
           </div>
         </div>
@@ -379,7 +512,7 @@ export default function AdminUsers() {
 
       <section className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">Đã cấp quyền ({rows.length})</h2>
+          <h2 className="text-sm font-semibold text-foreground">Hiện trường — SĐT ({rows.length})</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[920px]">
@@ -389,12 +522,19 @@ export default function AdminUsers() {
                 <th className="px-4 py-3 whitespace-nowrap">Mật khẩu</th>
                 <th className="px-4 py-3 whitespace-nowrap">Tên hiển thị</th>
                 <th className="px-4 py-3 whitespace-nowrap">Vai trò</th>
-                <th className="px-4 py-3 whitespace-nowrap">Đại lý / Hộ</th>
+                <th className="px-4 py-3 whitespace-nowrap">Phạm vi</th>
                 <th className="px-4 py-3 whitespace-nowrap">Ngày tạo</th>
                 <th className="px-4 py-3 text-center whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                    Chưa có tài khoản hiện trường. Bấm «Thêm tài khoản» để tạo.
+                  </td>
+                </tr>
+              ) : null}
               {rows.map((r) => (
                 <tr key={r.id} className="hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono text-foreground whitespace-nowrap">{r.phone || '—'}</td>
@@ -403,16 +543,12 @@ export default function AdminUsers() {
                   </td>
                   <td className="px-4 py-3 text-foreground whitespace-nowrap">{r.display_name || '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      r.role === 'agency' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                    }`}>
-                      {r.role === 'agency' ? 'Đại lý' : 'Chủ hộ'}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${roleBadgeClass(r.role)}`}>
+                      {FIELD_ROLE_LABELS[r.role] || r.role || '—'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                    {r.role === 'agency'
-                      ? agMap[String(r.agency_id)]?.code || '—'
-                      : hhMap[String(r.household_id)]?.name || '—'}
+                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap max-w-[280px] truncate" title={formatScopeCell(r)}>
+                    {formatScopeCell(r)}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
                     {r.created_at ? new Date(r.created_at).toLocaleDateString('vi-VN') : '—'}
@@ -448,6 +584,53 @@ export default function AdminUsers() {
         </div>
       </section>
 
+      <section className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground">Văn phòng — Email ({officeRows.length})</h2>
+          <p className="text-xs text-muted-foreground mt-1">Tạo admin: <code className="text-foreground">npm run seed:admin</code></p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
+            <thead>
+              <tr className="bg-muted/50 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <th className="px-4 py-3 whitespace-nowrap">Email</th>
+                <th className="px-4 py-3 whitespace-nowrap">Tên hiển thị</th>
+                <th className="px-4 py-3 whitespace-nowrap">Vai trò</th>
+                <th className="px-4 py-3 whitespace-nowrap">SĐT (profile)</th>
+                <th className="px-4 py-3 whitespace-nowrap">Ngày tạo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {officeRows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                    Chưa có tài khoản văn phòng.
+                  </td>
+                </tr>
+              ) : (
+                officeRows.map((r) => (
+                  <tr key={r.id} className="hover:bg-muted/30">
+                    <td className="px-4 py-3 font-mono text-foreground whitespace-nowrap">{r.email || '—'}</td>
+                    <td className="px-4 py-3 text-foreground whitespace-nowrap">{r.display_name || '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        r.role === 'admin' ? 'bg-amber-100 text-amber-800' : roleBadgeClass(r.role)
+                      }`}>
+                        {OFFICE_ROLE_LABELS[r.role] || r.role || '—'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-muted-foreground whitespace-nowrap">{r.phone || '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
+                      {r.created_at ? new Date(r.created_at).toLocaleDateString('vi-VN') : '—'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       {/* Dialog tạo mới */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="sm:max-w-md">
@@ -469,7 +652,7 @@ export default function AdminUsers() {
             </div>
             <div>
               <Label>Vai trò</Label>
-              <Select value={role} onValueChange={setRole}>
+              <Select value={role} onValueChange={onRoleChange}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Chọn vai trò">{roleLabel}</SelectValue>
                 </SelectTrigger>
@@ -489,6 +672,12 @@ export default function AdminUsers() {
                   options={agencySelectItems}
                   placeholder="Chọn đại lý"
                 />
+              </div>
+            ) : role === 'manager' ? (
+              <div>
+                <Label>Khu vực phân công *</Label>
+                <p className="text-xs text-muted-foreground mt-0.5 mb-1">Chọn một hoặc nhiều khu vực</p>
+                <RegionCheckboxGroup regions={regions} value={regionCodes} onChange={setRegionCodes} />
               </div>
             ) : (
               <div>
@@ -531,7 +720,7 @@ export default function AdminUsers() {
             </div>
             <div>
               <Label>Vai trò</Label>
-              <Select value={role} onValueChange={setRole}>
+              <Select value={role} onValueChange={onRoleChange}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Chọn vai trò">{roleLabel}</SelectValue>
                 </SelectTrigger>
@@ -551,6 +740,12 @@ export default function AdminUsers() {
                   options={agencySelectItems}
                   placeholder="Chọn đại lý"
                 />
+              </div>
+            ) : role === 'manager' ? (
+              <div>
+                <Label>Khu vực phân công *</Label>
+                <p className="text-xs text-muted-foreground mt-0.5 mb-1">Chọn một hoặc nhiều khu vực</p>
+                <RegionCheckboxGroup regions={regions} value={regionCodes} onChange={setRegionCodes} />
               </div>
             ) : (
               <div>
@@ -595,25 +790,34 @@ export default function AdminUsers() {
               <div className="grid grid-cols-3 gap-2 text-sm">
                 <span className="text-muted-foreground">Vai trò:</span>
                 <span className="col-span-2">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    selectedAccount.role === 'agency' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                  }`}>
-                    {selectedAccount.role === 'agency' ? 'Đại lý' : 'Chủ hộ'}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${roleBadgeClass(selectedAccount.role)}`}>
+                    {FIELD_ROLE_LABELS[selectedAccount.role] || selectedAccount.role || '—'}
                   </span>
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2 text-sm">
-                <span className="text-muted-foreground">{selectedAccount.role === 'agency' ? 'Đại lý:' : 'Hộ nuôi:'}</span>
+                <span className="text-muted-foreground">Phạm vi:</span>
                 <span className="col-span-2 font-semibold">
                   {selectedAccount.role === 'agency'
                     ? (() => {
                         const ag = agMap[String(selectedAccount.agency_id)];
                         return ag ? `${ag.code} — ${ag.name}` : '—';
                       })()
-                    : (() => {
-                        const hh = hhMap[String(selectedAccount.household_id)];
-                        return hh ? `${hh.name} (${formatHouseholdSegmentDisplay(hh.household_segment)})` : '—';
-                      })()}
+                    : selectedAccount.role === 'manager'
+                      ? (() => {
+                          const codes = Array.isArray(selectedAccount.region_codes) ? selectedAccount.region_codes : [];
+                          if (codes.length === 0) return '—';
+                          return codes
+                            .map((c) => {
+                              const reg = regionMap[String(c)];
+                              return reg ? `${c} — ${reg.name}` : c;
+                            })
+                            .join(', ');
+                        })()
+                      : (() => {
+                          const hh = hhMap[String(selectedAccount.household_id)];
+                          return hh ? `${hh.name} (${formatHouseholdSegmentDisplay(hh.household_segment)})` : '—';
+                        })()}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2 text-sm">

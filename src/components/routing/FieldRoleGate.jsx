@@ -1,10 +1,10 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { isFieldRole } from '@/lib/fieldAuthHelpers';
 
-/** Chỉ đại lý / chủ hộ vào /field. Admin → trang chủ văn phòng */
+/** Chỉ đại lý / chủ hộ / quản lý vào /field. Admin → trang chủ văn phòng */
 export default function FieldRoleGate() {
   const { user, isLoadingAuth } = useAuth();
-  const location = useLocation();
 
   if (isLoadingAuth) {
     return (
@@ -18,7 +18,7 @@ export default function FieldRoleGate() {
     return <Navigate to="/" replace />;
   }
 
-  if (user?.role !== 'agency' && user?.role !== 'household_owner') {
+  if (!isFieldRole(user?.role)) {
     return <Navigate to="/login" replace />;
   }
 

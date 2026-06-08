@@ -13,7 +13,24 @@ export function normalizeVnPhone(raw) {
 }
 
 export function isFieldRole(role) {
-  return role === 'agency' || role === 'household_owner';
+  return role === 'agency' || role === 'household_owner' || role === 'manager';
+}
+
+export const FIELD_ROLE_LABELS = {
+  agency: 'Đại lý',
+  household_owner: 'Chủ hộ',
+  manager: 'Quản lý',
+};
+
+/** Mã khu vực được phân công (vai trò Quản lý). */
+export function userAssignedRegionCodes(user) {
+  const raw = user?.region_codes;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((c) => String(c).trim()).filter(Boolean);
+}
+
+function pondRegionCode(pond) {
+  return pond?.households?.region_code ?? pond?.region_code ?? null;
 }
 
 const DEFAULT_POND_APP_ORIGIN = 'https://baiyang-one.vercel.app';
@@ -118,6 +135,12 @@ export function isPondInFieldUserScope(user, pond) {
     }
     return false;
   }
+  if (user.role === 'manager') {
+    const codes = userAssignedRegionCodes(user);
+    if (codes.length === 0) return false;
+    const rc = pondRegionCode(pond);
+    return rc != null && codes.includes(String(rc));
+  }
   return false;
 }
 
@@ -136,6 +159,11 @@ export function isHouseholdInFieldUserScope(user, household) {
   if (user.role === 'agency') {
     if (!user.agency_id) return false;
     return String(household.agency_id) === String(user.agency_id);
+  }
+  if (user.role === 'manager') {
+    const codes = userAssignedRegionCodes(user);
+    if (codes.length === 0 || !household.region_code) return false;
+    return codes.includes(String(household.region_code));
   }
   return false;
 }
@@ -161,6 +189,15 @@ export async function loadPondsForFieldUser(user) {
     return (allPonds || []).filter((p) => {
       const hid = pondHouseholdId(p);
       return hid && hhIds.has(String(hid));
+    });
+  }
+
+  if (user.role === 'manager') {
+    const codes = new Set(userAssignedRegionCodes(user));
+    if (codes.size === 0) return [];
+    return (allPonds || []).filter((p) => {
+      const rc = pondRegionCode(p);
+      return rc && codes.has(String(rc));
     });
   }
 

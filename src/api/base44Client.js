@@ -334,6 +334,7 @@ export const base44 = {
           const { data: ag } = await supabase.from('agencies').select('code').eq('id', field.agency_id).maybeSingle();
           agency_code = ag?.code ?? null;
         }
+        const region_codes = Array.isArray(field.region_codes) ? field.region_codes : [];
         const profile = {
           id: field.id,
           role: field.role,
@@ -341,6 +342,7 @@ export const base44 = {
           household_id: field.household_id,
           display_name: field.display_name,
           phone: field.phone,
+          region_codes,
         };
         return {
           id: field.id,
@@ -351,6 +353,7 @@ export const base44 = {
           agency_id: field.agency_id ?? null,
           agency_code,
           household_id: field.household_id ?? null,
+          region_codes,
           fieldSession: true,
         };
       }

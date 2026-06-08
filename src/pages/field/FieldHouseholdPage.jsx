@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import PondStatusBadge from '@/components/ponds/PondStatusBadge';
 import { ChevronRight, MapPin } from 'lucide-react';
 import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
+import { filterHouseholdsForFieldUser, filterPondsForFieldUser } from '@/lib/fieldAuthHelpers';
 
 export default function FieldHouseholdPage() {
   const { user } = useAuth();
@@ -44,6 +45,23 @@ export default function FieldHouseholdPage() {
           return;
         }
 
+        if (user?.role === 'manager') {
+          const [allHh, allPonds] = await Promise.all([
+            base44.entities.Household.list('name', 500),
+            base44.entities.Pond.listWithHouseholds('code', 500),
+          ]);
+          const hh = filterHouseholdsForFieldUser(user, allHh || []);
+          const ponds = filterPondsForFieldUser(user, allPonds || []);
+          if (cancelled) return;
+          setHouseholds(hh);
+          const map = {};
+          for (const h of hh) {
+            map[h.id] = ponds.filter((p) => p.household_id === h.id);
+          }
+          if (!cancelled) setPondsByHousehold(map);
+          return;
+        }
+
         if (!cancelled) setHouseholds([]);
       } catch {
         if (!cancelled) toast.error('Không tải được dữ liệu hộ');
@@ -56,7 +74,7 @@ export default function FieldHouseholdPage() {
     return () => {
       cancelled = true;
     };
-  }, [user?.role, user?.household_id, user?.agency_id]);
+  }, [user?.role, user?.household_id, user?.agency_id, user?.region_codes]);
 
   if (loading) {
     return <p className="text-center text-stone-800 py-14 text-base font-medium">Đang tải…</p>;
