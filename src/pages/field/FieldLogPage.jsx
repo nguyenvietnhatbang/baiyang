@@ -509,6 +509,12 @@ export default function FieldLogPage() {
           />
         </div>
 
+        {user?.role === 'household_owner' && (
+          <p className="text-xs text-stone-600 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            Chủ hộ chỉ được thêm nhật ký mới; không sửa các bản ghi đã lưu trước đó.
+          </p>
+        )}
+
         <Button
           type="submit"
           disabled={saving}

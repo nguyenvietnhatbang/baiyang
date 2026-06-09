@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "seed:admin": "node scripts/create-demo-admin.mjs",
     "seed:bulk": "node scripts/bulk-seed-demo.mjs",
-    "migrate:household-unique": "node scripts/run-household-unique-migration.mjs"
+    "migrate:household-unique": "node scripts/run-household-unique-migration.mjs",
+    "migrate:manager-role": "node scripts/run-manager-role-migration.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.0.0",
