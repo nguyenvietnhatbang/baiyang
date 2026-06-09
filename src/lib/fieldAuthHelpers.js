@@ -1,15 +1,34 @@
 /** Đăng nhập hiện trường: SĐT VN → chuỗi số; xác thực qua bảng field_accounts (RPC), không Auth email. */
 
 /**
+ * Chuẩn hóa SĐT VN về dạng nội bộ: 0 + 9 chữ số (vd. 0386436558).
  * @param {string} raw
- * @returns {string} ví dụ 84987654321
+ * @returns {string}
  */
 export function normalizeVnPhone(raw) {
   let d = String(raw || '').replace(/\D/g, '');
-  if (d.startsWith('84')) return d;
-  if (d.startsWith('0')) return `84${d.slice(1)}`;
-  if (d.length >= 9) return `84${d}`;
+  if (!d) return '';
+  if (d.startsWith('84') && d.length >= 11) return `0${d.slice(2)}`;
+  if (d.startsWith('0')) return d;
+  if (d.length >= 9) return `0${d}`;
   return d;
+}
+
+/** Các biến thể SĐT để tra cứu DB (hỗ trợ bản ghi cũ lưu 84… hoặc 0…). */
+export function vnPhoneLookupVariants(raw) {
+  const canonical = normalizeVnPhone(raw);
+  if (!canonical) return [];
+  const digits = canonical.replace(/\D/g, '');
+  const set = new Set([canonical, digits]);
+  if (digits.startsWith('0') && digits.length >= 10) {
+    set.add(`84${digits.slice(1)}`);
+    set.add(digits.slice(1));
+  }
+  if (digits.startsWith('84') && digits.length >= 11) {
+    set.add(`0${digits.slice(2)}`);
+    set.add(digits.slice(2));
+  }
+  return [...set].filter(Boolean);
 }
 
 export function isFieldRole(role) {

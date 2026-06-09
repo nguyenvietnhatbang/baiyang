@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { normalizeVnPhone, FIELD_ROLE_LABELS } from '@/lib/fieldAuthHelpers';
+import { normalizeVnPhone, vnPhoneLookupVariants, FIELD_ROLE_LABELS } from '@/lib/fieldAuthHelpers';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
 import { Button } from '@/components/ui/button';
@@ -357,8 +357,13 @@ export default function AdminUsers() {
       return;
     }
 
-    const { data: dupFa } = await base44.supabase.from('field_accounts').select('id').eq('phone', norm).maybeSingle();
-    if (dupFa) {
+    const phoneVariants = vnPhoneLookupVariants(norm);
+    const { data: dupRows } = await base44.supabase
+      .from('field_accounts')
+      .select('id')
+      .in('phone', phoneVariants)
+      .limit(1);
+    if (dupRows?.length) {
       toast.error('Số điện thoại đã có trong danh sách');
       return;
     }
@@ -495,7 +500,7 @@ export default function AdminUsers() {
 
   const openEditDialog = (account) => {
     setSelectedAccount(account);
-    setPhone(account.phone || '');
+    setPhone(normalizeVnPhone(account.phone || '') || account.phone || '');
     setPassword('');
     setDisplayName(account.display_name || '');
     setRole(account.role || 'household_owner');
@@ -692,7 +697,7 @@ export default function AdminUsers() {
           <form onSubmit={handleCreate} className="space-y-4 py-2">
             <div>
               <Label>Số điện thoại</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0987…" className="mt-1" />
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0386436558" className="mt-1" inputMode="tel" />
             </div>
             <div>
               <Label>Mật khẩu</Label>

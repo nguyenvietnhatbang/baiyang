@@ -236,7 +236,7 @@ export default function Login() {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               className="mt-1.5 h-12 text-base bg-[hsl(213,45%,18%)] border-slate-500/50 text-white placeholder:text-slate-400"
-              placeholder={loginMode === 'field' ? '0987 654 321' : 'email@congty.com'}
+              placeholder={loginMode === 'field' ? '0386436558' : 'email@congty.com'}
             />
           </div>
           <div>

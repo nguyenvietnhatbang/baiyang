@@ -4,7 +4,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { flattenPondRow } from '@/lib/pondCycleHelpers';
-import { pondCodesEqual } from '@/lib/fieldAuthHelpers';
+import { pondCodesEqual, vnPhoneLookupVariants } from '@/lib/fieldAuthHelpers';
 
 // Phải đọc trực tiếp import.meta.env.VITE_* — Vite chỉ inject khi tên thuộc tính xuất hiện literal trong mã.
 // Gán import.meta.env vào biến rồi dùng env.VITE_* sẽ khiến bundle không có giá trị (luôn như chưa cấu hình).
@@ -108,7 +108,13 @@ function readFieldSessionPayload() {
     }
     if (!raw) return null;
     const s = JSON.parse(raw);
-    if (!s?.id || !s?.phone || (s.role !== 'agency' && s.role !== 'household_owner')) return null;
+    if (
+      !s?.id ||
+      !s?.phone ||
+      (s.role !== 'agency' && s.role !== 'household_owner' && s.role !== 'manager')
+    ) {
+      return null;
+    }
     return s;
   } catch {
     return null;
@@ -371,17 +377,29 @@ export const base44 = {
       clearFieldSessionStorage();
     },
     /** Đăng nhập hiện trường: chỉ DB (RPC), không email / không signUp Auth. */
-    async signInWithFieldAccount(phoneNormalized, password) {
+    async signInWithFieldAccount(phoneInput, password) {
       if (!isSupabaseConfigured) throw configError;
-      const { data, error } = await supabase.rpc('field_account_verify', {
-        p_phone: phoneNormalized,
-        p_password: password,
-      });
-      if (error) throw error;
-      if (data == null) {
-        throw new Error('Sai số điện thoại hoặc mật khẩu');
+      const variants = vnPhoneLookupVariants(phoneInput);
+      if (variants.length === 0) {
+        throw new Error('Số điện thoại không hợp lệ');
       }
-      const row = typeof data === 'string' ? JSON.parse(data) : data;
+      let row = null;
+      let lastError = null;
+      for (const p_phone of variants) {
+        const { data, error } = await supabase.rpc('field_account_verify', {
+          p_phone,
+          p_password: password,
+        });
+        if (error) {
+          lastError = error;
+          continue;
+        }
+        if (data != null) {
+          row = typeof data === 'string' ? JSON.parse(data) : data;
+          break;
+        }
+      }
+      if (lastError && !row) throw lastError;
       if (!row?.id || !row?.phone) {
         throw new Error('Sai số điện thoại hoặc mật khẩu');
       }
