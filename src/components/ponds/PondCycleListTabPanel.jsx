@@ -11,6 +11,7 @@ import {
   isHarvestDateWithinUpcomingDays,
 } from '@/lib/harvestAlerts';
 import PondTableFilterControls from '@/components/ponds/PondTableFilterControls';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
 import { canOfferManualChotThuHoach } from '@/lib/pondCycleHelpers';
 import {
   cycleTable,
@@ -71,8 +72,10 @@ export default function PondCycleListTabPanel({
   setDeleteCycleLabel,
   setShowDeleteConfirm,
   harvestAlertDays = 7,
+  canEditDelete = true,
   canManualCloseCycle = false,
   onManualCloseCycle,
+  excelExport = null,
 }) {
   const isHarvestedView = variant === 'harvested';
   const emptyListHint = isHarvestedView ? 'Không có chu kỳ đã thu hoạch' : 'Không tìm thấy chu kỳ nào';
@@ -80,18 +83,18 @@ export default function PondCycleListTabPanel({
   /** Chỉ render ô dữ liệu khi cột có trong columnDefs — tránh lệch với thead (tab Chu kỳ không có cột cá đã thu). */
   const defKeys = useMemo(() => new Set(columnDefs.map((c) => c.key)), [columnDefs]);
   const colPlan = useMemo(
-    () => cycleColgroupPlan(columnDefs, visibleCols, { showCheck: true, showActions: Boolean(visibleCols.actions) }),
-    [columnDefs, visibleCols]
+    () => cycleColgroupPlan(columnDefs, visibleCols, { showCheck: canEditDelete, showActions: Boolean(visibleCols.actions) }),
+    [columnDefs, visibleCols, canEditDelete]
   );
   const thAlignFor = (key) =>
-    ['total_fish', 'stocked_fish_added', 'current_fish', 'expected_yield', 'actual_yield', 'yield_need_harvest', 'fish_harvested', 'fish_remaining', 'total_feed_used', 'fcr'].includes(key)
+    ['total_fish', 'stocked_fish_added', 'current_fish', 'avg_weight', 'expected_yield', 'actual_yield', 'yield_need_harvest', 'fish_harvested', 'fish_remaining', 'total_feed_used', 'fcr'].includes(key)
       ? 'right'
       : 'left';
   const cell = (key, extra = '') => `${cycleTdClass(key, cycleTdOpts(key))}${extra ? ` ${extra}` : ''}`;
 
   return (
     <>
-      {!isHarvestedView && checkedHarvest.size > 0 && (
+      {!isHarvestedView && canEditDelete && checkedHarvest.size > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
           <p className="text-base font-semibold text-green-800">
             Đã chọn <strong className="font-extrabold">{checkedHarvest.size}</strong> chu kỳ có <strong>sản lượng cần phải thu &gt; 0</strong> (kg kế hoạch &gt; thực tế) — chốt để chuyển sang tab Chu kỳ đã thu
@@ -107,32 +110,46 @@ export default function PondCycleListTabPanel({
         </div>
       )}
 
-      <PondTableFilterControls
-        search={search}
-        setSearch={setSearch}
-        searchPlaceholder="Tìm mã ao, tên chủ hộ, tên chu kỳ…"
-        statusFilterItems={statusFilterItems}
-        statusFilters={statusFilters}
-        setStatusFilters={setStatusFilters}
-        agencyFilterItems={agencyFilterItems}
-        agencyFilters={agencyFilters}
-        setAgencyFilters={setAgencyFilters}
-        householdFilterItems={householdFilterItems}
-        householdFilters={householdFilters}
-        setHouseholdFilters={setHouseholdFilters}
-        showDateRange
-        dateField={cycleDateField}
-        setDateField={setCycleDateField}
-        dateFrom={cycleDateFrom}
-        setDateFrom={setCycleDateFrom}
-        dateTo={cycleDateTo}
-        setDateTo={setCycleDateTo}
-        harvestMonth={cycleHarvestMonth}
-        setHarvestMonth={setCycleHarvestMonth}
-        harvestYear={cycleHarvestYear}
-        setHarvestYear={setCycleHarvestYear}
-        showHarvestMonthPicker
-      />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <PondTableFilterControls
+            search={search}
+            setSearch={setSearch}
+            searchPlaceholder="Tìm mã ao, tên chủ hộ, tên chu kỳ…"
+            statusFilterItems={statusFilterItems}
+            statusFilters={statusFilters}
+            setStatusFilters={setStatusFilters}
+            agencyFilterItems={agencyFilterItems}
+            agencyFilters={agencyFilters}
+            setAgencyFilters={setAgencyFilters}
+            householdFilterItems={householdFilterItems}
+            householdFilters={householdFilters}
+            setHouseholdFilters={setHouseholdFilters}
+            showDateRange
+            dateField={cycleDateField}
+            setDateField={setCycleDateField}
+            dateFrom={cycleDateFrom}
+            setDateFrom={setCycleDateFrom}
+            dateTo={cycleDateTo}
+            setDateTo={setCycleDateTo}
+            harvestMonth={cycleHarvestMonth}
+            setHarvestMonth={setCycleHarvestMonth}
+            harvestYear={cycleHarvestYear}
+            setHarvestYear={setCycleHarvestYear}
+            showHarvestMonthPicker
+          />
+        </div>
+        {excelExport ? (
+          <ExportExcelButton
+            fileName={excelExport.fileName}
+            sheetName={excelExport.sheetName}
+            title={excelExport.title}
+            columns={excelExport.columns}
+            rows={excelExport.rows}
+            disabled={loading || !excelExport.rows?.length}
+          />
+        ) : null}
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
         <div className="rounded-lg border border-border bg-card p-3">
@@ -194,6 +211,7 @@ export default function PondCycleListTabPanel({
                 harvest_done: r.harvest_done,
                 area: r.area,
                 current_fish: r.current_fish,
+                avg_weight: r.avg_weight,
                 expected_yield: r.expected_yield,
                 expected_harvest_date: isHarvestedView ? r.latest_harvest_date : r.expected_harvest_date,
                 harvest_date_estimated: isHarvestedView ? false : r.expected_harvest_date_estimated,
@@ -206,8 +224,8 @@ export default function PondCycleListTabPanel({
                 fish_harvested: r.fish_harvested,
                 fish_remaining: r.fish_remaining,
               }}
-              checked={r.cycle_id ? checkedHarvest.has(r.cycle_id) : false}
-              onCheck={(e) => toggleHarvestCheck(r.cycle_id, e)}
+              checked={canEditDelete && r.cycle_id ? checkedHarvest.has(r.cycle_id) : false}
+              onCheck={canEditDelete ? (e) => toggleHarvestCheck(r.cycle_id, e) : undefined}
               onClick={() => (r.cycle_id ? setViewCycleId(r.cycle_id) : setViewPondId(r.pond_id))}
             />
           ))
@@ -291,7 +309,7 @@ export default function PondCycleListTabPanel({
                       className={`hover:bg-primary/5 cursor-pointer transition-colors ${isNewGroup ? 'border-t-2 border-t-muted/40' : ''} ${isOverdue ? 'bg-red-50/40' : isUrgent ? 'bg-yellow-50/40' : isUpcomingHarvest ? 'bg-amber-50/25' : ''}`}
                     >
                       <td className={cycleTable.checkCol} onClick={(e) => e.stopPropagation()}>
-                        {canOfferManualChotThuHoach(r) && (
+                        {canEditDelete && canOfferManualChotThuHoach(r) && (
                           <input
                             type="checkbox"
                             checked={checkedHarvest.has(r.cycle_id)}
@@ -340,6 +358,13 @@ export default function PondCycleListTabPanel({
                       {visibleCols.current_fish && (
                         <td className={cell('current_fish', 'font-semibold text-slate-800')}>
                           {r.current_fish != null && !Number.isNaN(Number(r.current_fish)) ? Number(r.current_fish).toLocaleString() : '—'}
+                        </td>
+                      )}
+                      {visibleCols.avg_weight && (
+                        <td className={cell('avg_weight', 'font-semibold text-slate-800')}>
+                          {r.avg_weight != null && !Number.isNaN(Number(r.avg_weight))
+                            ? Number(r.avg_weight).toLocaleString(undefined, { maximumFractionDigits: 1 })
+                            : '—'}
                         </td>
                       )}
                       {visibleCols.expected_yield && (
@@ -464,51 +489,55 @@ export default function PondCycleListTabPanel({
                               <DropdownMenuItem onClick={() => (r.cycle_id ? setViewCycleId(r.cycle_id) : setViewPondId(r.pond_id))}>
                                 <Eye className="w-4 h-4 mr-2" /> Xem
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  if (r.cycle_id) {
-                                    setEditCycleId(r.cycle_id);
-                                  } else {
-                                    setSelectedPond({ id: r.pond_id, code: r.pond_code, area: r.area, depth: r.depth, location: r.location });
-                                    setShowEditDialog(true);
-                                  }
-                                }}
-                              >
-                                <Edit className="w-4 h-4 mr-2" /> Sửa
-                              </DropdownMenuItem>
-                              {canOfferManualChotThuHoach(r) &&
-                                canManualCloseCycle &&
-                                typeof onManualCloseCycle === 'function' && (
+                              {canEditDelete ? (
+                                <>
                                   <DropdownMenuItem
-                                    onClick={() =>
-                                      onManualCloseCycle(r.cycle_id, `${r.pond_code} · ${r.cycle_name}`)
-                                    }
+                                    onClick={() => {
+                                      if (r.cycle_id) {
+                                        setEditCycleId(r.cycle_id);
+                                      } else {
+                                        setSelectedPond({ id: r.pond_id, code: r.pond_code, area: r.area, depth: r.depth, location: r.location });
+                                        setShowEditDialog(true);
+                                      }
+                                    }}
                                   >
-                                    <ClipboardCheck className="w-4 h-4 mr-2" /> Chốt kết thúc chu kỳ…
+                                    <Edit className="w-4 h-4 mr-2" /> Sửa
                                   </DropdownMenuItem>
-                                )}
-                              <DropdownMenuSeparator />
-                              {r.cycle_id ? (
-                                <DropdownMenuItem
-                                  className="text-red-600 focus:text-red-600"
-                                  onClick={() => {
-                                    setDeleteCycleId(r.cycle_id);
-                                    setDeleteCycleLabel(`${r.pond_code} · ${r.cycle_name}`);
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" /> Xóa
-                                </DropdownMenuItem>
-                              ) : (
-                                <DropdownMenuItem
-                                  className="text-red-600 focus:text-red-600"
-                                  onClick={() => {
-                                    setSelectedPond({ id: r.pond_id, code: r.pond_code });
-                                    setShowDeleteConfirm(true);
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" /> Xóa
-                                </DropdownMenuItem>
-                              )}
+                                  {canOfferManualChotThuHoach(r) &&
+                                    canManualCloseCycle &&
+                                    typeof onManualCloseCycle === 'function' && (
+                                      <DropdownMenuItem
+                                        onClick={() =>
+                                          onManualCloseCycle(r.cycle_id, `${r.pond_code} · ${r.cycle_name}`)
+                                        }
+                                      >
+                                        <ClipboardCheck className="w-4 h-4 mr-2" /> Chốt kết thúc chu kỳ…
+                                      </DropdownMenuItem>
+                                    )}
+                                  <DropdownMenuSeparator />
+                                  {r.cycle_id ? (
+                                    <DropdownMenuItem
+                                      className="text-red-600 focus:text-red-600"
+                                      onClick={() => {
+                                        setDeleteCycleId(r.cycle_id);
+                                        setDeleteCycleLabel(`${r.pond_code} · ${r.cycle_name}`);
+                                      }}
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" /> Xóa
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem
+                                      className="text-red-600 focus:text-red-600"
+                                      onClick={() => {
+                                        setSelectedPond({ id: r.pond_id, code: r.pond_code });
+                                        setShowDeleteConfirm(true);
+                                      }}
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" /> Xóa
+                                    </DropdownMenuItem>
+                                  )}
+                                </>
+                              ) : null}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </td>

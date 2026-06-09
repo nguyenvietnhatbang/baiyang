@@ -20,6 +20,7 @@ import PondEditDialog from './PondEditDialog';
 import PondStatusBadge from './PondStatusBadge';
 import { differenceInDays, parseISO } from 'date-fns';
 import { useAuth } from '@/lib/AuthContext';
+import { canUserEditDelete } from '@/lib/fieldAuthHelpers';
 import { base44 } from '@/api/base44Client';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
@@ -48,7 +49,8 @@ export default function PondManageView({
 }) {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const canEditThisPond = Boolean(user);
+  const canEditDelete = canUserEditDelete(user);
+  const canAdd = Boolean(user);
   const today = new Date();
   const [showEdit, setShowEdit] = useState(false);
   const [cycles, setCycles] = useState([]);
@@ -105,7 +107,7 @@ export default function PondManageView({
   };
 
   const handleCycleStatusChange = async (next) => {
-    if (!selectedCycle || !canEditThisPond || next === selectedCycle.status) return;
+    if (!selectedCycle || !canEditDelete || next === selectedCycle.status) return;
     setStatusSaving(true);
     setCycleLoadErr('');
     try {
@@ -118,7 +120,7 @@ export default function PondManageView({
   };
 
   const handleConfirmNewCycle = async () => {
-    if (!canEditThisPond) return;
+    if (!canAdd) return;
     setAddingCycle(true);
     setCycleLoadErr('');
     try {
@@ -138,7 +140,7 @@ export default function PondManageView({
   };
 
   const handleDeleteSelectedCycle = async () => {
-    if (!selectedCycle || !canEditThisPond) return;
+    if (!selectedCycle || !canEditDelete) return;
     setDeletingCycle(true);
     setCycleLoadErr('');
     try {
@@ -195,14 +197,16 @@ export default function PondManageView({
               {pond.owner_name} • {pond.area} m²
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowEdit(true)}
-            className="text-primary-foreground/75 hover:text-primary-foreground transition-colors p-1 rounded shrink-0"
-            title="Chỉnh sửa / Xóa ao"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
+          {canEditDelete ? (
+            <button
+              type="button"
+              onClick={() => setShowEdit(true)}
+              className="text-primary-foreground/75 hover:text-primary-foreground transition-colors p-1 rounded shrink-0"
+              title="Chỉnh sửa / Xóa ao"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          ) : null}
         </div>
 
         <div className="px-4 sm:px-6 py-3 border-b border-border bg-muted/30 space-y-2">
@@ -232,7 +236,7 @@ export default function PondManageView({
                 </SelectContent>
               </Select>
             </div>
-            {canEditThisPond && (
+            {canAdd && (
               <Button
                 type="button"
                 variant="secondary"
@@ -250,7 +254,7 @@ export default function PondManageView({
             )}
           </div>
 
-          {selectedCycle && canEditThisPond && (
+          {selectedCycle && canEditDelete && (
             <div className="flex flex-col sm:flex-row sm:items-end gap-2 border-t border-border/60 mt-2 pt-3">
               <div className="flex-1 min-w-0 sm:max-w-[22rem]">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
@@ -289,7 +293,7 @@ export default function PondManageView({
             </div>
           )}
 
-          {selectedCycle && !canEditThisPond && (
+          {selectedCycle && !canEditDelete && (
             <div className="flex items-center gap-2 flex-wrap pt-1">
               <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                 Trạng thái chu kỳ
@@ -343,8 +347,8 @@ export default function PondManageView({
                   cycle={selectedCycle}
                   onUpdate={handleLocalUpdate}
                   isWithdrawal={isWithdrawal}
-                  canEditPlan={canEditThisPond}
-                  canEditAdjustedPlan={canEditThisPond}
+                  canEditPlan={canEditDelete}
+                  canEditAdjustedPlan={canEditDelete}
                   isAdmin={isAdmin}
                   siblingPonds={siblingPonds}
                 />
@@ -368,6 +372,7 @@ export default function PondManageView({
                   cycle={selectedCycle}
                   onUpdate={handleLocalUpdate}
                   isWithdrawal={isWithdrawal}
+                  canEditDelete={canEditDelete}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">Chọn hoặc tạo chu kỳ để ghi thu hoạch.</p>

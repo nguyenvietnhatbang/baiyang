@@ -21,6 +21,7 @@ const baseNavItems = [
 
 const scopedNavItems = [
   { path: '/ponds', icon: Fish, label: 'Quản lý ao' },
+  { path: '/logs', icon: ClipboardList, label: 'Nhật ký' },
   { path: '/scan', icon: ScanLine, label: 'Quét QR' },
 ];
 

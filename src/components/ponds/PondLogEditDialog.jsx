@@ -10,6 +10,8 @@ import { base44 } from '@/api/base44Client';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import WaterColorCombobox from '@/components/ponds/WaterColorCombobox';
 import { recalculateCycleMetrics } from '@/lib/recalculateCycleMetrics';
+import { useAuth } from '@/lib/AuthContext';
+import { canUserEditPondLog } from '@/lib/fieldAuthHelpers';
 
 function toDateInputValue(d) {
   if (d == null || d === '') return '';
@@ -39,6 +41,7 @@ function addDaysToDate(logDate, days) {
 }
 
 export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
+  const { user } = useAuth();
   const [form, setForm] = useState({
     log_date: '',
     ph: '',
@@ -161,7 +164,11 @@ export default function PondLogEditDialog({ open, onClose, log, onSaved }) {
       };
 
       if (log?.id) {
-        // Sửa nhật ký đã có
+        if (!canUserEditPondLog(user)) {
+          setError('Bạn không có quyền sửa nhật ký đã lưu. Chỉ được thêm bản ghi mới.');
+          setSaving(false);
+          return;
+        }
         await base44.entities.PondLog.update(log.id, payload);
       } else {
         // Tạo nhật ký mới

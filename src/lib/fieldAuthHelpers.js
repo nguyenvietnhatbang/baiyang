@@ -16,10 +16,52 @@ export function isFieldRole(role) {
   return role === 'agency' || role === 'household_owner' || role === 'manager';
 }
 
+export function isAdminUser(user) {
+  return user?.role === 'admin';
+}
+
+/** Chỉ admin được sửa / xóa dữ liệu gốc (ao, chu kỳ, hộ…); vai trò khác chỉ thêm và xem. */
+export function canUserEditDelete(user) {
+  return isAdminUser(user);
+}
+
+/** Ghi nhật ký mới — admin, giám sát vùng, chủ hộ, đại lý (trong phạm vi). */
+export function canUserCreatePondLog(user) {
+  if (!user) return false;
+  if (isAdminUser(user)) return true;
+  return isFieldRole(user.role);
+}
+
+/** Sửa dòng nhật ký đã lưu — admin và giám sát vùng; chủ hộ / đại lý không. */
+export function canUserEditPondLog(user) {
+  if (!user) return false;
+  if (isAdminUser(user)) return true;
+  return user.role === 'manager';
+}
+
+/** Xóa nhật ký — chỉ admin. */
+export function canUserDeletePondLog(user) {
+  return isAdminUser(user);
+}
+
+export function canUserCreatePondLogForPond(user, pond) {
+  if (!user || !pond) return false;
+  if (isAdminUser(user)) return true;
+  if (!canUserCreatePondLog(user)) return false;
+  return isPondInFieldUserScope(user, pond);
+}
+
+export function canUserEditPondLogForPond(user, pond) {
+  if (!user || !pond) return false;
+  if (!canUserEditPondLog(user)) return false;
+  if (isAdminUser(user)) return true;
+  return isPondInFieldUserScope(user, pond);
+}
+
 export const FIELD_ROLE_LABELS = {
   agency: 'Đại lý',
   household_owner: 'Chủ hộ',
-  manager: 'Quản lý',
+  manager: 'Giám sát vùng',
 };
 
 /** Mã khu vực được phân công (vai trò Quản lý). */

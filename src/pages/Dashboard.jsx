@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { differenceInDays, parseISO } from 'date-fns';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { calendarDaysUntilHarvest, isHarvestDateOnOrBeforeToday } from '@/lib/harvestAlerts';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
 
 export default function Dashboard() {
   const [ponds, setPonds] = useState([]);
@@ -183,8 +184,24 @@ export default function Dashboard() {
 
       {/* FCR & Active Ponds Summary */}
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-border">
+        <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-semibold text-foreground">Tình trạng ao đang nuôi</h3>
+          <ExportExcelButton
+            fileName="ao-dang-nuoi"
+            sheetName="Ao CC"
+            title="Tình trạng ao đang nuôi"
+            columns={[
+              { header: 'Mã ao', key: 'code', width: 14 },
+              { header: 'Chủ hộ', key: 'owner_name', width: 18 },
+              { header: 'Số cá', accessor: (p) => p.current_fish ?? 0, width: 12 },
+              { header: 'SL dự kiến (kg)', accessor: (p) => p.expected_yield ?? 0, width: 14 },
+              { header: 'FCR', key: 'fcr', width: 8 },
+              { header: 'Ngày thu DK', accessor: (p) => plannedHarvestDateForDisplay(p) || '', width: 12 },
+            ]}
+            rows={activePonds}
+            disabled={activePonds.length === 0}
+            className="gap-2 text-sm h-9 px-3"
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[600px]">

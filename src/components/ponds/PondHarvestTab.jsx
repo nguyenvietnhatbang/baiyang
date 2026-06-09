@@ -28,7 +28,7 @@ const HARVEST_ACTION_ITEMS = [
   { value: 'deduct_price', label: '💸 Trừ % giá trị' },
 ];
 
-export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) {
+export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal, canEditDelete = false }) {
   const [records, setRecords] = useState([]);
   const [showEntryForm, setShowEntryForm] = useState(true);
   const [form, setForm] = useState({
@@ -364,15 +364,17 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal }) 
                     </span>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-2 h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                  onClick={() => handleDeleteHarvest(r.id, r.harvest_date, r.actual_yield)}
-                  title="Xóa phiếu thu hoạch"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                {canEditDelete ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-2 h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => handleDeleteHarvest(r.id, r.harvest_date, r.actual_yield)}
+                    title="Xóa phiếu thu hoạch"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                ) : null}
               </div>
             </div>
           ))}

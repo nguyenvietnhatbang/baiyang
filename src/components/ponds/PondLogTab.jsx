@@ -9,12 +9,15 @@ import { Save, ChevronDown, ChevronUp, AlertTriangle, TrendingUp } from 'lucide-
 import { format } from 'date-fns';
 import { submitPondLogEntry } from '@/lib/pondLogSubmit';
 import { POND_LOG_ENV_RANGES, pondLogEnvOutOfRange } from '@/lib/pondLogEnvRanges';
+import { useAuth } from '@/lib/AuthContext';
 
 function isAlert(key, value) {
   return pondLogEnvOutOfRange(key, value);
 }
 
 export default function PondLogTab({ pond, cycle, onUpdate }) {
+  const { user } = useAuth();
+  const isHouseholdReadOnlyHistory = user?.role === 'household_owner';
   const [showHistory, setShowHistory] = useState(false);
   const [logs, setLogs] = useState([]);
   const [form, setForm] = useState({
@@ -177,6 +180,12 @@ export default function PondLogTab({ pond, cycle, onUpdate }) {
         <Save className="w-4 h-4 mr-2" />
         {saving ? 'Đang lưu...' : 'Lưu nhật ký'}
       </Button>
+
+      {isHouseholdReadOnlyHistory && (
+        <p className="text-xs text-muted-foreground bg-muted/50 border border-border rounded-lg px-3 py-2">
+          Chủ hộ chỉ được thêm nhật ký mới; không sửa các bản ghi đã lưu trước đó.
+        </p>
+      )}
 
       {/* History */}
       <button

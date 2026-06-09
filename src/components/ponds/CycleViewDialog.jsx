@@ -41,7 +41,16 @@ function fmtNumber(x) {
   return n.toLocaleString();
 }
 
-export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
+export default function CycleViewDialog({
+  open,
+  onClose,
+  cycleId,
+  onEdit,
+  canEditDelete = false,
+  canEditPondLog = false,
+  canDeletePondLog = false,
+}) {
+  const showLogActions = canEditPondLog || canDeletePondLog;
   const logTableScrollRef = useRef(null);
   const [tab, setTab] = useState('detail');
   const [detailLayout, setDetailLayout] = useState('cards');
@@ -193,7 +202,10 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
             Xem chu kỳ {cycleTitle}
           </DialogTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Có thể sửa nhật ký ngay tại đây. Muốn chỉnh thông tin chu kỳ hãy bấm <strong>Sửa</strong>.
+            {canEditPondLog
+              ? 'Có thể sửa nhật ký ngay tại đây.'
+              : 'Chế độ chỉ xem — thêm nhật ký tại trang chi tiết ao hoặc Nhật ký.'}
+            {canEditDelete ? ' Muốn chỉnh thông tin chu kỳ hãy bấm Sửa.' : ''}
           </p>
         </DialogHeader>
 
@@ -568,9 +580,11 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                           <th className="text-left px-3 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap min-w-[8rem]">
                             GHI CHÚ
                           </th>
-                          <th className="sticky right-0 z-10 bg-muted/95 backdrop-blur-sm px-2 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap w-28 border-l border-border/80 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.06)]">
-                            THAO TÁC
-                          </th>
+                          {showLogActions ? (
+                            <th className="sticky right-0 z-10 bg-muted/95 backdrop-blur-sm px-2 sm:px-4 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap w-28 border-l border-border/80 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                              THAO TÁC
+                            </th>
+                          ) : null}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
@@ -656,21 +670,56 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                                     {cellDash(l.notes || l.disease_notes)}
                                   </div>
                                 </td>
-                                <td className="sticky right-0 z-[1] px-2 sm:px-4 py-2.5 sm:py-3 text-right whitespace-nowrap bg-white group-hover:bg-primary/5 border-l border-border/60 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.04)]">
-                                  <div className="flex items-center justify-end gap-1 sm:gap-2">
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0" aria-label="Thêm">
-                                          <MoreHorizontal className="w-4 h-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end" className="w-40">
-                                        <DropdownMenuItem onClick={() => setEditLog(l)}>
-                                          <Pencil className="w-4 h-4 mr-2" /> Sửa nhật ký
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                          className="text-red-600 focus:text-red-600"
+                                {showLogActions ? (
+                                  <td className="sticky right-0 z-[1] px-2 sm:px-4 py-2.5 sm:py-3 text-right whitespace-nowrap bg-white group-hover:bg-primary/5 border-l border-border/60 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.04)]">
+                                    <div className="flex items-center justify-end gap-1 sm:gap-2">
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0" aria-label="Thêm">
+                                            <MoreHorizontal className="w-4 h-4" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-40">
+                                          {canEditPondLog ? (
+                                            <DropdownMenuItem onClick={() => setEditLog(l)}>
+                                              <Pencil className="w-4 h-4 mr-2" /> Sửa nhật ký
+                                            </DropdownMenuItem>
+                                          ) : null}
+                                          {canEditPondLog && canDeletePondLog ? <DropdownMenuSeparator /> : null}
+                                          {canDeletePondLog ? (
+                                            <DropdownMenuItem
+                                              className="text-red-600 focus:text-red-600"
+                                              onClick={async () => {
+                                                if (!window.confirm('Xóa nhật ký này?')) return;
+                                                setDeletingLogId(l.id);
+                                                try {
+                                                  await base44.entities.PondLog.delete(l.id);
+                                                  await reloadAfterLogMutation();
+                                                } catch (e) {
+                                                  alert(formatSupabaseError(e));
+                                                } finally {
+                                                  setDeletingLogId(null);
+                                                }
+                                              }}
+                                            >
+                                              <Trash2 className="w-4 h-4 mr-2" /> Xóa
+                                            </DropdownMenuItem>
+                                          ) : null}
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                      {canEditPondLog ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditLog(l)}
+                                          className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 shrink-0"
+                                          title="Sửa nhật ký"
+                                        >
+                                          <Edit className="w-3.5 h-3.5 text-slate-600" />
+                                        </button>
+                                      ) : null}
+                                      {canDeletePondLog ? (
+                                        <button
+                                          type="button"
                                           onClick={async () => {
                                             if (!window.confirm('Xóa nhật ký này?')) return;
                                             setDeletingLogId(l.id);
@@ -683,41 +732,16 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
                                               setDeletingLogId(null);
                                             }
                                           }}
+                                          disabled={deletingLogId === l.id}
+                                          className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center hover:bg-red-100 disabled:opacity-50 shrink-0"
+                                          title="Xóa nhật ký"
                                         >
-                                          <Trash2 className="w-4 h-4 mr-2" /> Xóa
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditLog(l)}
-                                      className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 shrink-0"
-                                      title="Sửa nhật ký"
-                                    >
-                                      <Edit className="w-3.5 h-3.5 text-slate-600" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        if (!window.confirm('Xóa nhật ký này?')) return;
-                                        setDeletingLogId(l.id);
-                                        try {
-                                          await base44.entities.PondLog.delete(l.id);
-                                          await reloadAfterLogMutation();
-                                        } catch (e) {
-                                          alert(formatSupabaseError(e));
-                                        } finally {
-                                          setDeletingLogId(null);
-                                        }
-                                      }}
-                                      disabled={deletingLogId === l.id}
-                                      className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center hover:bg-red-100 disabled:opacity-50 shrink-0"
-                                      title="Xóa nhật ký"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                                    </button>
-                                  </div>
-                                </td>
+                                          <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                                        </button>
+                                      ) : null}
+                                    </div>
+                                  </td>
+                                ) : null}
                               </tr>
                             );
                           })
@@ -780,10 +804,12 @@ export default function CycleViewDialog({ open, onClose, cycleId, onEdit }) {
             <ShoppingCart className="w-4 h-4 mr-2" />
             Thu hoạch
           </Button>
-          <Button type="button" variant="outline" onClick={() => onEdit?.(cycle)} disabled={!cycle}>
-            <Pencil className="w-4 h-4 mr-2" />
-            Sửa chu kỳ
-          </Button>
+          {canEditDelete && onEdit ? (
+            <Button type="button" variant="outline" onClick={() => onEdit(cycle)} disabled={!cycle}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Sửa chu kỳ
+            </Button>
+          ) : null}
         </DialogFooter>
 
         <PondLogEditDialog

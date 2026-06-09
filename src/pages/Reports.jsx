@@ -6,6 +6,7 @@ import { Download, Maximize2, ChevronsUpDown, RefreshCw } from 'lucide-react';
 import { syncPondCyclesWithHarvests } from '@/lib/pondCycleSync';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { Button } from '@/components/ui/button';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -521,8 +522,21 @@ export default function Reports() {
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-border">
+        <div className="px-4 py-2.5 border-b border-border flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-semibold text-foreground text-sm">Sản lượng ngày</h3>
+          <ExportExcelButton
+            fileName="san-luong-ngay"
+            sheetName="Sản lượng ngày"
+            columns={[
+              { header: 'Ngày', key: 'date', width: 12 },
+              { header: 'Nhu cầu', key: 'demand', width: 12 },
+              { header: 'Sản lượng', key: 'production', width: 12 },
+              { header: 'Chênh lệch', key: 'variance', width: 12 },
+            ]}
+            rows={dailyProductionRows}
+            disabled={!dailyProductionRows?.length}
+            className="gap-2 text-sm h-9 px-3"
+          />
         </div>
         <div className={reportTableScroll}>
           <table className={reportTable}>

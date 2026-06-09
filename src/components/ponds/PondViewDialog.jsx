@@ -15,7 +15,7 @@ function cycleLabel(c, idx) {
   return n || (c?.stock_date ? `Thả ${c.stock_date}` : `Chu kỳ ${idx + 1}`);
 }
 
-export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
+export default function PondViewDialog({ open, onClose, pondId, onEdit, canEditDelete = false }) {
   const [tab, setTab] = useState('info');
   const [pond, setPond] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -181,23 +181,27 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
                               >
                                 <Eye className="w-3.5 h-3.5 text-slate-600" />
                               </button>
-                              <button
-                                onClick={() => {
-                                  setSelectedCycle(c);
-                                  setShowCycleEdit(true);
-                                }}
-                                className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center hover:bg-blue-200 transition-colors"
-                                title="Sửa chu kỳ"
-                              >
-                                <Pencil className="w-3.5 h-3.5 text-blue-600" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteCycle(c)}
-                                className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center hover:bg-red-200 transition-colors"
-                                title="Xóa chu kỳ"
-                              >
-                                <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                              </button>
+                              {canEditDelete ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedCycle(c);
+                                      setShowCycleEdit(true);
+                                    }}
+                                    className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center hover:bg-blue-200 transition-colors"
+                                    title="Sửa chu kỳ"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5 text-blue-600" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteCycle(c)}
+                                    className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center hover:bg-red-200 transition-colors"
+                                    title="Xóa chu kỳ"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                                  </button>
+                                </>
+                              ) : null}
                             </div>
                           </td>
                         </tr>
@@ -207,7 +211,7 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
                 </div>
               </div>
               <p className="text-[11px] text-muted-foreground mt-2">
-                Hover vào hàng để hiện các nút thao tác: <strong>Xem</strong>, <strong>Sửa</strong>, <strong>Xóa</strong>.
+                Hover vào hàng để hiện các nút thao tác{canEditDelete ? ': Xem, Sửa, Xóa' : ': Xem'}.
               </p>
             </TabsContent>
 
@@ -219,12 +223,14 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit }) {
           </Tabs>
         )}
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onEdit?.(pond)} disabled={!pond}>
-            <Pencil className="w-4 h-4 mr-2" />
-            Sửa
-          </Button>
-        </DialogFooter>
+        {canEditDelete && onEdit ? (
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onEdit(pond)} disabled={!pond}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Sửa
+            </Button>
+          </DialogFooter>
+        ) : null}
       </DialogContent>
 
       {/* Dialog xem chi tiết chu kỳ */}

@@ -10,7 +10,17 @@ import QRScanner from '@/components/scanner/QRScanner';
 import LogDetailModal from '@/components/ponds/LogDetailModal';
 import PondLogEditDialog from '@/components/ponds/PondLogEditDialog';
 import PondLogCreateDialog from '@/components/ponds/PondLogCreateDialog';
-import { parsePondCodeFromQr, pondCodesEqual } from '@/lib/fieldAuthHelpers';
+import {
+  parsePondCodeFromQr,
+  pondCodesEqual,
+  isFieldRole,
+  filterPondsForFieldUser,
+  canUserCreatePondLogForPond,
+  canUserEditPondLogForPond,
+  canUserDeletePondLog,
+} from '@/lib/fieldAuthHelpers';
+import { useAuth } from '@/lib/AuthContext';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
 import { pickActiveCycle, cycleLabelForPondLog } from '@/lib/pondCycleHelpers';
 import { formatDateDisplay } from '@/lib/dateFormat';
 import { differenceInDays, parseISO } from 'date-fns';
@@ -107,6 +117,9 @@ function SearchableSelect({ value, onChange, options, placeholder = 'Chọn...',
 
 export default function Logs() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canEditPondLog = (pond) => canUserEditPondLogForPond(user, pond);
+  const canDeletePondLog = canUserDeletePondLog(user);
   const [ponds, setPonds] = useState([]);
   const [logs, setLogs] = useState([]);
   const [harvests, setHarvests] = useState([]);
@@ -142,17 +155,22 @@ export default function Logs() {
     void loadData();
   }, []);
 
+  const scopedPonds = useMemo(() => {
+    if (!user || !isFieldRole(user.role)) return ponds;
+    return filterPondsForFieldUser(user, ponds);
+  }, [ponds, user]);
+
   const pondById = useMemo(() => {
     const m = new Map();
-    ponds.forEach((p) => m.set(p.id, p));
+    scopedPonds.forEach((p) => m.set(p.id, p));
     return m;
-  }, [ponds]);
+  }, [scopedPonds]);
 
   const handleQrScan = (raw) => {
     const input = raw || qrInput;
     const code = parsePondCodeFromQr(input);
     if (!code) return;
-    const pond = ponds.find(
+    const pond = scopedPonds.find(
       (p) => pondCodesEqual(p.code, code) || (p.qr_code && String(p.qr_code).toLowerCase().includes(String(code).toLowerCase()))
     );
     setShowCamera(false);
@@ -166,8 +184,8 @@ export default function Logs() {
   };
 
   const agencyCodes = useMemo(
-    () => [...new Set(ponds.map((p) => p.agency_code).filter(Boolean))].sort(),
-    [ponds]
+    () => [...new Set(scopedPonds.map((p) => p.agency_code).filter(Boolean))].sort(),
+    [scopedPonds]
   );
 
   const agencyMultiOptions = useMemo(
@@ -177,7 +195,7 @@ export default function Logs() {
 
   const householdMultiOptions = useMemo(() => {
     const map = new Map();
-    ponds.forEach((p) => {
+    scopedPonds.forEach((p) => {
       const h = p?.households;
       if (!h?.id) return;
       if (!map.has(h.id)) {
@@ -197,11 +215,11 @@ export default function Logs() {
       const prefix = h.agency ? `${h.agency} — ` : '';
       return { key: String(h.id), label: `${prefix}${h.name}` };
     });
-  }, [ponds]);
+  }, [scopedPonds]);
 
   const pondFilterItems = useMemo(() => {
     const items = [{ value: 'none', label: 'Chọn ao nuôi...' }];
-    const sorted = [...ponds].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+    const sorted = [...scopedPonds].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
     sorted.forEach(p => {
       const cycle = pickActiveCycle(p.pond_cycles);
       const hasActiveCycle = !!cycle;
@@ -212,12 +230,12 @@ export default function Logs() {
       });
     });
     return items;
-  }, [ponds]);
+  }, [scopedPonds]);
 
   const cycleMultiOptions = useMemo(() => {
     const seen = new Set();
     const items = [];
-    const relevantPonds = activePond ? [activePond] : ponds;
+    const relevantPonds = activePond ? [activePond] : scopedPonds;
 
     for (const p of relevantPonds) {
       const cycles = p.pond_cycles || [];
@@ -229,7 +247,7 @@ export default function Logs() {
       }
     }
     return items.sort((a, b) => String(a.label).localeCompare(String(b.label), 'vi'));
-  }, [ponds, activePond]);
+  }, [scopedPonds, activePond]);
 
   const logsInScope = useMemo(() => {
     if (activePond) return logs.filter((l) => l.pond_id === activePond.id);
@@ -357,7 +375,34 @@ export default function Logs() {
     return [...filteredLogs].sort((a, b) => String(b.log_date).localeCompare(String(a.log_date)));
   }, [filteredLogs]);
 
+  const logExportColumns = useMemo(
+    () => [
+      { header: 'Ngày', accessor: (l) => formatDateDisplay(l.log_date), width: 12 },
+      { header: 'Mã ao', key: 'pond_code', width: 14 },
+      { header: 'Đại lý', accessor: (l) => pondById.get(l.pond_id)?.agency_code || '', width: 10 },
+      { header: 'Chu kỳ', accessor: (l) => cycleLabelForPondLog(l, pondById.get(l.pond_id)), width: 16 },
+      { header: 'Hao hụt (con)', key: 'dead_fish', width: 12 },
+      { header: 'Thức ăn (kg)', key: 'feed_amount', width: 12 },
+      { header: 'Mã TA', key: 'feed_code', width: 10 },
+      { header: 'pH', key: 'ph', width: 8 },
+      { header: 'T°', key: 'temperature', width: 8 },
+      { header: 'DO', key: 'do_level', width: 8 },
+      { header: 'NH3', key: 'nh3', width: 8 },
+      { header: 'NO2', key: 'no2', width: 8 },
+      { header: 'H2S', key: 'h2s', width: 8 },
+      { header: 'Màu NC', key: 'water_color', width: 10 },
+      { header: 'TL TB (g)', key: 'avg_weight', width: 10 },
+      { header: 'Thuốc', key: 'medicine', width: 16 },
+      { header: 'Ghi chú', accessor: (l) => l.notes || l.disease_notes || '', width: 20 },
+    ],
+    [pondById]
+  );
+
   const handleCreateLog = (pond) => {
+    if (!canUserCreatePondLogForPond(user, pond)) {
+      alert('Bạn không có quyền ghi nhật ký cho ao này.');
+      return;
+    }
     const cycle = pickActiveCycle(pond.pond_cycles);
     if (!cycle) {
       alert('Ao này chưa có chu kỳ hoạt động. Vui lòng tạo chu kỳ trước.');
@@ -368,7 +413,7 @@ export default function Logs() {
   };
 
   const handleDeleteLog = async (log) => {
-    if (!log?.id) return;
+    if (!log?.id || !canDeletePondLog) return;
     const ok = window.confirm(`Xóa nhật ký ngày ${log.log_date || '—'} của ao ${log.pond_code || '—'}?`);
     if (!ok) return;
     setDeletingLogId(log.id);
@@ -391,7 +436,10 @@ export default function Logs() {
     setSelectedPondForLog(null);
   };
 
-  const canCreateLog = activePond && pickActiveCycle(activePond.pond_cycles);
+  const canCreateLog =
+    activePond &&
+    pickActiveCycle(activePond.pond_cycles) &&
+    canUserCreatePondLogForPond(user, activePond);
   const logTableScrollRef = useRef(null);
 
   return (
@@ -614,12 +662,23 @@ export default function Logs() {
 
       {/* Danh sách — Full width */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50">
           <h3 className="font-extrabold text-slate-800 flex items-center gap-2 text-base whitespace-nowrap">
             <ClipboardList className="w-5 h-5 text-primary flex-shrink-0" />
             DANH SÁCH NHẬT KÝ {activePond ? `— ${activePond.code}` : ''}
           </h3>
-          <span className="text-sm font-bold text-slate-700 bg-white px-3 py-1.5 rounded-full border border-slate-200 whitespace-nowrap tabular-nums">{displayLogs.length} dòng</span>
+          <div className="flex items-center gap-2">
+            <ExportExcelButton
+              fileName="nhat-ky"
+              sheetName="Nhật ký"
+              title="Danh sách nhật ký"
+              columns={logExportColumns}
+              rows={displayLogs}
+              disabled={loading || displayLogs.length === 0}
+              className="gap-2 text-sm h-9 px-3"
+            />
+            <span className="text-sm font-bold text-slate-700 bg-white px-3 py-1.5 rounded-full border border-slate-200 whitespace-nowrap tabular-nums">{displayLogs.length} dòng</span>
+          </div>
         </div>
 
         <div className="min-h-[400px]">
@@ -777,30 +836,34 @@ export default function Logs() {
                           </td>
                           <td className="sticky right-0 z-[1] px-2 sm:px-4 py-3 sm:py-3.5 text-right whitespace-nowrap bg-white group-hover:bg-primary/5 border-l border-border/60 shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.04)]">
                             <div className="flex items-center justify-end gap-1 sm:gap-2">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedLog(log);
-                                  setShowLogDialog(true);
-                                }}
-                                className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center opacity-100 transition-colors hover:bg-slate-200"
-                                title="Sửa nhật ký"
-                              >
-                                <Edit className="w-3.5 h-3.5 text-slate-600" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void handleDeleteLog(log);
-                                }}
-                                disabled={deletingLogId === log.id}
-                                className="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center opacity-100 transition-colors hover:bg-red-100 disabled:opacity-50"
-                                title="Xóa nhật ký"
-                              >
-                                <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                              </button>
+                              {canEditPondLog(pond) ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedLog(log);
+                                    setShowLogDialog(true);
+                                  }}
+                                  className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center opacity-100 transition-colors hover:bg-slate-200"
+                                  title="Sửa nhật ký"
+                                >
+                                  <Edit className="w-3.5 h-3.5 text-slate-600" />
+                                </button>
+                              ) : null}
+                              {canDeletePondLog ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleDeleteLog(log);
+                                  }}
+                                  disabled={deletingLogId === log.id}
+                                  className="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center opacity-100 transition-colors hover:bg-red-100 disabled:opacity-50"
+                                  title="Xóa nhật ký"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                                </button>
+                              ) : null}
                               <div className="hidden sm:flex w-7 h-7 rounded-full bg-slate-100 items-center justify-center opacity-100">
                                 <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                               </div>

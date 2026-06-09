@@ -23,11 +23,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { UserPlus, Plus, Eye, Edit, Trash2, MoreHorizontal } from 'lucide-react';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
 
 const ROLE_SELECT_ITEMS = [
   { value: 'agency', label: 'Đại lý' },
   { value: 'household_owner', label: 'Chủ hộ' },
-  { value: 'manager', label: 'Quản lý' },
+  { value: 'manager', label: 'Giám sát vùng' },
 ];
 
 const OFFICE_ROLE_LABELS = {
@@ -301,6 +302,37 @@ export default function AdminUsers() {
     return hhMap[String(r.household_id)]?.name || '—';
   };
 
+  const fieldExportColumns = useMemo(
+    () => [
+      { header: 'SĐT', key: 'phone', width: 14 },
+      { header: 'Mật khẩu', key: 'password_plaintext', width: 12 },
+      { header: 'Tên hiển thị', key: 'display_name', width: 18 },
+      { header: 'Vai trò', accessor: (r) => FIELD_ROLE_LABELS[r.role] || r.role, width: 12 },
+      { header: 'Phạm vi', accessor: (r) => formatScopeCell(r), width: 28 },
+      {
+        header: 'Ngày tạo',
+        accessor: (r) => (r.created_at ? new Date(r.created_at).toLocaleDateString('vi-VN') : ''),
+        width: 12,
+      },
+    ],
+    [agMap, hhMap, regionMap]
+  );
+
+  const officeExportColumns = useMemo(
+    () => [
+      { header: 'Email', key: 'email', width: 24 },
+      { header: 'Tên hiển thị', key: 'display_name', width: 18 },
+      { header: 'Vai trò', accessor: (r) => OFFICE_ROLE_LABELS[r.role] || r.role, width: 12 },
+      { header: 'SĐT', key: 'phone', width: 14 },
+      {
+        header: 'Ngày tạo',
+        accessor: (r) => (r.created_at ? new Date(r.created_at).toLocaleDateString('vi-VN') : ''),
+        width: 12,
+      },
+    ],
+    []
+  );
+
   const handleCreate = async (e) => {
     e.preventDefault();
     const norm = normalizeVnPhone(phone);
@@ -511,8 +543,17 @@ export default function AdminUsers() {
       </div>
 
       <section className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-border">
+        <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-foreground">Hiện trường — SĐT ({rows.length})</h2>
+          <ExportExcelButton
+            fileName="tai-khoan-hien-truong"
+            sheetName="Hiện trường"
+            title="Tài khoản hiện trường"
+            columns={fieldExportColumns}
+            rows={rows}
+            disabled={rows.length === 0}
+            className="gap-2 text-sm h-9 px-3"
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[920px]">
@@ -585,9 +626,20 @@ export default function AdminUsers() {
       </section>
 
       <section className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-border">
-          <h2 className="text-sm font-semibold text-foreground">Văn phòng — Email ({officeRows.length})</h2>
-          <p className="text-xs text-muted-foreground mt-1">Tạo admin: <code className="text-foreground">npm run seed:admin</code></p>
+        <div className="px-5 py-4 border-b border-border flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Văn phòng — Email ({officeRows.length})</h2>
+            <p className="text-xs text-muted-foreground mt-1">Tạo admin: <code className="text-foreground">npm run seed:admin</code></p>
+          </div>
+          <ExportExcelButton
+            fileName="tai-khoan-van-phong"
+            sheetName="Văn phòng"
+            title="Tài khoản văn phòng"
+            columns={officeExportColumns}
+            rows={officeRows}
+            disabled={officeRows.length === 0}
+            className="gap-2 text-sm h-9 px-3"
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">

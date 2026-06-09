@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Save } from 'lucide-react';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
 
@@ -75,6 +76,19 @@ export default function FactoryPlan() {
           </p>
         )}
 
+        <div className="flex justify-end mb-3">
+          <ExportExcelButton
+            fileName="ke-hoach-nha-may"
+            sheetName="Kế hoạch"
+            title="Kế hoạch nhà máy theo tháng (kg)"
+            columns={[
+              { header: 'Tháng', key: 'month', width: 10 },
+              { header: 'Kế hoạch (kg)', key: 'kg', width: 14 },
+            ]}
+            rows={MONTHS.map((m, i) => ({ month: m, kg: Number(plan[i]) || 0 }))}
+            className="gap-2 text-sm h-9 px-3"
+          />
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>

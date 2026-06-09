@@ -33,7 +33,16 @@ import {
 } from '@/components/ui/alert-dialog';
 import { getWaterThresholdDefaults } from '@/lib/appSettingsHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
-import { pondQrPayload, isFieldRole, filterPondsForFieldUser } from '@/lib/fieldAuthHelpers';
+import {
+  pondQrPayload,
+  isFieldRole,
+  filterPondsForFieldUser,
+  canUserEditDelete,
+  canUserEditPondLog,
+  canUserDeletePondLog,
+} from '@/lib/fieldAuthHelpers';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
+import { POND_EXPORT_COLUMNS, CYCLE_EXPORT_COLUMNS_ACTIVE, CYCLE_EXPORT_COLUMNS_HARVESTED } from '@/lib/pondTableExcel';
 import { plannedHarvestDateForDisplay, isPlannedHarvestDateEstimated, plannedYieldAdjustedForTable, sumPlannedYieldAdjustedForPond } from '@/lib/planReportHelpers';
 import { calculateCurrentYield } from '@/lib/calculateYield';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -148,6 +157,7 @@ const CYCLE_COLUMNS_BASE = [
   { key: 'total_fish', label: 'CÁ BĐ', title: 'Số cá ban đầu' },
   { key: 'stocked_fish_added', label: 'THẢ THÊM', title: 'Số cá thả thêm' },
   { key: 'current_fish', label: 'CÁ HIỆN', title: 'Số cá hiện tại' },
+  { key: 'avg_weight', label: 'TRỌNG LƯỢNG CÁ', title: 'Trọng lượng cá mới nhất trong Nhật ký (g)' },
   { key: 'expected_yield', label: 'SL DK', title: 'Sản lượng dự kiến (kg)' },
   { key: 'actual_yield', label: 'SL THU', title: 'Sản lượng đã thu (kg)' },
   { key: 'yield_need_harvest', label: 'SL CẦN', title: 'Sản lượng cần phải thu (kg)' },
@@ -194,6 +204,7 @@ const DEFAULT_VISIBLE_COLUMNS = {
   total_fish: true,
   stocked_fish_added: true,
   current_fish: true,
+  avg_weight: true,
   expected_yield: true,
   expected_harvest_date: true,
   total_feed_used: true,
@@ -474,6 +485,7 @@ export default function Ponds() {
   const [ponds, setPonds] = useState([]);
   const [agencies, setAgencies] = useState([]);
   const [stockedFishByCycle, setStockedFishByCycle] = useState({});
+  const [latestAvgWeightByCycle, setLatestAvgWeightByCycle] = useState({});
   const [harvestRecords, setHarvestRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -527,9 +539,12 @@ export default function Ponds() {
   const [confirmManualCloseLabel, setConfirmManualCloseLabel] = useState('');
   const [closingManualCycle, setClosingManualCycle] = useState(false);
   const [recalculatingFromLogs, setRecalculatingFromLogs] = useState(false);
-  const canManualCloseCycle = true;
 
   const isScopedUser = isFieldRole(user?.role);
+  const canEditDelete = canUserEditDelete(user);
+  const canEditPondLog = canUserEditPondLog(user);
+  const canDeletePondLog = canUserDeletePondLog(user);
+  const canManualCloseCycle = canEditDelete;
   const scopedPonds = useMemo(
     () => (isScopedUser ? filterPondsForFieldUser(user, ponds) : ponds),
     [ponds, user, isScopedUser]
@@ -543,14 +558,26 @@ export default function Ponds() {
       base44.entities.HarvestRecord.list('-harvest_date', 8000),
     ]);
     const stockedMap = {};
+    const latestAvgWeightMap = {};
     for (const log of logRows || []) {
       const cycleId = log?.pond_cycle_id;
       if (!cycleId) continue;
       stockedMap[cycleId] = (stockedMap[cycleId] || 0) + (Number(log.stocked_fish) || 0);
+      const avgWeight = Number(log.avg_weight);
+      if (!Number.isFinite(avgWeight) || avgWeight <= 0) continue;
+      const key = String(cycleId);
+      const logDate = String(log.log_date || '').slice(0, 10);
+      const updatedAt = String(log.updated_date || log.updated_at || log.created_date || log.created_at || '');
+      const sortKey = `${logDate} ${updatedAt}`;
+      const prev = latestAvgWeightMap[key];
+      if (!prev || sortKey > prev.sortKey) {
+        latestAvgWeightMap[key] = { value: avgWeight, sortKey };
+      }
     }
     setPonds(data || []);
     setAgencies(agencyData || []);
     setStockedFishByCycle(stockedMap);
+    setLatestAvgWeightByCycle(Object.fromEntries(Object.entries(latestAvgWeightMap).map(([k, v]) => [k, v.value])));
     setHarvestRecords(harvestRows || []);
     setLoading(false);
   };
@@ -693,6 +720,7 @@ export default function Ponds() {
           total_fish: null,
           stocked_fish_added: null,
           current_fish: null,
+          avg_weight: null,
           expected_yield: null,
           fcr_yield_basis: null,
           actual_yield: null,
@@ -742,6 +770,7 @@ export default function Ponds() {
             total_fish: c.total_fish ?? null,
             stocked_fish_added: stockedFishByCycle[c.id] ?? 0,
             current_fish: c.current_fish ?? c.total_fish ?? null,
+            avg_weight: latestAvgWeightByCycle[String(c.id)] ?? null,
             expected_yield: plannedYieldAdjustedForTable(c),
             fcr_yield_basis: (() => {
               const e = Number(c.expected_yield);
@@ -784,7 +813,7 @@ export default function Ponds() {
       if (!b.stock_date) return -1;
       return String(b.stock_date).localeCompare(String(a.stock_date));
     });
-  }, [scopedPonds, stockedFishByCycle, harvestRecords]);
+  }, [scopedPonds, stockedFishByCycle, latestAvgWeightByCycle, harvestRecords]);
 
   const agencyCodes = [...new Set(cycleRows.map((r) => r.agency_code).filter(Boolean))];
   const agencyFilterItems = useMemo(() => agencyCodes.sort((a, b) => String(a).localeCompare(String(b), 'vi')), [agencyCodes]);
@@ -1136,18 +1165,20 @@ export default function Ponds() {
                   <QRBatchDownload ponds={scopedPonds} />
                 )}
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="gap-2 text-base font-bold h-10 px-4"
-                disabled={recalculatingFromLogs || loading}
-                onClick={() => void handleRecalculateFromLogs()}
-                title="Tính lại số cá, thức ăn, sản lượng dự kiến và FCR từ toàn bộ nhật ký"
-              >
-                <RefreshCw className={`w-5 h-5 shrink-0 ${recalculatingFromLogs ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{recalculatingFromLogs ? 'Đang cập nhật…' : 'Cập nhật từ nhật ký'}</span>
-                <span className="sm:hidden">{recalculatingFromLogs ? '…' : 'Cập nhật'}</span>
-              </Button>
+              {canEditDelete ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2 text-base font-bold h-10 px-4"
+                  disabled={recalculatingFromLogs || loading}
+                  onClick={() => void handleRecalculateFromLogs()}
+                  title="Tính lại số cá, thức ăn, sản lượng dự kiến và FCR từ toàn bộ nhật ký"
+                >
+                  <RefreshCw className={`w-5 h-5 shrink-0 ${recalculatingFromLogs ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">{recalculatingFromLogs ? 'Đang cập nhật…' : 'Cập nhật từ nhật ký'}</span>
+                  <span className="sm:hidden">{recalculatingFromLogs ? '…' : 'Cập nhật'}</span>
+                </Button>
+              ) : null}
               {mainTab === 'cycles' || mainTab === 'cyclesHarvested' ? (
                 <>
                   <Button variant="outline" className="gap-2 text-base font-bold h-10 px-4" onClick={() => setShowColumnSettings(true)}>
@@ -1191,6 +1222,8 @@ export default function Ponds() {
         </div>
 
         <TabsContent value="ponds" className="mt-3 sm:mt-4 space-y-4 sm:space-y-5 outline-none">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div className="min-w-0 flex-1">
               <PondTableFilterControls
                 search={search}
                 setSearch={setSearch}
@@ -1212,6 +1245,16 @@ export default function Ponds() {
                 dateTo={cycleDateTo}
                 setDateTo={setCycleDateTo}
               />
+                </div>
+                <ExportExcelButton
+                  fileName="danh-sach-ao"
+                  sheetName="Ao"
+                  title="Danh sách ao nuôi"
+                  columns={POND_EXPORT_COLUMNS}
+                  rows={pondRows}
+                  disabled={loading || pondRows.length === 0}
+                />
+              </div>
 
               {selectedPondsForQr.length > 0 && (
                 <div className="rounded-xl border border-teal-200 bg-teal-50/70 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
@@ -1330,13 +1373,17 @@ export default function Ponds() {
                                   <DropdownMenuItem onClick={() => setViewPondId(p.id)}>
                                     <Eye className="w-4 h-4 mr-2" /> Xem
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => { setSelectedPond({ id: p.id, code: p.code, area: p.area, depth: p.depth, location: p.location }); setShowEditDialog(true); }}>
-                                    <Edit className="w-4 h-4 mr-2" /> Sửa
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => { setSelectedPond({ id: p.id, code: p.code }); setShowDeleteConfirm(true); }}>
-                                    <Trash2 className="w-4 h-4 mr-2" /> Xóa
-                                  </DropdownMenuItem>
+                                  {canEditDelete ? (
+                                    <>
+                                      <DropdownMenuItem onClick={() => { setSelectedPond({ id: p.id, code: p.code, area: p.area, depth: p.depth, location: p.location }); setShowEditDialog(true); }}>
+                                        <Edit className="w-4 h-4 mr-2" /> Sửa
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => { setSelectedPond({ id: p.id, code: p.code }); setShowDeleteConfirm(true); }}>
+                                        <Trash2 className="w-4 h-4 mr-2" /> Xóa
+                                      </DropdownMenuItem>
+                                    </>
+                                  ) : null}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </td>
@@ -1393,10 +1440,18 @@ export default function Ponds() {
             setDeleteCycleId={setDeleteCycleId}
             setDeleteCycleLabel={setDeleteCycleLabel}
             setShowDeleteConfirm={setShowDeleteConfirm}
+            canEditDelete={canEditDelete}
             canManualCloseCycle={canManualCloseCycle}
             onManualCloseCycle={(id, label) => {
               setConfirmManualCloseCycleId(id);
               setConfirmManualCloseLabel(label);
+            }}
+            excelExport={{
+              fileName: 'chu-ky-ao',
+              sheetName: 'Chu kỳ',
+              title: 'Danh sách chu kỳ ao nuôi',
+              columns: CYCLE_EXPORT_COLUMNS_ACTIVE,
+              rows: filteredRows,
             }}
           />
         </TabsContent>
@@ -1445,10 +1500,18 @@ export default function Ponds() {
             setDeleteCycleId={setDeleteCycleId}
             setDeleteCycleLabel={setDeleteCycleLabel}
             setShowDeleteConfirm={setShowDeleteConfirm}
+            canEditDelete={canEditDelete}
             canManualCloseCycle={canManualCloseCycle}
             onManualCloseCycle={(id, label) => {
               setConfirmManualCloseCycleId(id);
               setConfirmManualCloseLabel(label);
+            }}
+            excelExport={{
+              fileName: 'chu-ky-da-thu',
+              sheetName: 'Chu kỳ đã thu',
+              title: 'Chu kỳ đã chốt thu hoạch',
+              columns: CYCLE_EXPORT_COLUMNS_HARVESTED,
+              rows: filteredHarvestedRows,
             }}
           />
         </TabsContent>
@@ -1527,7 +1590,12 @@ export default function Ponds() {
         
 
         <TabsContent value="households" className="mt-3 sm:mt-4 outline-none">
-          <HouseholdsPanel embedded scopeUser={isScopedUser ? user : null} onCreatePond={(householdId) => openNewPondDialog(householdId)} />
+          <HouseholdsPanel
+            embedded
+            scopeUser={isScopedUser ? user : null}
+            canEditDelete={canEditDelete}
+            onCreatePond={(householdId) => openNewPondDialog(householdId)}
+          />
         </TabsContent>
       </Tabs>
 
@@ -1560,22 +1628,34 @@ export default function Ponds() {
         open={Boolean(viewPondId)}
         pondId={viewPondId}
         onClose={() => setViewPondId(null)}
-        onEdit={(pond) => {
-          setViewPondId(null);
-          if (!pond) return;
-          setSelectedPond({ id: pond.id, code: pond.code, area: pond.area, depth: pond.depth, location: pond.location });
-          setShowEditDialog(true);
-        }}
+        canEditDelete={canEditDelete}
+        onEdit={
+          canEditDelete
+            ? (pond) => {
+                setViewPondId(null);
+                if (!pond) return;
+                setSelectedPond({ id: pond.id, code: pond.code, area: pond.area, depth: pond.depth, location: pond.location });
+                setShowEditDialog(true);
+              }
+            : undefined
+        }
       />
       <CycleViewDialog
         open={Boolean(viewCycleId)}
         cycleId={viewCycleId}
         onClose={() => setViewCycleId(null)}
-        onEdit={(cycle) => {
-          setViewCycleId(null);
-          if (!cycle?.id) return;
-          setEditCycleId(cycle.id);
-        }}
+        canEditDelete={canEditDelete}
+        canEditPondLog={canEditPondLog}
+        canDeletePondLog={canDeletePondLog}
+        onEdit={
+          canEditDelete
+            ? (cycle) => {
+                setViewCycleId(null);
+                if (!cycle?.id) return;
+                setEditCycleId(cycle.id);
+              }
+            : undefined
+        }
       />
       <CycleEditDialog
         open={Boolean(editCycleId)}

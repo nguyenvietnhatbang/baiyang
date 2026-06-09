@@ -11,6 +11,7 @@ import HouseholdViewDialog from './HouseholdViewDialog';
 import { formatHouseholdSaveError, formatSupabaseError } from '@/lib/supabaseErrors';
 import ExcelJS from 'exceljs';
 import { ChevronsUpDown } from 'lucide-react';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
 import {
   formatHouseholdSegmentDisplay,
   householdSegmentFromInput,
@@ -108,6 +109,22 @@ function phoneDigits(p) {
   return String(p || '').replace(/\D/g, '');
 }
 
+function nextHouseholdSegment(households, agencyId, regionCode) {
+  if (!agencyId || !regionCode) return '';
+  let max = 0;
+  let width = 3;
+  for (const h of households || []) {
+    if (String(h?.agency_id || '') !== String(agencyId)) continue;
+    if (String(h?.region_code || '') !== String(regionCode)) continue;
+    const seg = householdSegmentFromInput(h?.household_segment);
+    if (!seg) continue;
+    width = Math.max(width, seg.length);
+    const n = Number(seg);
+    if (Number.isFinite(n)) max = Math.max(max, n);
+  }
+  return String(max + 1).padStart(width, '0');
+}
+
 function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, households = [] }) {
   const isEdit = !!row;
   const [form, setForm] = useState({
@@ -140,10 +157,11 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
         });
       } else {
         const firstAg = agencies[0];
+        const nextRegion = firstAg?.region_code || regions[0]?.code || '17';
         setForm({
           agency_id: firstAg?.id || '',
-          region_code: firstAg?.region_code || regions[0]?.code || '17',
-          household_segment: '',
+          region_code: nextRegion,
+          household_segment: nextHouseholdSegment(households, firstAg?.id, nextRegion),
           name: '',
           phone: '',
           address: '',
@@ -151,7 +169,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
         });
       }
     }
-  }, [open, isEdit, row, agencies, regions]);
+  }, [open, isEdit, row, agencies, regions, households]);
 
   const handleSave = async () => {
     const seg = householdSegmentFromInput(form.household_segment);
@@ -254,10 +272,14 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
                 value={form.agency_id}
                 onChange={(v) => {
                   const ag = agencies.find((a) => a.id === v);
+                  const nextRegion = ag?.region_code || form.region_code;
                   setForm({
                     ...form,
                     agency_id: v,
-                    region_code: ag?.region_code || form.region_code,
+                    region_code: nextRegion,
+                    household_segment: isEdit
+                      ? form.household_segment
+                      : nextHouseholdSegment(households, v, nextRegion),
                   });
                 }}
                 options={agencySelectItems}
@@ -269,7 +291,15 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
               <SearchablePicker
                 label="Khu vực (mã) *"
                 value={form.region_code}
-                onChange={(v) => setForm({ ...form, region_code: v })}
+                onChange={(v) =>
+                  setForm({
+                    ...form,
+                    region_code: v,
+                    household_segment: isEdit
+                      ? form.household_segment
+                      : nextHouseholdSegment(households, form.agency_id, v),
+                  })
+                }
                 options={regionSelectItems}
                 placeholder="Chọn khu vực"
                 disabled={regions.length === 0}
@@ -360,7 +390,7 @@ function HouseholdDialog({ open, onClose, onSaved, row, agencies, regions, house
 }
 
 /** Danh sách + dialog hộ nuôi — dùng trong trang Ao (tab) hoặc đứng riêng. */
-export function HouseholdsPanel({ embedded = false, onCreatePond, scopeUser = null }) {
+export function HouseholdsPanel({ embedded = false, onCreatePond, scopeUser = null, canEditDelete = false }) {
   const [rows, setRows] = useState([]);
   const [agencies, setAgencies] = useState([]);
   const [regions, setRegions] = useState([]);
@@ -408,6 +438,18 @@ export function HouseholdsPanel({ embedded = false, onCreatePond, scopeUser = nu
   const scopedRows = useMemo(
     () => (isScoped ? filterHouseholdsForFieldUser(scopeUser, rows) : rows),
     [rows, scopeUser, isScoped]
+  );
+
+  const householdExportColumns = useMemo(
+    () => [
+      { header: 'Tên hộ', key: 'name', width: 20 },
+      { header: 'Mã hộ', accessor: (r) => formatHouseholdSegmentDisplay(r.household_segment), width: 12 },
+      { header: 'Khu vực', key: 'region_code', width: 10 },
+      { header: 'Đại lý', accessor: (r) => agencyMap[r.agency_id]?.code || '', width: 10 },
+      { header: 'SĐT', key: 'phone', width: 14 },
+      { header: 'Địa chỉ', key: 'address', width: 28 },
+    ],
+    [agencyMap]
   );
 
   const filteredRows = useMemo(() => {
@@ -549,7 +591,15 @@ export function HouseholdsPanel({ embedded = false, onCreatePond, scopeUser = nu
             </p>
           </div>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <ExportExcelButton
+            fileName="ho-nuoi"
+            sheetName="Hộ nuôi"
+            title="Danh sách hộ nuôi"
+            columns={householdExportColumns}
+            rows={filteredRows}
+            disabled={loading || filteredRows.length === 0}
+          />
           <Button
             variant="outline"
             className="flex items-center gap-2 shrink-0 text-base font-bold h-10 px-4"
@@ -698,17 +748,21 @@ export function HouseholdsPanel({ embedded = false, onCreatePond, scopeUser = nu
                               <Eye className="w-4 h-4 mr-2" />
                               Xem
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { setEditRow(x); setDialogOpen(true); }}>
-                              <Pencil className="w-4 h-4 mr-2" />
-                              Sửa
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => { setEditRow(x); setDialogOpen(true); }}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Xóa
-                            </DropdownMenuItem>
+                            {canEditDelete ? (
+                              <>
+                                <DropdownMenuItem onClick={() => { setEditRow(x); setDialogOpen(true); }}>
+                                  <Pencil className="w-4 h-4 mr-2" />
+                                  Sửa
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => { setEditRow(x); setDialogOpen(true); }}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Xóa
+                                </DropdownMenuItem>
+                              </>
+                            ) : null}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>

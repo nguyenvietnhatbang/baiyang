@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { VIETNAM_PROVINCE_OPTIONS, provinceNameByCode, provinceSortOrder } from '@/lib/vietnamProvinces';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
 
 const EMPTY_FORM = { code: '', name: '', phone: '', address: '', region: '', region_code: '', pond_code_segment: '01' };
 
@@ -219,10 +220,29 @@ export default function Agencies() {
           <h1 className="text-2xl font-bold text-foreground">Quản lý đại lý</h1>
           <p className="text-muted-foreground text-sm mt-0.5">{agencies.length} đại lý đang hoạt động</p>
         </div>
-        <Button onClick={handleNew} className="bg-primary text-white flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          Thêm đại lý
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportExcelButton
+            fileName="dai-ly"
+            sheetName="Đại lý"
+            title="Danh sách đại lý"
+            columns={[
+              { header: 'Mã', key: 'code', width: 10 },
+              { header: 'Tên', key: 'name', width: 22 },
+              { header: 'SĐT', key: 'phone', width: 14 },
+              { header: 'Khu vực', key: 'region_code', width: 10 },
+              { header: 'Địa chỉ', key: 'address', width: 28 },
+              { header: 'Trạng thái', accessor: (a) => (a.active ? 'Hoạt động' : 'Dừng'), width: 12 },
+              { header: 'Tổng ao', accessor: (a) => ponds.filter((p) => p.agency_code === a.code).length, width: 10 },
+            ]}
+            rows={agencies}
+            disabled={loading || agencies.length === 0}
+            className="gap-2 text-sm h-9 px-3"
+          />
+          <Button onClick={handleNew} className="bg-primary text-white flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            Thêm đại lý
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
