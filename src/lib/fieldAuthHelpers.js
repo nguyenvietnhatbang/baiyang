@@ -107,7 +107,9 @@ export function pondDetailQrUrl(pond, baseHref = DEFAULT_POND_APP_ORIGIN) {
   const code = String(pond?.code ?? '').trim();
   if (!code) return '';
 
-  const params = new URLSearchParams({ pond_code: code });
+  const params = new URLSearchParams();
+  params.set('tab', 'log');
+  params.set('pond_code', code);
   const path = `/ponds/${encodeURIComponent(code)}?${params.toString()}`;
   const base = String(baseHref || '').trim();
 
