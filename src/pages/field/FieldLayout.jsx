@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Camera, Home, BookOpen, Users } from 'lucide-react';
+import { Camera, Home, BookOpen, Users, KeyRound } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
 import { cn } from '@/lib/utils';
@@ -66,6 +66,18 @@ export default function FieldLayout() {
           Quét QR
         </Link>
       </nav>
+      <Link
+        to="/field/password"
+        className={cn(
+          'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors',
+          location.pathname.startsWith('/field/password')
+            ? 'bg-teal-600 text-white shadow-md shadow-teal-600/20'
+            : 'text-stone-800 hover:bg-stone-100 border border-transparent hover:border-stone-200'
+        )}
+      >
+        <KeyRound className="w-5 h-5 shrink-0" strokeWidth={2} />
+        Đổi mật khẩu
+      </Link>
       <button
         type="button"
         onClick={handleLogout}

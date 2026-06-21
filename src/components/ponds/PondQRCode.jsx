@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { pondDetailQrUrl } from '@/lib/fieldAuthHelpers';
+import { pondQrContent } from '@/lib/fieldAuthHelpers';
 
 export default function PondQRCode({ pond, size = 180 }) {
   const canvasRef = useRef(null);
   const [dataUrl, setDataUrl] = useState('');
 
-  const qrValue = pondDetailQrUrl(pond);
+  const qrValue = pondQrContent(pond);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -56,7 +56,8 @@ export default function PondQRCode({ pond, size = 180 }) {
       <div className="text-center">
         <p className="font-bold text-foreground text-sm">{pond.code}</p>
         <p className="text-xs text-muted-foreground">{pond.owner_name}</p>
-        <p className="text-xs font-mono text-primary/60 mt-0.5 max-w-[18rem] break-all">{qrValue}</p>
+        <p className="text-xs font-mono text-primary/80 mt-0.5 max-w-[18rem] break-all">{qrValue}</p>
+        <p className="text-[10px] text-muted-foreground mt-1">Quét tem → điền thẳng vào form nhật ký</p>
       </div>
       <Button
         size="sm"

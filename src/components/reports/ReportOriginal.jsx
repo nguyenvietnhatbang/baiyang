@@ -3,7 +3,7 @@
  *
  * Bố cục dạng ma trận theo tháng: mỗi tháng tách 3 cột CC/CT/TH.
  */
-import { Fragment } from 'react';
+import { Fragment, useMemo } from 'react';
 import { originalHarvestDateForReport } from '@/lib/planReportHelpers';
 import { parseHarvestDateInput } from '@/lib/harvestDateParse';
 import {
@@ -13,6 +13,7 @@ import {
 import { countCycleRows, uniquePhysicalPondTotalArea } from '@/lib/reportPondDedupe';
 import { calculateYieldFromPond, calcOriginalYieldKg } from '@/lib/calculateYield';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
 import {
   reportBanner,
   reportNumCellClass,
@@ -159,11 +160,39 @@ export default function ReportOriginal({ ponds, agencies, dateFrom, dateTo, appS
     );
   };
 
+  const exportColumns = useMemo(
+    () => [
+      { header: 'Mã hệ thống', accessor: (r) => systemCodeFromAgencyCode(r.agency), width: 12 },
+      { header: 'Hệ thống', key: 'agencyName', width: 18 },
+      { header: 'Số chu kỳ', key: 'cycleCount', width: 10 },
+      { header: 'Diện tích (m²)', accessor: (r) => (r.totalArea > 0 ? r.totalArea : ''), width: 12 },
+      ...visibleMonthIdx.flatMap((mi, i) => [
+        { header: `${MONTHS[mi]} CC`, accessor: (r) => (r.monthCC[i] > 0 ? r.monthCC[i] : ''), width: 10 },
+        { header: `${MONTHS[mi]} CT`, accessor: (r) => (r.monthCT[i] > 0 ? r.monthCT[i] : ''), width: 10 },
+        { header: `${MONTHS[mi]} TH`, accessor: (r) => (r.monthTH[i] > 0 ? r.monthTH[i] : ''), width: 10 },
+      ]),
+      { header: 'Tổng CC', accessor: (r) => (r.totalCC > 0 ? r.totalCC : ''), width: 10 },
+      { header: 'Tổng CT', accessor: (r) => (r.totalCT > 0 ? r.totalCT : ''), width: 10 },
+      { header: 'Tổng TH', accessor: (r) => (r.totalAll > 0 ? r.totalAll : ''), width: 10 },
+    ],
+    [visibleMonthIdx]
+  );
+
   return (
     <div>
-      <div className={reportBanner}>
-        Bảng sắp xếp theo dạng tháng: mỗi tháng gồm <strong>CC</strong>, <strong>CT</strong>, <strong>TH</strong> (tổng). Cột theo tháng chỉ tính khi có{' '}
-        <strong>ngày thả hợp lệ</strong>, có <strong>ngày thu KH gốc</strong> (initial/expected) và ngày thu không trước ngày thả.
+      <div className={cn(reportBanner, 'flex flex-wrap items-center justify-between gap-2')}>
+        <span>
+          Bảng sắp xếp theo dạng tháng: mỗi tháng gồm <strong>CC</strong>, <strong>CT</strong>, <strong>TH</strong> (tổng). Cột theo tháng chỉ tính khi có{' '}
+          <strong>ngày thả hợp lệ</strong>, có <strong>ngày thu KH gốc</strong> (initial/expected) và ngày thu không trước ngày thả.
+        </span>
+        <ExportExcelButton
+          fileName="ke-hoach-ban-dau"
+          sheetName="KH gốc"
+          columns={exportColumns}
+          rows={allAgencyRows}
+          disabled={!allAgencyRows.length}
+          className="gap-1.5 text-xs h-8 px-2 shrink-0"
+        />
       </div>
 
       <div className={reportTableScroll}>

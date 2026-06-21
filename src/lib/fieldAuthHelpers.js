@@ -96,6 +96,11 @@ function pondRegionCode(pond) {
 
 const DEFAULT_POND_APP_ORIGIN = 'https://baiyang-one.vercel.app';
 
+export function pondAppOrigin() {
+  if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin;
+  return DEFAULT_POND_APP_ORIGIN;
+}
+
 /** Chuỗi đưa vào QR / cột qr_code: luôn `POND:<mã>` (không hậu tố). */
 export function pondQrPayload(code) {
   const c = String(code ?? '').trim();
@@ -103,7 +108,13 @@ export function pondQrPayload(code) {
   return `POND:${c}`;
 }
 
-export function pondDetailQrUrl(pond, baseHref = DEFAULT_POND_APP_ORIGIN) {
+/** Nội dung mã QR tem ao: `POND:<mã>` — máy quét bắn thẳng vào ô nhật ký. */
+export function pondQrContent(pond) {
+  return pondQrPayload(pond?.code);
+}
+
+/** URL mở thẳng tab nhật ký (camera điện thoại). */
+export function pondLogDeepLink(pond, baseHref) {
   const code = String(pond?.code ?? '').trim();
   if (!code) return '';
 
@@ -111,7 +122,7 @@ export function pondDetailQrUrl(pond, baseHref = DEFAULT_POND_APP_ORIGIN) {
   params.set('tab', 'log');
   params.set('pond_code', code);
   const path = `/ponds/${encodeURIComponent(code)}?${params.toString()}`;
-  const base = String(baseHref || '').trim();
+  const base = String(baseHref ?? pondAppOrigin()).trim();
 
   if (!base) return path;
 
@@ -120,6 +131,27 @@ export function pondDetailQrUrl(pond, baseHref = DEFAULT_POND_APP_ORIGIN) {
   } catch {
     return `${base.replace(/\/+$/, '')}${path}`;
   }
+}
+
+/** @deprecated Dùng pondQrContent cho QR, pondLogDeepLink cho link. */
+export function pondDetailQrUrl(pond, baseHref) {
+  return pondLogDeepLink(pond, baseHref);
+}
+
+/** Mã ao từ query ?pond_code= / ?code= / ?pond= trên trang quét. */
+export function pondCodeFromSearchParams(searchParams) {
+  if (!searchParams) return null;
+  const raw =
+    searchParams.get('pond_code') || searchParams.get('code') || searchParams.get('pond');
+  if (!raw) return null;
+  return parsePondCodeFromQr(raw);
+}
+
+/** Giá trị hiển thị trong ô quét khi mở link có sẵn mã ao. */
+export function scanInputFromPondCode(code) {
+  const c = String(code ?? '').trim();
+  if (!c) return '';
+  return pondQrPayload(c) || c;
 }
 
 /** Lấy mã ao sau tiền tố POND: (bỏ hậu tố kiểu `:timestamp` trong DB cũ). */

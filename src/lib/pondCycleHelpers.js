@@ -72,6 +72,34 @@ export function pickActiveCycle(cycles) {
   })[0];
 }
 
+/** Trọng lượng TB (g) mới nhất theo chu kỳ — từ các dòng nhật ký. */
+export function buildLatestAvgWeightByCycle(logRows) {
+  const latest = {};
+  for (const log of logRows || []) {
+    const cycleId = log?.pond_cycle_id;
+    if (!cycleId) continue;
+    const avgWeight = Number(log.avg_weight);
+    if (!Number.isFinite(avgWeight) || avgWeight <= 0) continue;
+    const key = String(cycleId);
+    const logDate = String(log.log_date || '').slice(0, 10);
+    const updatedAt = String(log.updated_date || log.updated_at || log.created_date || log.created_at || '');
+    const sortKey = `${logDate} ${updatedAt}`;
+    const prev = latest[key];
+    if (!prev || sortKey > prev.sortKey) {
+      latest[key] = { value: avgWeight, sortKey };
+    }
+  }
+  return Object.fromEntries(Object.entries(latest).map(([k, v]) => [k, v.value]));
+}
+
+export function formatAvgWeightG(grams) {
+  if (grams == null || grams === '') return '—';
+  const n = Number(grams);
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  const rounded = Math.round(n * 10) / 10;
+  return `${rounded.toLocaleString(undefined, { maximumFractionDigits: 1 })} g`;
+}
+
 export function spreadCycleFields(cycle) {
   const o = {};
   if (!cycle) return o;

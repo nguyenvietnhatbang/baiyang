@@ -1,8 +1,13 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
-import { isPondInFieldUserScope, parsePondCodeFromQr } from '@/lib/fieldAuthHelpers';
+import {
+  isPondInFieldUserScope,
+  parsePondCodeFromQr,
+  pondCodeFromSearchParams,
+  scanInputFromPondCode,
+} from '@/lib/fieldAuthHelpers';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,9 +15,11 @@ import { ArrowLeft, ScanLine } from 'lucide-react';
 
 export default function FieldScanPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [rawCode, setRawCode] = useState('');
   const [resolving, setResolving] = useState(false);
   const navigate = useNavigate();
+  const autoResolvedRef = useRef(false);
 
   const handleScan = async (raw) => {
     const code = parsePondCodeFromQr(raw);
@@ -20,6 +27,7 @@ export default function FieldScanPage() {
       toast.error('Mã không hợp lệ');
       return;
     }
+    setResolving(true);
     try {
       const p = await base44.entities.Pond.findByCodeFlattened(code);
       if (!p || !isPondInFieldUserScope(user, p)) {
@@ -33,6 +41,16 @@ export default function FieldScanPage() {
       setResolving(false);
     }
   };
+
+  useEffect(() => {
+    const code = pondCodeFromSearchParams(searchParams);
+    if (!code) return;
+    setRawCode(scanInputFromPondCode(code));
+    if (autoResolvedRef.current) return;
+    autoResolvedRef.current = true;
+    void handleScan(scanInputFromPondCode(code));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ auto-mở khi mở link QR lần đầu
+  }, [searchParams]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -63,7 +81,7 @@ export default function FieldScanPage() {
       <div className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5 shadow-sm">
         <h1 className="text-lg sm:text-xl font-bold text-stone-900">Quét QR ao nuôi</h1>
         <p className="text-sm text-stone-600 mt-1.5">
-          Dùng máy quét hoặc dán nội dung QR vào ô nhập bên cạnh.
+          Dùng máy quét hoặc dán nội dung QR vào ô nhập. Quét tem QR sẽ tự điền mã ao và mở form nhật ký.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col sm:flex-row gap-3 sm:items-center">
@@ -88,7 +106,7 @@ export default function FieldScanPage() {
         <ol className="mt-2 space-y-1.5 text-sm text-stone-700 list-decimal list-inside">
           <li>Bấm vào ô nhập, đặt con trỏ sẵn.</li>
           <li>Dùng máy quét QR quét tem dán trên ao (hoặc dán mã thủ công).</li>
-          <li>Nhấn Enter hoặc bấm nút "Vào form nhật ký".</li>
+          <li>Nhấn Enter hoặc bấm nút &quot;Vào form nhật ký&quot;.</li>
           <li>Hệ thống tự chuyển sang form điền nhật ký của ao tương ứng.</li>
         </ol>
       </div>

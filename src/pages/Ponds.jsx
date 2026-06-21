@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Plus, Settings2, ChevronsUpDown, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -63,6 +63,7 @@ import {
   isHarvestDateWithinUpcomingDays,
 } from '@/lib/harvestAlerts';
 import { appendManualCloseNote, shouldShowCycleOnHarvestedTab } from '@/lib/cycleHarvestCompletion';
+import { buildLatestAvgWeightByCycle } from '@/lib/pondCycleHelpers';
 
 function SearchableSelect({ label, value, onChange, options, placeholder = 'Chọn...', disabled }) {
   const [open, setOpen] = useState(false);
@@ -472,6 +473,7 @@ function cycleLabel(c, idx) {
 export default function Ponds() {
   const { appSettings, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const tabParam = String(searchParams.get('tab') || '').trim().toLowerCase();
   const mainTab =
     tabParam === 'households' || tabParam === 'household'
@@ -558,26 +560,16 @@ export default function Ponds() {
       base44.entities.HarvestRecord.list('-harvest_date', 8000),
     ]);
     const stockedMap = {};
-    const latestAvgWeightMap = {};
+    const latestAvgWeightMap = buildLatestAvgWeightByCycle(logRows);
     for (const log of logRows || []) {
       const cycleId = log?.pond_cycle_id;
       if (!cycleId) continue;
       stockedMap[cycleId] = (stockedMap[cycleId] || 0) + (Number(log.stocked_fish) || 0);
-      const avgWeight = Number(log.avg_weight);
-      if (!Number.isFinite(avgWeight) || avgWeight <= 0) continue;
-      const key = String(cycleId);
-      const logDate = String(log.log_date || '').slice(0, 10);
-      const updatedAt = String(log.updated_date || log.updated_at || log.created_date || log.created_at || '');
-      const sortKey = `${logDate} ${updatedAt}`;
-      const prev = latestAvgWeightMap[key];
-      if (!prev || sortKey > prev.sortKey) {
-        latestAvgWeightMap[key] = { value: avgWeight, sortKey };
-      }
     }
     setPonds(data || []);
     setAgencies(agencyData || []);
     setStockedFishByCycle(stockedMap);
-    setLatestAvgWeightByCycle(Object.fromEntries(Object.entries(latestAvgWeightMap).map(([k, v]) => [k, v.value])));
+    setLatestAvgWeightByCycle(latestAvgWeightMap);
     setHarvestRecords(harvestRows || []);
     setLoading(false);
   };
@@ -1251,7 +1243,12 @@ export default function Ponds() {
                   sheetName="Ao"
                   title="Danh sách ao nuôi"
                   columns={POND_EXPORT_COLUMNS}
-                  rows={pondRows}
+                  rows={pondRows.map((p) => ({
+                    ...p,
+                    export_avg_weight: p.active_cycle?.id
+                      ? latestAvgWeightByCycle[String(p.active_cycle.id)] ?? null
+                      : null,
+                  }))}
                   disabled={loading || pondRows.length === 0}
                 />
               </div>
@@ -1262,6 +1259,18 @@ export default function Ponds() {
                     Đã chọn {selectedPondsForQr.length} ao để in QR
                   </p>
                   <div className="flex items-center gap-2">
+                    {selectedPondsForQr.length === 1 && selectedPondsForQr[0]?.code ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="text-sm h-9 gap-1.5"
+                        onClick={() =>
+                          navigate(`/ponds/${encodeURIComponent(selectedPondsForQr[0].code)}?tab=log`)
+                        }
+                      >
+                        Vào form nhật ký
+                      </Button>
+                    ) : null}
                     <QRBatchDownload ponds={selectedPondsForQr} />
                     <Button
                       type="button"
@@ -1290,6 +1299,9 @@ export default function Ponds() {
                       status: p.active_cycle?.status || 'CT',
                       area: p.area,
                       current_fish: p.active_cycle?.current_fish ?? p.active_cycle?.total_fish ?? null,
+                      avg_weight: p.active_cycle?.id
+                        ? latestAvgWeightByCycle[String(p.active_cycle.id)] ?? null
+                        : null,
                       expected_yield: sumPlannedYieldAdjustedForPond(p),
                       expected_harvest_date: plannedHarvestDateForDisplay(p.active_cycle),
                       harvest_date_estimated: p.active_cycle ? isPlannedHarvestDateEstimated(p.active_cycle) : false,

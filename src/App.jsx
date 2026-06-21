@@ -26,6 +26,7 @@ import FieldLogPage from '@/pages/field/FieldLogPage';
 import FieldHouseholdPage from '@/pages/field/FieldHouseholdPage';
 import FieldScanPage from '@/pages/field/FieldScanPage';
 import AdminUsers from '@/pages/admin/AdminUsers';
+import ChangePassword, { FieldChangePassword } from '@/pages/ChangePassword';
 import ScanPage from '@/pages/ScanPage';
 
 function App() {
@@ -48,6 +49,7 @@ function App() {
                   <Route path="log" element={<FieldLogPage />} />
                   <Route path="household" element={<FieldHouseholdPage />} />
                   <Route path="scan" element={<FieldScanPage />} />
+                  <Route path="password" element={<FieldChangePassword />} />
                 </Route>
               </Route>
               <Route element={<OfficeRoleGate />}>
@@ -63,6 +65,7 @@ function App() {
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/factory-plan" element={<FactoryPlan />} />
                   <Route path="/admin" element={<AdminUsers />} />
+                  <Route path="/account/password" element={<ChangePassword />} />
                 </Route>
               </Route>
             </Route>

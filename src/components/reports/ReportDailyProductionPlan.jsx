@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { formatDateDisplay } from '@/lib/dateFormat';
 import { harvestRecordsForCycleRow, latestActualHarvestDate } from '@/lib/reportPondDedupe';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
+import { DAILY_PRODUCTION_PLAN_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
 import {
   reportTable,
   reportTableScroll,
@@ -102,6 +104,21 @@ export default function ReportDailyProductionPlan({ ponds, harvests, agencyNameB
   ];
 
   return (
+    <div className="space-y-2">
+      <div className="flex justify-end px-3 pt-2">
+        <ExportExcelButton
+          fileName="bao-cao-kh-thu-san-luong"
+          sheetName="KH thu & SL"
+          columns={DAILY_PRODUCTION_PLAN_EXPORT_COLUMNS}
+          rows={rows.map((r) => ({
+            ...r,
+            plannedDate: formatDateDisplay(r.plannedDate),
+            actualDate: formatDateDisplay(r.actualDate),
+          }))}
+          disabled={!rows.length}
+          className="gap-1.5 text-xs h-8 px-2"
+        />
+      </div>
     <div className={reportTableScroll}>
       <table className={reportTable}>
         <thead>
@@ -151,6 +168,7 @@ export default function ReportDailyProductionPlan({ ponds, harvests, agencyNameB
           </tr>
         </tbody>
       </table>
+    </div>
     </div>
   );
 }

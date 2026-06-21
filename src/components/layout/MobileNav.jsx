@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Fish, ClipboardList, BarChart3, Building2, Settings, UserPlus, ScanLine, LogIn } from 'lucide-react';
+import { LayoutDashboard, Fish, ClipboardList, BarChart3, Building2, Settings, UserPlus, ScanLine, LogIn, KeyRound } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { isFieldRole } from '@/lib/fieldAuthHelpers';
 
@@ -15,18 +15,19 @@ const baseNavItems = [
 
 const scopedNavItems = [
   { path: '/ponds', icon: Fish, label: 'Ao' },
-  { path: '/logs', icon: ClipboardList, label: 'Nhật ký' },
+  { path: '/logs', icon: ClipboardList, label: 'NK' },
   { path: '/scan', icon: ScanLine, label: 'QR' },
+  { path: '/account/password', icon: KeyRound, label: 'MK' },
 ];
 
 export default function MobileNav({ alertCount = 0 }) {
   const { user } = useAuth();
   const location = useLocation();
   const navItems = user?.role === 'admin'
-    ? [...baseNavItems, { path: '/admin', icon: UserPlus, label: 'Hiện trường' }, { path: '/settings', icon: Settings, label: 'Cài đặt' }]
+    ? [...baseNavItems, { path: '/admin', icon: UserPlus, label: 'Hiện trường' }, { path: '/account/password', icon: KeyRound, label: 'MK' }, { path: '/settings', icon: Settings, label: 'Cài đặt' }]
     : isFieldRole(user?.role)
       ? scopedNavItems
-      : baseNavItems;
+      : [...baseNavItems, { path: '/account/password', icon: KeyRound, label: 'MK' }];
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-40 sm:hidden border-t border-border flex overflow-x-auto"

@@ -21,7 +21,8 @@ export default function OfficeRoleGate() {
       path === '/ponds' ||
       path.startsWith('/ponds/') ||
       path === '/scan' ||
-      path === '/logs';
+      path === '/logs' ||
+      path === '/account/password';
     if (!allowed) {
       return <Navigate to="/ponds" replace />;
     }

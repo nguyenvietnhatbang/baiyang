@@ -16,6 +16,9 @@ import { toast } from 'sonner';
 import PondStatusBadge from '@/components/ponds/PondStatusBadge';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { calendarDaysUntilHarvest, isHarvestDateOnOrBeforeToday } from '@/lib/harvestAlerts';
+import { pickActiveCycle, buildLatestAvgWeightByCycle } from '@/lib/pondCycleHelpers';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
+import { FIELD_POND_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
 import { Input } from '@/components/ui/input';
 
 /** Hero: gradient teal, gọn để ưu tiên danh sách ao. */
@@ -27,6 +30,7 @@ const FIELD_HOME_HERO_STYLE = {
 export default function FieldHome() {
   const { user } = useAuth();
   const [ponds, setPonds] = useState([]);
+  const [avgWeightByCycle, setAvgWeightByCycle] = useState({});
   const [loading, setLoading] = useState(true);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -37,8 +41,15 @@ export default function FieldHome() {
     let cancelled = false;
     setLoading(true);
     loadPondsForFieldUser(user)
-      .then((rows) => {
-        if (!cancelled) setPonds(rows || []);
+      .then(async (rows) => {
+        if (cancelled) return;
+        setPonds(rows || []);
+        try {
+          const logs = await base44.entities.PondLog.list('-log_date', 2500);
+          if (!cancelled) setAvgWeightByCycle(buildLatestAvgWeightByCycle(logs));
+        } catch {
+          /* bỏ qua — vẫn hiện ao không có TL */
+        }
       })
       .catch(() => {
         if (!cancelled) toast.error('Không tải được danh sách ao');
@@ -130,11 +141,37 @@ export default function FieldHome() {
       <div>
         <div className="flex flex-col gap-3 mb-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
-            <div className="shrink-0">
-              <h2 className="text-lg font-bold text-stone-900 tracking-tight">Ao bạn phụ trách</h2>
-              <p className="text-sm text-stone-500 mt-0.5 tabular-nums">
-                {loading ? 'Đang tải…' : `${filteredPonds.length} / ${ponds.length} ao trong phạm vi`}
-              </p>
+            <div className="shrink-0 flex flex-wrap items-center gap-2">
+              <div>
+                <h2 className="text-lg font-bold text-stone-900 tracking-tight">Ao bạn phụ trách</h2>
+                <p className="text-sm text-stone-500 mt-0.5 tabular-nums">
+                  {loading ? 'Đang tải…' : `${filteredPonds.length} / ${ponds.length} ao trong phạm vi`}
+                </p>
+              </div>
+              <ExportExcelButton
+                fileName="ao-hien-truong"
+                sheetName="Ao"
+                title="Danh sách ao hiện trường"
+                columns={FIELD_POND_EXPORT_COLUMNS}
+                rows={filteredPonds.map((p) => {
+                  const activeCycle = pickActiveCycle(p.pond_cycles) || p.active_cycle;
+                  return {
+                    code: p.code,
+                    owner_name: p.owner_name,
+                    agency_code: p.agency_code,
+                    status: p.status || activeCycle?.status || 'CT',
+                    area: p.area,
+                    current_fish: p.current_fish ?? activeCycle?.current_fish ?? activeCycle?.total_fish,
+                    export_avg_weight: activeCycle?.id ? avgWeightByCycle[String(activeCycle.id)] ?? null : null,
+                    expected_yield: p.expected_yield ?? activeCycle?.expected_yield,
+                    expected_harvest_date: plannedHarvestDateForDisplay(p),
+                    fcr: p.fcr ?? activeCycle?.fcr,
+                    location: p.location,
+                  };
+                })}
+                disabled={loading || filteredPonds.length === 0}
+                className="gap-1.5 text-xs h-8 px-2"
+              />
             </div>
             <div className="relative flex-1 min-w-0 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
@@ -170,6 +207,8 @@ export default function FieldHome() {
               const isOverdue = diff !== null && diff < 0;
               const isWithdrawal =
                 p.withdrawal_end_date && differenceInDays(parseISO(p.withdrawal_end_date), today) >= 0;
+              const activeCycle = pickActiveCycle(p.pond_cycles) || p.active_cycle;
+              const avgWeight = activeCycle?.id ? avgWeightByCycle[String(activeCycle.id)] : null;
 
               return (
                 <li key={p.id}>
@@ -215,7 +254,7 @@ export default function FieldHome() {
                       </div>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-3 gap-2">
+                    <div className="mt-3 grid grid-cols-2 gap-2">
                       <div className="rounded-lg bg-stone-50/90 border border-stone-100/80 py-2 px-2 text-left">
                         <p className="text-[10px] uppercase tracking-wide text-stone-500 font-semibold">Diện tích</p>
                         <p className="font-semibold text-stone-900 text-sm mt-0.5 tabular-nums">{p.area != null ? `${p.area} m²` : '—'}</p>
@@ -224,6 +263,12 @@ export default function FieldHome() {
                         <p className="text-[10px] uppercase tracking-wide text-stone-500 font-semibold">Số cá</p>
                         <p className="font-semibold text-stone-900 text-sm mt-0.5 tabular-nums">
                           {p.current_fish != null ? p.current_fish.toLocaleString() : '—'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-teal-50/90 border border-teal-100/80 py-2 px-2 text-left">
+                        <p className="text-[10px] uppercase tracking-wide text-teal-700 font-semibold">Trọng lượng cá</p>
+                        <p className="font-semibold text-teal-900 text-sm mt-0.5 tabular-nums">
+                          {avgWeight != null ? `${Number(avgWeight).toLocaleString(undefined, { maximumFractionDigits: 1 })} g` : '—'}
                         </p>
                       </div>
                       <div className="rounded-lg bg-stone-50/90 border border-stone-100/80 py-2 px-2 text-left">

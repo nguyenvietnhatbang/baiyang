@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MapPin, Building2, Hash, CheckCircle2, XCircle, Phone, MessageCircle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
+import { HOUSEHOLD_POND_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
 
 function phoneDigits(p) {
   return String(p || '').replace(/\D/g, '');
@@ -168,6 +170,19 @@ export default function HouseholdViewDialog({ open, onClose, household, agency, 
           </TabsContent>
 
           <TabsContent value="ponds" className="py-2">
+            <div className="flex justify-end mb-2">
+              <ExportExcelButton
+                fileName={`ao-ho-${household?.household_segment || household?.name || 'ho'}`}
+                sheetName="Ao"
+                columns={HOUSEHOLD_POND_EXPORT_COLUMNS}
+                rows={householdPonds.map((p) => ({
+                  ...p,
+                  status: p.status || p.active_cycle?.status || 'CT',
+                }))}
+                disabled={loadingPonds || householdPonds.length === 0}
+                className="gap-1.5 text-xs h-8 px-2"
+              />
+            </div>
             <div className="rounded-lg border border-border overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40 border-b border-border">

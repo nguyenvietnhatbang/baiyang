@@ -6,7 +6,9 @@ import { isPondInFieldUserScope } from '@/lib/fieldAuthHelpers';
 import { useAuth } from '@/lib/AuthContext';
 import { submitPondLogEntry } from '@/lib/pondLogSubmit';
 import { POND_LOG_ENV_RANGES, pondLogEnvOutOfRange } from '@/lib/pondLogEnvRanges';
-import { pickActiveCycle } from '@/lib/pondCycleHelpers';
+import { pickActiveCycle, formatAvgWeightG } from '@/lib/pondCycleHelpers';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
+import { POND_LOG_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { calendarDaysUntilHarvest, isHarvestDateOnOrBeforeToday } from '@/lib/harvestAlerts';
 import { Button } from '@/components/ui/button';
@@ -239,6 +241,14 @@ export default function FieldLogPage() {
   const inWithdrawal =
     cycle.withdrawal_end_date && differenceInDays(parseISO(cycle.withdrawal_end_date), today) >= 0;
 
+  const latestAvgWeight = (() => {
+    for (const log of logs) {
+      const w = Number(log.avg_weight);
+      if (Number.isFinite(w) && w > 0) return w;
+    }
+    return null;
+  })();
+
   return (
     <div className="space-y-5 pb-8">
       <Link
@@ -283,7 +293,7 @@ export default function FieldLogPage() {
           </p>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-center">
+        <div className="grid grid-cols-2 gap-2 text-center">
           <div className="rounded-xl bg-stone-50 border border-stone-100 px-2 py-2.5">
             <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">Diện tích</p>
             <p className="text-sm font-bold text-stone-900 mt-0.5">{pond.area != null ? `${pond.area} m²` : '—'}</p>
@@ -294,7 +304,11 @@ export default function FieldLogPage() {
               {cycle.current_fish != null ? cycle.current_fish.toLocaleString() : '—'}
             </p>
           </div>
-          <div className="rounded-xl bg-stone-50 border border-stone-100 px-2 py-2.5 col-span-2 sm:col-span-1">
+          <div className="rounded-xl bg-teal-50 border border-teal-100 px-2 py-2.5">
+            <p className="text-[10px] font-semibold text-teal-700 uppercase tracking-wide">Trọng lượng cá</p>
+            <p className="text-sm font-bold text-teal-900 mt-0.5">{formatAvgWeightG(latestAvgWeight)}</p>
+          </div>
+          <div className="rounded-xl bg-stone-50 border border-stone-100 px-2 py-2.5">
             <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide">SL dự kiến</p>
             <p className="text-sm font-bold text-stone-900 mt-0.5">
               {cycle.expected_yield != null ? `${cycle.expected_yield.toLocaleString()} kg` : '—'}
@@ -535,6 +549,24 @@ export default function FieldLogPage() {
             {showHistory ? <ChevronUp className="w-5 h-5 text-stone-600" /> : <ChevronDown className="w-5 h-5 text-stone-600" />}
           </button>
           {showHistory && (
+            <>
+              <div className="px-4 py-2 border-t border-stone-100 flex justify-end">
+                <ExportExcelButton
+                  fileName={`nhat-ky-${pond.code || 'ao'}`}
+                  sheetName="Nhật ký"
+                  columns={POND_LOG_EXPORT_COLUMNS}
+                  rows={logs.map((l) => ({
+                    ...l,
+                    pond_code: pond.code,
+                    agency_code: pond.agency_code || '',
+                    cycle_label:
+                      (cycle?.name && String(cycle.name).trim()) ||
+                      (cycle?.stock_date ? `Thả ${cycle.stock_date}` : 'Chu kỳ'),
+                  }))}
+                  disabled={!logs.length}
+                  className="gap-1.5 text-xs h-8 px-2"
+                />
+              </div>
             <ul className="border-t border-stone-100 divide-y divide-stone-100 max-h-[22rem] overflow-y-auto px-2 py-2">
               {logs.slice(0, 25).map((log) => (
                 <li key={log.id} className="px-2 py-3 text-sm">
@@ -560,6 +592,9 @@ export default function FieldLogPage() {
                       </span>
                     )}
                     {log.do != null && <span>DO {log.do}</span>}
+                    {log.avg_weight != null && log.avg_weight !== '' && (
+                      <span className="font-semibold text-teal-800">TL {log.avg_weight} g</span>
+                    )}
                     {log.water_color && <span>Màu: {log.water_color}</span>}
                   </div>
                   {log.dead_fish > 0 && <p className="text-xs text-red-600 font-medium mt-1">−{log.dead_fish} con</p>}
@@ -573,6 +608,7 @@ export default function FieldLogPage() {
                 </li>
               ))}
             </ul>
+            </>
           )}
         </div>
       )}

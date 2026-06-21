@@ -9,6 +9,8 @@ import PondStatusBadge from '@/components/ponds/PondStatusBadge';
 import CycleViewDialog from '@/components/ponds/CycleViewDialog';
 import CycleEditDialog from '@/components/ponds/CycleEditDialog';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
+import { POND_CYCLES_DIALOG_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
 
 function cycleLabel(c, idx) {
   const n = String(c?.name || '').trim();
@@ -148,6 +150,20 @@ export default function PondViewDialog({ open, onClose, pondId, onEdit, canEditD
             </TabsContent>
 
             <TabsContent value="cycles" className="mt-3 outline-none">
+              <div className="flex justify-end mb-2">
+                <ExportExcelButton
+                  fileName={`chu-ky-${pond?.code || 'ao'}`}
+                  sheetName="Chu kỳ"
+                  columns={POND_CYCLES_DIALOG_EXPORT_COLUMNS}
+                  rows={cycles.map((c, idx) => ({
+                    ...c,
+                    export_label: cycleLabel(c, idx),
+                    status: c.status || 'CT',
+                  }))}
+                  disabled={!cycles.length}
+                  className="gap-1.5 text-xs h-8 px-2"
+                />
+              </div>
               <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">

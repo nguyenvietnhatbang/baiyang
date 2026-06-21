@@ -7,6 +7,10 @@ import PondStatusBadge from '@/components/ponds/PondStatusBadge';
 import { ChevronRight, MapPin } from 'lucide-react';
 import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
 import { filterHouseholdsForFieldUser, filterPondsForFieldUser } from '@/lib/fieldAuthHelpers';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
+import { FIELD_POND_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
+import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
+import { pickActiveCycle } from '@/lib/pondCycleHelpers';
 
 export default function FieldHouseholdPage() {
   const { user } = useAuth();
@@ -90,11 +94,45 @@ export default function FieldHouseholdPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-stone-900">Hộ nuôi &amp; ao</h1>
-        <p className="text-sm text-stone-600 mt-1">
-          Xem nhanh thông tin hộ; bấm vào từng ao để mở màn hình nhật ký (giống quản lý về dữ liệu cơ bản).
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-stone-900">Hộ nuôi &amp; ao</h1>
+          <p className="text-sm text-stone-600 mt-1">
+            Xem nhanh thông tin hộ; bấm vào từng ao để mở màn hình nhật ký (giống quản lý về dữ liệu cơ bản).
+          </p>
+        </div>
+        <ExportExcelButton
+          fileName="ho-ao-hien-truong"
+          sheetName="Ao theo hộ"
+          title="Hộ nuôi và ao"
+          columns={[
+            { header: 'Hộ nuôi', key: 'household_name', width: 18 },
+            { header: 'Mã hộ', accessor: (r) => r.household_segment || '', width: 10 },
+            ...FIELD_POND_EXPORT_COLUMNS,
+          ]}
+          rows={households.flatMap((h) =>
+            (pondsByHousehold[h.id] || []).map((p) => {
+              const activeCycle = pickActiveCycle(p.pond_cycles) || p.active_cycle;
+              return {
+                household_name: h.name,
+                household_segment: formatHouseholdSegmentDisplay(h.household_segment),
+                code: p.code,
+                owner_name: p.owner_name || h.name,
+                agency_code: p.agency_code,
+                status: p.status || activeCycle?.status || 'CT',
+                area: p.area,
+                current_fish: p.current_fish ?? activeCycle?.current_fish ?? activeCycle?.total_fish,
+                export_avg_weight: null,
+                expected_yield: p.expected_yield ?? activeCycle?.expected_yield,
+                expected_harvest_date: plannedHarvestDateForDisplay(p),
+                fcr: p.fcr ?? activeCycle?.fcr,
+                location: p.location,
+              };
+            })
+          )}
+          disabled={households.length === 0}
+          className="gap-1.5 text-xs h-8 px-2 shrink-0"
+        />
       </div>
 
       {households.map((h) => {

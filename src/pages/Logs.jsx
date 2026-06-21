@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,8 @@ import PondLogCreateDialog from '@/components/ponds/PondLogCreateDialog';
 import {
   parsePondCodeFromQr,
   pondCodesEqual,
+  pondCodeFromSearchParams,
+  scanInputFromPondCode,
   isFieldRole,
   filterPondsForFieldUser,
   canUserCreatePondLogForPond,
@@ -24,6 +26,7 @@ import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
 import { pickActiveCycle, cycleLabelForPondLog } from '@/lib/pondCycleHelpers';
 import { formatDateDisplay } from '@/lib/dateFormat';
 import { differenceInDays, parseISO } from 'date-fns';
+import { toast } from 'sonner';
 import { SearchableMultiFilterPopover } from '@/components/ponds/PondTableFilterControls';
 
 function cellDash(v) {
@@ -117,6 +120,7 @@ function SearchableSelect({ value, onChange, options, placeholder = 'Chọn...',
 
 export default function Logs() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const canEditPondLog = (pond) => canUserEditPondLogForPond(user, pond);
   const canDeletePondLog = canUserDeletePondLog(user);
@@ -138,6 +142,8 @@ export default function Logs() {
   const [agencyFilters, setAgencyFilters] = useState(() => new Set());
   const [householdFilters, setHouseholdFilters] = useState(() => new Set());
   const [cycleFilters, setCycleFilters] = useState(() => new Set());
+  const urlPondHandledRef = useRef(false);
+  const qrInputRef = useRef(null);
 
   const loadData = async () => {
     const [p, l, h] = await Promise.all([
@@ -166,22 +172,67 @@ export default function Logs() {
     return m;
   }, [scopedPonds]);
 
-  const handleQrScan = (raw) => {
+  const handleCreateLog = (pond) => {
+    if (!canUserCreatePondLogForPond(user, pond)) {
+      alert('Bạn không có quyền ghi nhật ký cho ao này.');
+      return;
+    }
+    const cycle = pickActiveCycle(pond.pond_cycles);
+    if (!cycle) {
+      alert('Ao này chưa có chu kỳ hoạt động. Vui lòng tạo chu kỳ trước.');
+      return;
+    }
+    setSelectedPondForLog(pond);
+    setShowCreateLogDialog(true);
+  };
+
+  const applyPondFromQr = (raw, { openLogForm = true } = {}) => {
     const input = raw || qrInput;
     const code = parsePondCodeFromQr(input);
-    if (!code) return;
+    if (!code) {
+      toast.error('Mã QR không hợp lệ');
+      return;
+    }
     const pond = scopedPonds.find(
-      (p) => pondCodesEqual(p.code, code) || (p.qr_code && String(p.qr_code).toLowerCase().includes(String(code).toLowerCase()))
+      (p) =>
+        pondCodesEqual(p.code, code) ||
+        (p.qr_code && String(p.qr_code).toLowerCase().includes(String(code).toLowerCase()))
     );
     setShowCamera(false);
+    setQrInput('');
     if (pond) {
       setActivePond(pond);
-      navigate(`/ponds/${pond.id}?tab=log`);
-      setQrInput('');
+      if (openLogForm) {
+        const cycle = pickActiveCycle(pond.pond_cycles);
+        if (cycle && canUserCreatePondLogForPond(user, pond)) {
+          handleCreateLog(pond);
+        } else {
+          navigate(`/ponds/${encodeURIComponent(pond.code)}?tab=log`);
+        }
+      }
     } else {
       alert(`Không tìm thấy ao: ${code}`);
     }
   };
+
+  const handleQrScan = (raw) => applyPondFromQr(raw, { openLogForm: true });
+
+  useEffect(() => {
+    if (loading || urlPondHandledRef.current) return;
+    const code = pondCodeFromSearchParams(searchParams);
+    if (!code) return;
+    urlPondHandledRef.current = true;
+    setQrInput(scanInputFromPondCode(code));
+    const next = new URLSearchParams(searchParams);
+    next.delete('pond_code');
+    next.delete('code');
+    next.delete('pond');
+    setSearchParams(next, { replace: true });
+    if (scopedPonds.length > 0) {
+      applyPondFromQr(scanInputFromPondCode(code), { openLogForm: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ xử lý link QR một lần khi tải xong ao
+  }, [loading, scopedPonds, searchParams]);
 
   const agencyCodes = useMemo(
     () => [...new Set(scopedPonds.map((p) => p.agency_code).filter(Boolean))].sort(),
@@ -386,7 +437,7 @@ export default function Logs() {
       { header: 'Mã TA', key: 'feed_code', width: 10 },
       { header: 'pH', key: 'ph', width: 8 },
       { header: 'T°', key: 'temperature', width: 8 },
-      { header: 'DO', key: 'do_level', width: 8 },
+      { header: 'DO', key: 'do', width: 8 },
       { header: 'NH3', key: 'nh3', width: 8 },
       { header: 'NO2', key: 'no2', width: 8 },
       { header: 'H2S', key: 'h2s', width: 8 },
@@ -397,20 +448,6 @@ export default function Logs() {
     ],
     [pondById]
   );
-
-  const handleCreateLog = (pond) => {
-    if (!canUserCreatePondLogForPond(user, pond)) {
-      alert('Bạn không có quyền ghi nhật ký cho ao này.');
-      return;
-    }
-    const cycle = pickActiveCycle(pond.pond_cycles);
-    if (!cycle) {
-      alert('Ao này chưa có chu kỳ hoạt động. Vui lòng tạo chu kỳ trước.');
-      return;
-    }
-    setSelectedPondForLog(pond);
-    setShowCreateLogDialog(true);
-  };
 
   const handleDeleteLog = async (log) => {
     if (!log?.id || !canDeletePondLog) return;
@@ -454,8 +491,9 @@ export default function Logs() {
       {/* Chọn ao để ghi nhật ký */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
         <Label className="text-sm font-extrabold text-slate-600 uppercase tracking-wide mb-2 block">Chọn ao để ghi nhật ký</Label>
-        <div className="flex gap-2">
-          <div className="flex-1 min-w-0">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex-1 min-w-0 flex gap-2">
+            <div className="flex-1 min-w-0">
             <SearchableSelect
               value={activePond?.id || 'none'}
               onChange={(v) => {
@@ -465,15 +503,31 @@ export default function Logs() {
               options={pondFilterItems}
               placeholder="Chọn ao nuôi..."
             />
+            </div>
+            <Input
+              ref={qrInputRef}
+              value={qrInput}
+              onChange={(e) => setQrInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  applyPondFromQr(qrInput, { openLogForm: true });
+                }
+              }}
+              placeholder="Quét QR: POND:…"
+              className="h-10 w-full sm:w-44 font-mono text-sm shrink-0"
+              aria-label="Quét mã QR ao"
+            />
           </div>
+          <div className="flex gap-2 shrink-0">
           <Button 
             onClick={() => setShowCamera(true)} 
             variant="outline"
-            className="h-10 px-3 shrink-0 text-base font-bold" 
+            className="h-10 px-3 text-base font-bold flex-1 sm:flex-none" 
             size="sm"
           >
             <Camera className="w-5 h-5 shrink-0" aria-hidden />
-            <span className="sm:ml-2 text-sm sm:text-base font-bold">Quét QR</span>
+            <span className="sm:ml-2 text-sm sm:text-base font-bold">Camera</span>
           </Button>
           {canCreateLog && (
             <Button 
@@ -485,7 +539,11 @@ export default function Logs() {
               Ghi nhật ký
             </Button>
           )}
+          </div>
         </div>
+        <p className="text-xs text-slate-500 mt-2 font-semibold">
+          Tem QR chứa <span className="font-mono text-slate-700">POND:&lt;mã ao&gt;</span> — quét vào ô bên cạnh sẽ chọn ao và mở form ghi nhật ký.
+        </p>
         {canCreateLog && (
           <Button
             type="button"

@@ -1,6 +1,8 @@
 import { Fragment, useMemo } from 'react';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
 import { normalizeReportAgencyCode, sumActualKgByAgencyMonth } from '@/lib/reportAgencyCode';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
+import { REPORT_SUMMARY_MATRIX_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
 import {
   cycleHarvestPlanEligibleForMonthReport,
   harvestMatchesFilterMonthYear,
@@ -105,8 +107,32 @@ export default function ReportSummaryMatrix({
     [ponds]
   );
 
+  const exportRows = useMemo(
+    () =>
+      rows.flatMap((r) =>
+        MONTHS.map((month, i) => ({
+          sysCode: systemCodeFromAgencyCode(r.agency),
+          agencyName: r.agencyName,
+          month,
+          planned: r.plannedMonth[i] || 0,
+          actual: r.actualMonth[i] || 0,
+        }))
+      ),
+    [rows]
+  );
+
   return (
     <div className="space-y-2">
+      <div className="flex justify-end px-3 pt-2">
+        <ExportExcelButton
+          fileName="bao-cao-tong-hop"
+          sheetName="Tổng hợp"
+          columns={REPORT_SUMMARY_MATRIX_EXPORT_COLUMNS}
+          rows={exportRows}
+          disabled={!exportRows.length}
+          className="gap-1.5 text-xs h-8 px-2"
+        />
+      </div>
       {ineligiblePlanCount > 0 && (
         <p className={cn(reportAlert, 'mx-3 mt-2')}>
           {ineligiblePlanCount} chu kỳ có sản lượng KH nhưng <strong>chưa có ngày thả</strong> hoặc ngày thu trước ngày thả — không cộng vào cột Kế hoạch theo tháng (tránh hiện KH T1–T4 khi chưa có dữ liệu thả hợp lệ).

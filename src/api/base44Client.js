@@ -405,6 +405,44 @@ export const base44 = {
       }
       persistFieldSessionRow(row);
     },
+    async changeFieldPassword(phone, oldPassword, newPassword) {
+      if (!isSupabaseConfigured) throw configError;
+      const { data, error } = await supabase.rpc('field_account_change_password', {
+        p_phone: phone,
+        p_old_password: oldPassword,
+        p_new_password: newPassword,
+      });
+      if (error) throw error;
+      return Boolean(data);
+    },
+    async changeOfficePassword(email, oldPassword, newPassword) {
+      if (!isSupabaseConfigured) throw configError;
+      const { error: signErr } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: oldPassword,
+      });
+      if (signErr) throw new Error('Mật khẩu hiện tại không đúng');
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+    },
+    async adminSetFieldPassword(accountId, newPassword) {
+      if (!isSupabaseConfigured) throw configError;
+      const { data, error } = await supabase.rpc('admin_set_field_account_password', {
+        p_account_id: accountId,
+        p_new_password: newPassword,
+      });
+      if (error) throw error;
+      return Boolean(data);
+    },
+    async adminSetOfficePassword(userId, newPassword) {
+      if (!isSupabaseConfigured) throw configError;
+      const { data, error } = await supabase.rpc('admin_set_office_user_password', {
+        p_user_id: userId,
+        p_new_password: newPassword,
+      });
+      if (error) throw error;
+      return Boolean(data);
+    },
     async signOut() {
       clearFieldSessionStorage();
       await supabase.auth.signOut();

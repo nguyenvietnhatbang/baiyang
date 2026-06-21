@@ -22,8 +22,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { UserPlus, Plus, Eye, Edit, Trash2, MoreHorizontal } from 'lucide-react';
+import { UserPlus, Plus, Eye, Edit, Trash2, MoreHorizontal, KeyRound } from 'lucide-react';
 import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
+import { AdminSetPasswordForm } from '@/components/account/ChangePasswordForm';
 
 const ROLE_SELECT_ITEMS = [
   { value: 'agency', label: 'Đại lý' },
@@ -178,6 +179,8 @@ export default function AdminUsers() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [passwordTarget, setPasswordTarget] = useState(null);
   const [selectedAccount, setSelectedAccount] = useState(null);
 
   const [phone, setPhone] = useState('');
@@ -415,10 +418,6 @@ export default function AdminUsers() {
       toast.error('Số điện thoại không hợp lệ');
       return;
     }
-    if (password && password.length < 6) {
-      toast.error('Mật khẩu tối thiểu 6 ký tự');
-      return;
-    }
     if (role === 'agency' && !agencyId) {
       toast.error('Chọn đại lý');
       return;
@@ -442,9 +441,6 @@ export default function AdminUsers() {
         household_id: role === 'household_owner' ? householdId : null,
         region_codes: role === 'manager' ? regionCodes : [],
       };
-      if (password) {
-        updates.password_plaintext = password;
-      }
 
       const { error } = await base44.supabase
         .from('field_accounts')
@@ -515,6 +511,16 @@ export default function AdminUsers() {
     setShowViewDialog(true);
   };
 
+  const openPasswordDialog = (target) => {
+    setPasswordTarget(target);
+    setShowPasswordDialog(true);
+  };
+
+  const closePasswordDialog = () => {
+    setShowPasswordDialog(false);
+    setPasswordTarget(null);
+  };
+
   if (loading) {
     return (
       <div className="p-3 sm:p-6">
@@ -565,7 +571,6 @@ export default function AdminUsers() {
             <thead>
               <tr className="bg-muted/50 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 <th className="px-4 py-3 whitespace-nowrap">SĐT</th>
-                <th className="px-4 py-3 whitespace-nowrap">Mật khẩu</th>
                 <th className="px-4 py-3 whitespace-nowrap">Tên hiển thị</th>
                 <th className="px-4 py-3 whitespace-nowrap">Vai trò</th>
                 <th className="px-4 py-3 whitespace-nowrap">Phạm vi</th>
@@ -576,7 +581,7 @@ export default function AdminUsers() {
             <tbody className="divide-y divide-border">
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     Chưa có tài khoản hiện trường. Bấm «Thêm tài khoản» để tạo.
                   </td>
                 </tr>
@@ -584,9 +589,6 @@ export default function AdminUsers() {
               {rows.map((r) => (
                 <tr key={r.id} className="hover:bg-muted/30">
                   <td className="px-4 py-3 font-mono text-foreground whitespace-nowrap">{r.phone || '—'}</td>
-                  <td className="px-4 py-3 font-mono text-sm text-foreground whitespace-nowrap">
-                    {r.password_plaintext || '—'}
-                  </td>
                   <td className="px-4 py-3 text-foreground whitespace-nowrap">{r.display_name || '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${roleBadgeClass(r.role)}`}>
@@ -614,6 +616,18 @@ export default function AdminUsers() {
                         <DropdownMenuItem onClick={() => openEditDialog(r)}>
                           <Edit className="w-4 h-4 mr-2" />
                           Sửa
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            openPasswordDialog({
+                              kind: 'field',
+                              id: r.id,
+                              phone: normalizeVnPhone(r.phone || '') || r.phone,
+                            })
+                          }
+                        >
+                          <KeyRound className="w-4 h-4 mr-2" />
+                          Đổi mật khẩu
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => handleDelete(r)} className="text-red-600 focus:text-red-600">
@@ -655,12 +669,13 @@ export default function AdminUsers() {
                 <th className="px-4 py-3 whitespace-nowrap">Vai trò</th>
                 <th className="px-4 py-3 whitespace-nowrap">SĐT (profile)</th>
                 <th className="px-4 py-3 whitespace-nowrap">Ngày tạo</th>
+                <th className="px-4 py-3 text-center whitespace-nowrap">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {officeRows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
                     Chưa có tài khoản văn phòng.
                   </td>
                 </tr>
@@ -679,6 +694,24 @@ export default function AdminUsers() {
                     <td className="px-4 py-3 font-mono text-muted-foreground whitespace-nowrap">{r.phone || '—'}</td>
                     <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
                       {r.created_at ? new Date(r.created_at).toLocaleDateString('vi-VN') : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5 text-xs font-semibold"
+                        onClick={() =>
+                          openPasswordDialog({
+                            kind: 'office',
+                            id: r.id,
+                            email: r.email,
+                          })
+                        }
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
+                        Đổi MK
+                      </Button>
                     </td>
                   </tr>
                 ))
@@ -768,10 +801,6 @@ export default function AdminUsers() {
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="mt-1" />
             </div>
             <div>
-              <Label>Mật khẩu mới (để trống nếu không đổi)</Label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Nhập mật khẩu mới..." className="mt-1" />
-            </div>
-            <div>
               <Label>Tên hiển thị</Label>
               <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="mt-1" />
             </div>
@@ -837,10 +866,6 @@ export default function AdminUsers() {
                 <span className="col-span-2 font-mono font-semibold">{selectedAccount.phone}</span>
               </div>
               <div className="grid grid-cols-3 gap-2 text-sm">
-                <span className="text-muted-foreground">Mật khẩu:</span>
-                <span className="col-span-2 font-mono">{selectedAccount.password_plaintext || '—'}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-sm">
                 <span className="text-muted-foreground">Tên hiển thị:</span>
                 <span className="col-span-2 font-semibold">{selectedAccount.display_name || '—'}</span>
               </div>
@@ -885,6 +910,19 @@ export default function AdminUsers() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPasswordDialog} onOpenChange={(open) => !open && closePasswordDialog()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Đổi mật khẩu nhân sự</DialogTitle>
+          </DialogHeader>
+          <AdminSetPasswordForm
+            target={passwordTarget}
+            onClose={closePasswordDialog}
+            onSaved={loadList}
+          />
         </DialogContent>
       </Dialog>
     </div>

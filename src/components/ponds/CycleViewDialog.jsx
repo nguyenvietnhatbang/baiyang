@@ -28,6 +28,8 @@ import {
 import { base44 } from '@/api/base44Client';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { recalculateCycleMetrics } from '@/lib/recalculateCycleMetrics';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
+import { POND_LOG_EXPORT_COLUMNS, HARVEST_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
 import { formatDateDisplay } from '@/lib/dateFormat';
 
 function cellDash(v) {
@@ -135,6 +137,26 @@ export default function CycleViewDialog({
     if (!cycle) return '—';
     return (cycle.name && String(cycle.name).trim()) || (cycle.stock_date ? `Thả ${cycle.stock_date}` : 'Chu kỳ');
   }, [cycle]);
+
+  const logExportRows = useMemo(
+    () =>
+      (logs || []).map((l) => ({
+        ...l,
+        pond_code: l.pond_code || cycle?.pond_code || pond?.code || '',
+        agency_code: pond?.agency_code || '',
+        cycle_label: cycleLabelForRow,
+      })),
+    [logs, cycle, pond, cycleLabelForRow]
+  );
+
+  const harvestExportColumns = useMemo(
+    () => [
+      ...HARVEST_EXPORT_COLUMNS,
+      { header: 'Giá (đ/kg)', accessor: (r) => (r.price_per_kg != null && Number.isFinite(Number(r.price_per_kg)) ? Number(r.price_per_kg) : ''), width: 12 },
+      { header: 'Tổng (đ)', accessor: (r) => (r.total_amount != null && Number.isFinite(Number(r.total_amount)) ? Number(r.total_amount) : ''), width: 14 },
+    ],
+    []
+  );
 
   const statusText = (c) => {
     if (!c?.status) return '—';
@@ -494,7 +516,16 @@ export default function CycleViewDialog({
                     <p className="text-xs text-muted-foreground">
                       Bảng chi tiết giống trang Nhật ký — kéo ngang để xem đủ cột ({logs.length} dòng).
                     </p>
-                    <div className="flex gap-1 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <ExportExcelButton
+                        fileName={`nhat-ky-${pond?.code || cycle?.pond_code || 'chu-ky'}`}
+                        sheetName="Nhật ký"
+                        columns={POND_LOG_EXPORT_COLUMNS}
+                        rows={logExportRows}
+                        disabled={!logExportRows.length}
+                        className="gap-1.5 text-xs h-8 px-2"
+                      />
+                      <div className="flex gap-1">
                       <Button
                         type="button"
                         variant="outline"
@@ -515,6 +546,7 @@ export default function CycleViewDialog({
                       >
                         <ChevronRight className="h-4 w-4" />
                       </Button>
+                      </div>
                     </div>
                   </div>
                   <div
@@ -753,12 +785,22 @@ export default function CycleViewDialog({
               </TabsContent>
 
               <TabsContent value="harvest" className="mt-3 outline-none">
-                <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <p className="text-xs text-muted-foreground">Lịch sử phiếu thu hoạch (read-only).</p>
-                  <Button type="button" onClick={() => setHarvestOpen(true)} disabled={!pond} className="bg-primary text-white">
-                    <ShoppingCart className="w-4 h-4 mr-2" />
-                    Ghi thu hoạch
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ExportExcelButton
+                      fileName={`thu-hoach-${pond?.code || cycle?.pond_code || 'chu-ky'}`}
+                      sheetName="Thu hoạch"
+                      columns={harvestExportColumns}
+                      rows={harvests}
+                      disabled={!harvests?.length}
+                      className="gap-1.5 text-xs h-8 px-2"
+                    />
+                    <Button type="button" onClick={() => setHarvestOpen(true)} disabled={!pond} className="bg-primary text-white">
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Ghi thu hoạch
+                    </Button>
+                  </div>
                 </div>
                 <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
                   <div className="overflow-x-auto">

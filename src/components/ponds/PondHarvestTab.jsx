@@ -9,6 +9,8 @@ import { CheckSquare, Square, Save, AlertTriangle, ShieldCheck, Package, Trash2 
 import { format } from 'date-fns';
 import { latestActualHarvestDate } from '@/lib/reportPondDedupe';
 import { createHarvestRecordWithSync, deleteHarvestRecordWithSync } from '@/lib/harvestRecordSync';
+import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
+import { HARVEST_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
 function CheckItem({ label, checked, onChange }) {
   return (
     <button onClick={() => onChange(!checked)} className="flex items-center gap-2 w-full text-left p-2 rounded hover:bg-muted transition-colors">
@@ -347,7 +349,17 @@ export default function PondHarvestTab({ pond, cycle, onUpdate, isWithdrawal, ca
 
       {records.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Lịch sử thu hoạch</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Lịch sử thu hoạch</p>
+            <ExportExcelButton
+              fileName={`thu-hoach-${pond?.code || 'ao'}`}
+              sheetName="Thu hoạch"
+              columns={HARVEST_EXPORT_COLUMNS}
+              rows={records}
+              disabled={!records?.length}
+              className="gap-1.5 text-xs h-8 px-2"
+            />
+          </div>
           {records.map(r => (
             <div key={r.id} className="border border-border rounded-lg p-3 mb-2 text-xs">
               <div className="flex justify-between items-start">

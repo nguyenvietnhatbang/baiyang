@@ -1,5 +1,6 @@
 import PondStatusBadge from './PondStatusBadge';
 import { formatDateDisplay } from '@/lib/dateFormat';
+import { formatAvgWeightG } from '@/lib/pondCycleHelpers';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { calendarDaysUntilHarvest, isCycleHarvestCompleteForAlerts, isHarvestDateOnOrBeforeToday, isHarvestDateWithinUpcomingDays } from '@/lib/harvestAlerts';
 import { canOfferManualChotThuHoach } from '@/lib/pondCycleHelpers';
@@ -25,6 +26,7 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
     withdrawalDiff >= 0;
   const currentFishNumber = Number(pond.current_fish);
   const hasCurrentFish = pond.current_fish != null && !Number.isNaN(currentFishNumber);
+  const avgWeightLabel = formatAvgWeightG(pond.avg_weight);
 
   return (
     <div
@@ -62,7 +64,7 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
         <div className="bg-muted/50 rounded-lg p-2.5 text-center">
           <p className="text-muted-foreground font-semibold">Diện tích</p>
           <p className="font-bold mt-0.5 tabular-nums">{pond.area ? `${pond.area}m²` : '—'}</p>
@@ -70,6 +72,10 @@ export default function PondMobileCard({ pond, checked, onCheck, onClick, harves
         <div className="bg-muted/50 rounded-lg p-2.5 text-center">
           <p className="text-muted-foreground font-semibold">Số cá</p>
           <p className="font-bold mt-0.5 tabular-nums">{hasCurrentFish ? currentFishNumber.toLocaleString() : '—'}</p>
+        </div>
+        <div className="bg-muted/50 rounded-lg p-2.5 text-center">
+          <p className="text-muted-foreground font-semibold">Trọng lượng cá</p>
+          <p className="font-bold mt-0.5 tabular-nums text-primary">{avgWeightLabel}</p>
         </div>
         <div className="bg-muted/50 rounded-lg p-2.5 text-center">
           <p className="text-muted-foreground font-semibold">Sản lượng dự kiến</p>
