@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import QRCode from 'qrcode';
 import { Loader2, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { pondQrContent } from '@/lib/fieldAuthHelpers';
+import { renderQrWithLogo } from '@/lib/qrWithLogo';
 
 export default function QRBatchDownload({ ponds }) {
   const [loading, setLoading] = useState(false);
@@ -31,6 +31,19 @@ export default function QRBatchDownload({ ponds }) {
     // Header
     ctx.fillStyle = '#1e3a5f';
     ctx.fillRect(0, 0, canvasW, 50);
+    try {
+      const logoImg = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = '/logo.jpg';
+      });
+      const logoH = 36;
+      const logoW = Math.round((logoImg.width / logoImg.height) * logoH);
+      ctx.drawImage(logoImg, 16, 7, logoW, logoH);
+    } catch {
+      // bỏ qua nếu logo chưa tải
+    }
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 18px sans-serif';
     ctx.textAlign = 'center';
@@ -57,11 +70,11 @@ export default function QRBatchDownload({ ponds }) {
 
       // QR
       const qrCanvas = document.createElement('canvas');
-      await QRCode.toCanvas(qrCanvas, payload, {
+      await renderQrWithLogo(qrCanvas, payload, {
         width: 140,
         margin: 1,
-        color: { dark: '#1e3a5f', light: '#ffffff' },
-        errorCorrectionLevel: 'M',
+        dark: '#1e3a5f',
+        light: '#ffffff',
       });
       const qrX = x + (CELL_W - 20 - 140) / 2;
       ctx.drawImage(qrCanvas, qrX, y + 10, 140, 140);

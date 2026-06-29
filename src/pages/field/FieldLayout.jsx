@@ -3,6 +3,7 @@ import { Camera, Home, BookOpen, Users, KeyRound } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
 import { cn } from '@/lib/utils';
+import AppLogo from '@/components/brand/AppLogo';
 
 const nav = [
   { to: '/field', label: 'Trang chủ', icon: Home, end: true },
@@ -41,6 +42,7 @@ export default function FieldLayout() {
   const sidebarInner = (
     <>
       <div className="px-1 pb-4 border-b border-stone-200">
+        <AppLogo size="sm" className="mb-2" />
         <p className="inline-flex text-[10px] font-extrabold text-teal-950 uppercase tracking-[0.12em] bg-teal-100 border border-teal-200/80 px-2 py-1 rounded-md">
           Hiện trường
         </p>
@@ -97,11 +99,14 @@ export default function FieldLayout() {
 
         <div className="flex-1 flex flex-col min-w-0 pb-[5.5rem] md:pb-0">
           <header className="sticky top-0 z-30 md:hidden border-b border-stone-200 bg-white shadow-sm px-4 py-3 flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-[10px] font-extrabold text-teal-950 uppercase tracking-[0.12em]">Hiện trường</p>
-              <p className="text-base font-bold text-stone-900 truncate leading-tight mt-0.5">
-                {user?.name || user?.profile?.phone || 'Xin chào'}
-              </p>
+            <div className="min-w-0 flex items-center gap-2">
+              <AppLogo size="xs" className="shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-extrabold text-teal-950 uppercase tracking-[0.12em]">Hiện trường</p>
+                <p className="text-base font-bold text-stone-900 truncate leading-tight mt-0.5">
+                  {user?.name || user?.profile?.phone || 'Xin chào'}
+                </p>
+              </div>
             </div>
             <button
               type="button"

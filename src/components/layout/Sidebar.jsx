@@ -7,6 +7,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/AuthContext';
 import { isFieldRole } from '@/lib/fieldAuthHelpers';
+import AppLogo from '@/components/brand/AppLogo';
 
 const baseNavItems = [
   { path: '/', icon: LayoutDashboard, label: 'Tổng quan' },
@@ -53,19 +54,13 @@ export default function Sidebar({ alertCount = 0, collapsed, onToggle }) {
       {/* Logo + toggle */}
       <div className="px-3 py-4 border-b flex items-center justify-between" style={{ borderColor: 'hsl(var(--sidebar-border))' }}>
         {!collapsed && (
-          <div className="flex items-center gap-2 overflow-hidden">
-            <div className="w-8 h-8 rounded-lg bg-blue-400/20 flex items-center justify-center flex-shrink-0">
-              <Fish className="w-4 h-4 text-blue-300" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-white font-bold text-sm tracking-wide leading-none">AQUA</p>
-              <p className="text-blue-300/70 text-xs font-medium">MANAGEMENT</p>
-            </div>
+          <div className="flex items-center gap-2 overflow-hidden min-w-0">
+            <AppLogo size="sm" className="flex-shrink-0" />
           </div>
         )}
         {collapsed && (
-          <div className="w-8 h-8 rounded-lg bg-blue-400/20 flex items-center justify-center mx-auto">
-            <Fish className="w-4 h-4 text-blue-300" />
+          <div className="mx-auto flex-shrink-0">
+            <AppLogo size="xs" />
           </div>
         )}
         <button

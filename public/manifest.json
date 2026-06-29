@@ -1,10 +1,17 @@
 {
-  "name": "AoCa — Quản lý ao nuôi",
-  "short_name": "AoCa",
-  "description": "Ứng dụng quản lý ao nuôi",
+  "name": "Baiyang VN — Quản lý ao nuôi",
+  "short_name": "Baiyang VN",
+  "description": "Ứng dụng quản lý ao nuôi Baiyang VN",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
+  "background_color": "#ffffff",
   "theme_color": "#1e3a5f",
-  "icons": []
+  "icons": [
+    {
+      "src": "/logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
 }

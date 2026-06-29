@@ -51,6 +51,13 @@ export function cycleDisplayLabel(c, idx = 0) {
   return n || (c?.stock_date ? `Thả ${c.stock_date}` : `Chu kỳ ${idx + 1}`);
 }
 
+/** Nhãn ô chọn chu kỳ khi ghi nhật ký — chỉ tên hoặc Chu kỳ n (không ngày thả / SL / trạng thái). */
+export function cyclePickerLabel(c, idx = 0) {
+  if (!c) return '—';
+  const n = c?.name?.trim();
+  return n || `Chu kỳ ${idx + 1}`;
+}
+
 /** Nhãn chu kỳ gắn với một dòng nhật ký (theo pond.pond_cycles). */
 export function cycleLabelForPondLog(log, pond) {
   if (!log?.pond_cycle_id || !pond?.pond_cycles?.length) return '—';

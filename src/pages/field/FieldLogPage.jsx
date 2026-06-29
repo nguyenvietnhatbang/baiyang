@@ -6,7 +6,7 @@ import { isPondInFieldUserScope } from '@/lib/fieldAuthHelpers';
 import { useAuth } from '@/lib/AuthContext';
 import { submitPondLogEntry } from '@/lib/pondLogSubmit';
 import { POND_LOG_ENV_RANGES, pondLogEnvOutOfRange } from '@/lib/pondLogEnvRanges';
-import { pickActiveCycle, formatAvgWeightG } from '@/lib/pondCycleHelpers';
+import { pickActiveCycle, formatAvgWeightG, cyclePickerLabel } from '@/lib/pondCycleHelpers';
 import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
 import { POND_LOG_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
@@ -279,8 +279,7 @@ export default function FieldLogPage() {
             >
               {pond.pond_cycles.map((c, i) => (
                 <option key={c.id} value={c.id}>
-                  {c.stock_date ? `Thả ${c.stock_date}` : `Chu kỳ ${i + 1}`} · {c.status}
-                  {c.expected_yield != null ? ` · ~${c.expected_yield} kg` : ''}
+                  {cyclePickerLabel(c, i)}
                 </option>
               ))}
             </select>

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import QRCode from 'qrcode';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { pondQrContent } from '@/lib/fieldAuthHelpers';
+import { renderQrWithLogo } from '@/lib/qrWithLogo';
 
 export default function PondQRCode({ pond, size = 180 }) {
   const canvasRef = useRef(null);
@@ -17,11 +17,11 @@ export default function PondQRCode({ pond, size = 180 }) {
       return;
     }
     let cancelled = false;
-    QRCode.toCanvas(canvas, qrValue, {
+    renderQrWithLogo(canvas, qrValue, {
       width: size,
       margin: 2,
-      color: { dark: '#1e3a5f', light: '#ffffff' },
-      errorCorrectionLevel: 'M',
+      dark: '#1e3a5f',
+      light: '#ffffff',
     })
       .then(() => {
         if (!cancelled && canvasRef.current) {

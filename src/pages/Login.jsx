@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Fish, LogIn } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { normalizeVnPhone, isFieldRole } from '@/lib/fieldAuthHelpers';
+import AppLogo from '@/components/brand/AppLogo';
 
 function looksLikeEmail(s) {
   const t = String(s).trim();
@@ -66,7 +67,7 @@ export default function Login() {
   if (!isSupabaseConfigured) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[hsl(213,65%,18%)] text-blue-100">
-        <Fish className="w-12 h-12 text-blue-300 mb-4" />
+        <AppLogo size="lg" className="mb-4 brightness-110" />
         <p className="text-center text-sm">Ứng dụng chưa được cấu hình.</p>
         {import.meta.env.DEV ? (
           <p className="text-center max-w-md text-xs text-blue-200/70 mt-3">
@@ -158,9 +159,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center p-4" style={LOGIN_BG_STYLE}>
       <div className="w-full max-w-md rounded-2xl border border-blue-900/50 bg-[hsl(213,55%,22%)] shadow-xl p-8 space-y-6">
         <div className="flex flex-col items-center text-center gap-2">
-          <div className="w-12 h-12 rounded-xl bg-blue-400/20 flex items-center justify-center">
-            <Fish className="w-6 h-6 text-blue-300" />
-          </div>
+          <AppLogo size="lg" className="brightness-110" />
           <h1 className="text-3xl font-extrabold text-white tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]">Đăng nhập</h1>
           <p className="text-base text-slate-100 leading-snug max-w-xs font-semibold">
             Một ô duy nhất: <strong className="text-white font-semibold">email</strong> (văn phòng) hoặc{' '}

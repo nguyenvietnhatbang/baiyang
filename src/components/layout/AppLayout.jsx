@@ -8,6 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/lib/AuthContext';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { calendarDaysUntilHarvest, isHarvestDateOnOrBeforeToday } from '@/lib/harvestAlerts';
+import AppLogo from '@/components/brand/AppLogo';
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
@@ -53,6 +54,7 @@ export default function AppLayout() {
       >
         {isMobile && (
           <header className="sticky top-0 z-30 flex items-center gap-2 px-3 py-2 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            <AppLogo size="xs" className="shrink-0" />
             <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">{user?.email || user?.name}</span>
             <button
               type="button"
