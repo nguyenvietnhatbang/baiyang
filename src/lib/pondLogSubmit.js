@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { base44 } from '@/api/base44Client';
 import { calculateCurrentYield } from '@/lib/calculateYield';
+import { harvestSyncPatchFromRecords } from '@/lib/cycleHarvestCompletion';
 
 /**
  * Tạo nhật ký + cập nhật chu kỳ + ghi PlanAdjustment khi expected_yield đổi.
@@ -82,42 +83,35 @@ export async function submitPondLogEntry({ pond, cycle, form }) {
     current_fish: newCurrentFish
   });
 
-  // Lấy tổng actual_yield từ harvest records
   const allHarvests = await base44.entities.HarvestRecord.filter({ pond_cycle_id: cycle.id });
-  const totalActualYield = allHarvests.reduce((sum, h) => sum + (h.actual_yield || 0), 0);
-  
-  // Tính FCR
-  let fcr = cycle.fcr;
+  const harvestPatch = harvestSyncPatchFromRecords(
+    { ...cycle, current_fish: newCurrentFish, total_feed_used: totalFeed },
+    allHarvests
+  );
+
+  let fcr = harvestPatch.fcr;
   let fcrProvisional = false;
-  if (totalActualYield > 0) {
-    // FCR chính thức sau thu hoạch
-    fcr = Math.round((totalFeed / totalActualYield) * 100) / 100;
-    fcrProvisional = false;
-  } else if (newExpectedYield > 0) {
-    // FCR tạm tính dựa trên sản lượng dự kiến
+  if (!fcr && newExpectedYield > 0 && totalFeed > 0) {
     fcr = Math.round((totalFeed / newExpectedYield) * 100) / 100;
     fcrProvisional = true;
   }
 
-  const nextStatus = newCurrentFish > 0 ? 'CC' : 'CT';
-  const harvestDone =
-    totalActualYield > 0 ||
-    (Boolean(cycle.harvest_done) &&
-      String(cycle.status || '').toUpperCase() === 'CT' &&
-      nextStatus === 'CT' &&
-      totalActualYield === 0);
-
   await base44.entities.PondCycle.update(cycle.id, {
-    current_fish: newCurrentFish,
+    current_fish:
+      harvestPatch.current_fish != null && Number.isFinite(Number(harvestPatch.current_fish))
+        ? Number(harvestPatch.current_fish)
+        : harvestPatch.harvest_done
+          ? 0
+          : newCurrentFish,
     total_feed_used: totalFeed,
     expected_yield: newExpectedYield,
-    actual_yield: totalActualYield,
-    harvest_done: harvestDone,
-    fcr: fcr,
+    actual_yield: harvestPatch.actual_yield,
+    harvest_done: harvestPatch.harvest_done,
+    fcr,
     last_medicine_date: form.medicine_used ? form.log_date : cycle.last_medicine_date,
     withdrawal_days: form.withdrawal_days ? Number(form.withdrawal_days) : cycle.withdrawal_days,
     withdrawal_end_date: withdrawalEndDate,
-    status: nextStatus,
+    status: harvestPatch.status,
   });
 
   if (newExpectedYield !== prevExpectedYield) {

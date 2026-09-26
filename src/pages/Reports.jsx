@@ -27,6 +27,10 @@ import {
   harvestTicketMatchesDateRange,
   harvestTicketMatchesFilterMonthYear,
   harvestTicketMatchesFilterYear,
+  stockMatchesFilterMonthYear,
+  stockMatchesFilterYear,
+  stockMonthIndexForReport,
+  cycleStockFishCount,
 } from '@/lib/reportMonthHelpers';
 import { buildCycleAgencyByCycleId, harvestAgencyForReport, normalizeReportAgencyCode } from '@/lib/reportAgencyCode';
 import { flattenPondsToCycleRows, filterHarvestsForCycleScope } from '@/lib/reportCycleRows';
@@ -306,6 +310,15 @@ export default function Reports() {
     });
   }, [scopedCycleRows, monthFilter, yearFilter]);
 
+  /** Chu kỳ theo ngày thả — dùng bảng/biểu đồ «Cá thả theo tháng». */
+  const reportStockScopedCycleRows = useMemo(() => {
+    return scopedCycleRows.filter((r) => {
+      if (!stockMatchesFilterYear(r, yearFilter)) return false;
+      if (monthFilter === 'all') return true;
+      return stockMatchesFilterMonthYear(r, yearFilter, Number(monthFilter));
+    });
+  }, [scopedCycleRows, monthFilter, yearFilter]);
+
   /** Phiếu thu thực tế: phạm vi chu kỳ + ngày thu thực tế; đại lý theo chu kỳ gắn phiếu (không gộp phiếu thiếu mã vào mọi hệ thống). */
   const harvestsForActualReport = useMemo(() => {
     const cycleAgencyById = buildCycleAgencyByCycleId(scopedCycleRows);
@@ -372,7 +385,17 @@ export default function Reports() {
     month: m,
     keHoach: yieldByMonth(reportPlanScopedCycleRows, i, yearFilter),
     thucTe: yieldHarvestByMonth(harvestsForActualReport, i, yearFilter),
+    caTha: reportStockScopedCycleRows.reduce((s, p) => {
+      const mi = stockMonthIndexForReport(p);
+      if (mi !== i) return s;
+      return s + cycleStockFishCount(p);
+    }, 0),
   }));
+
+  const totalStockFishYear = useMemo(
+    () => reportStockScopedCycleRows.reduce((s, p) => s + cycleStockFishCount(p), 0),
+    [reportStockScopedCycleRows]
+  );
 
   const fcrData = [
     { name: 'Xuất sắc ≤1.3', value: reportPlanScopedCycleRows.filter((p) => p.fcr && p.fcr <= 1.3).length, color: '#22c55e' },
@@ -562,7 +585,7 @@ export default function Reports() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">KH Gốc</p>
           <p className="text-xl font-bold mt-1 text-foreground">{(totalOriginalYield / 1000).toFixed(1)}T</p>
@@ -572,6 +595,11 @@ export default function Reports() {
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">KH Điều chỉnh</p>
           <p className="text-xl font-bold mt-1 text-amber-600">{(totalAdjustedYield / 1000).toFixed(1)}T</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">{reportPlanScopedCycleRows.filter((p) => p.status === 'CC').length} chu kỳ CC</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Cá thả</p>
+          <p className="text-xl font-bold mt-1 text-emerald-600">{totalStockFishYear > 0 ? totalStockFishYear.toLocaleString() : '—'}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">con · theo ngày thả {yearFilter}</p>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Đã thu thực tế</p>
@@ -591,26 +619,34 @@ export default function Reports() {
         <div className="space-y-5">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5 shadow-sm">
-              <h3 className="font-semibold text-foreground mb-1">Kế hoạch điều chỉnh vs Thực tế theo tháng</h3>
+              <h3 className="font-semibold text-foreground mb-1">Kế hoạch điều chỉnh vs Thực tế vs Cá thả theo tháng</h3>
               <p className="text-xs text-muted-foreground mb-4">
-                Đơn vị: kg — cột cam: ngày thu DK · cột xanh: ngày thu thực tế trên phiếu
+                Đơn vị: kg (cam/xanh) · cá thả: con (lục) — theo tháng ngày thu DK / ngày thu TT / ngày thả
               </p>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={monthlyData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="kg" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="fish" orientation="right" tick={{ fontSize: 11 }} />
                   <Tooltip
                     formatter={(v, n) => {
                       const num = typeof v === 'number' ? v : Number(v);
                       const safe = Number.isFinite(num) ? num : 0;
+                      if (n === 'caTha') return [`${safe.toLocaleString()} con`, 'Cá thả'];
                       return [`${safe.toLocaleString()} kg`, n === 'keHoach' ? 'KH Điều chỉnh' : 'Thực tế'];
                     }}
                     contentStyle={{ borderRadius: '8px', fontSize: '12px' }}
                   />
-                  <Legend formatter={(v) => (v === 'keHoach' ? 'KH Điều chỉnh' : 'Thực tế')} wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="keHoach" fill="hsl(38,85%,52%)" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="thucTe" fill="hsl(145,55%,42%)" radius={[3, 3, 0, 0]} />
+                  <Legend
+                    formatter={(v) =>
+                      v === 'keHoach' ? 'KH Điều chỉnh' : v === 'thucTe' ? 'Thực tế' : 'Cá thả'
+                    }
+                    wrapperStyle={{ fontSize: 12 }}
+                  />
+                  <Bar yAxisId="kg" dataKey="keHoach" fill="hsl(38,85%,52%)" radius={[3, 3, 0, 0]} />
+                  <Bar yAxisId="kg" dataKey="thucTe" fill="hsl(145,55%,42%)" radius={[3, 3, 0, 0]} />
+                  <Bar yAxisId="fish" dataKey="caTha" fill="hsl(152,60%,38%)" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -651,7 +687,7 @@ export default function Reports() {
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
             <h3 className="font-semibold text-foreground">Báo cáo tổng hợp</h3>
-            <p className="text-sm text-muted-foreground mt-0.5 font-semibold">Kế hoạch (theo ngày thu dự kiến) vs Thực hiện (theo ngày thu thực tế) theo tháng.</p>
+            <p className="text-sm text-muted-foreground mt-0.5 font-semibold">Kế hoạch (theo ngày thu dự kiến) vs Thực hiện (theo ngày thu thực tế) vs Cá thả (theo ngày thả) theo tháng.</p>
           </div>
           <ReportSummaryMatrix
             ponds={scopedCycleRows}

@@ -13,7 +13,7 @@ import QRBatchDownload from '@/components/ponds/QRBatchDownload';
 import PondMobileCard from '@/components/ponds/PondMobileCard';
 import { useAuth } from '@/lib/AuthContext';
 import { formatHouseholdSegmentDisplay } from '@/lib/householdSegment';
-import { MoreHorizontal, Eye, Edit, Trash2, AlertCircle } from 'lucide-react';
+import { MoreHorizontal, Eye, Edit, Trash2, AlertCircle, FlaskConical } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +48,7 @@ import { calculateCurrentYield } from '@/lib/calculateYield';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HouseholdsPanel } from '@/components/households/HouseholdsPanel';
 import PondViewDialog from '@/components/ponds/PondViewDialog';
+import PondLabTestDialog from '@/components/ponds/PondLabTestDialog';
 import CycleViewDialog from '@/components/ponds/CycleViewDialog';
 import CycleEditDialog from '@/components/ponds/CycleEditDialog';
 import PondCycleListTabPanel from '@/components/ponds/PondCycleListTabPanel';
@@ -517,6 +518,7 @@ export default function Ponds() {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE_COLUMNS);
   const [viewPondId, setViewPondId] = useState(null);
+  const [labTestPond, setLabTestPond] = useState(null);
   const [viewCycleId, setViewCycleId] = useState(null);
   const [editCycleId, setEditCycleId] = useState(null);
   const [newCycleOpen, setNewCycleOpen] = useState(false);
@@ -1385,6 +1387,9 @@ export default function Ponds() {
                                   <DropdownMenuItem onClick={() => setViewPondId(p.id)}>
                                     <Eye className="w-4 h-4 mr-2" /> Xem
                                   </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setLabTestPond(p)}>
+                                    <FlaskConical className="w-4 h-4 mr-2" /> Kiểm nghiệm KS
+                                  </DropdownMenuItem>
                                   {canEditDelete ? (
                                     <>
                                       <DropdownMenuItem onClick={() => { setSelectedPond({ id: p.id, code: p.code, area: p.area, depth: p.depth, location: p.location }); setShowEditDialog(true); }}>
@@ -1635,6 +1640,23 @@ export default function Ponds() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PondLabTestDialog
+        open={Boolean(labTestPond)}
+        pond={labTestPond}
+        pondOptions={(() => {
+          if (!labTestPond) return [];
+          const hid = labTestPond.household_id || labTestPond.households?.id || null;
+          const sameHousehold = (scopedPonds || []).filter((p) => {
+            const h = p.household_id || p.households?.id || null;
+            return hid && h && String(h) === String(hid);
+          });
+          return sameHousehold.length > 1 ? sameHousehold : scopedPonds || [];
+        })()}
+        selectedCycleId={labTestPond?.active_cycle?.id || ''}
+        canEditDelete={canEditDelete}
+        onClose={() => setLabTestPond(null)}
+      />
 
       <PondViewDialog
         open={Boolean(viewPondId)}

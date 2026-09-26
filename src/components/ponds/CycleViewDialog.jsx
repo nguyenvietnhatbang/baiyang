@@ -12,12 +12,14 @@ import {
   Edit,
   ChevronLeft,
   ChevronRight,
+  Images,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import PondLogEditDialog from '@/components/ponds/PondLogEditDialog';
 import PondHarvestTab from '@/components/ponds/PondHarvestTab';
+import CycleInspectionImagesTab from '@/components/ponds/CycleInspectionImagesTab';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -261,7 +263,14 @@ export default function CycleViewDialog({
               <TabsList className="bg-muted flex-wrap h-auto gap-1 py-1">
                 <TabsTrigger value="detail" className="flex items-center gap-1.5 text-xs">
                   <Info className="w-3.5 h-3.5" />
-                  Chi tiết
+                  Thông tin
+                </TabsTrigger>
+                <TabsTrigger value="images" className="flex items-center gap-1.5 text-xs">
+                  <Images className="w-3.5 h-3.5" />
+                  Ảnh kiểm định
+                  {Array.isArray(cycle.inspection_images) && cycle.inspection_images.length > 0
+                    ? ` (${cycle.inspection_images.length})`
+                    : ''}
                 </TabsTrigger>
                 <TabsTrigger value="logs" className="flex items-center gap-1.5 text-xs">
                   <ClipboardList className="w-3.5 h-3.5" />
@@ -275,7 +284,7 @@ export default function CycleViewDialog({
 
               <TabsContent value="detail" className="mt-3 outline-none space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-[11px] text-muted-foreground">Hiển thị chi tiết dạng thẻ hoặc hai bảng (chu kỳ + ao/FCR).</p>
+                  <p className="text-[11px] text-muted-foreground">Thông tin chu kỳ dạng thẻ hoặc hai bảng (chu kỳ + ao/FCR).</p>
                   <div className="inline-flex rounded-md border border-border bg-muted/40 p-0.5 shrink-0">
                     <button
                       type="button"
@@ -508,6 +517,14 @@ export default function CycleViewDialog({
                   </div>
                 </div>
                 )}
+              </TabsContent>
+
+              <TabsContent value="images" className="mt-3 outline-none">
+                <CycleInspectionImagesTab
+                  cycle={cycle}
+                  canEditDelete={canEditDelete}
+                  onUpdated={(next) => setCycle((prev) => (prev ? { ...prev, inspection_images: next } : prev))}
+                />
               </TabsContent>
 
               <TabsContent value="logs" className="mt-3 outline-none">

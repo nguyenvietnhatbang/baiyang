@@ -15,6 +15,15 @@ export function appendManualCloseNote(existingNotes) {
   return base ? `${base}\n${CYCLE_MANUAL_CLOSE_NOTE_TAG}` : CYCLE_MANUAL_CLOSE_NOTE_TAG;
 }
 
+/** Gỡ tag chốt thủ công khi mở lại chu kỳ (CC). */
+export function removeManualCloseNote(existingNotes) {
+  const lines = String(existingNotes ?? '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && l !== CYCLE_MANUAL_CLOSE_NOTE_TAG);
+  return lines.join('\n');
+}
+
 /** Đã bấm «Chốt kết thúc chu kỳ» (không nhầm với đồng bộ phiếu thu cũ). */
 export function isCycleManuallyChotThu(cycle) {
   return cycleNotesHaveManualClose(cycle?.notes);
@@ -35,19 +44,77 @@ export function isPlannedKgHarvestComplete(cycle, totalActualKg) {
 
 /** Còn bao nhiêu con (phiếu thu hoặc current_fish). null = chưa xác định. */
 export function fishRemainingFromHarvests(cycle, harvests) {
-  const basis = (Number(cycle?.total_fish) || 0) + (Number(cycle?.stocked_fish_added) || 0);
   const ticketFish = (harvests || []).reduce((s, h) => s + (Number(h.fish_count_harvested) || 0), 0);
-  if (ticketFish > 0 && basis > 0) return Math.max(0, basis - ticketFish);
+  const basisFromTotal = (Number(cycle?.total_fish) || 0) + (Number(cycle?.stocked_fish_added) || 0);
+  if (ticketFish > 0 && basisFromTotal > 0) return Math.max(0, basisFromTotal - ticketFish);
+
   const cur = cycle?.current_fish;
   if (cur != null && !Number.isNaN(Number(cur))) return Math.max(0, Number(cur));
   return null;
 }
 
-/** Tự động sang tab đã thu: đủ kg kế hoạch và hết cá (nếu theo dõi được). */
+/**
+ * Tự động sang tab đã thu: đủ kg kế hoạch VÀ biết chắc hết cá.
+ * rem == null (chưa theo dõi được) → KHÔNG tự chốt — tránh CC/CT nhảy qua lại.
+ */
 export function isCycleAutoFullyHarvested(cycle, totalActualKg, harvests) {
   if (!isPlannedKgHarvestComplete(cycle, totalActualKg)) return false;
   const rem = fishRemainingFromHarvests(cycle, harvests);
-  return rem == null || rem <= 0;
+  return rem != null && rem <= 0;
+}
+
+/**
+ * Nguồn sự thật duy nhất cho status CC/CT.
+ * CC = đang nuôi / thu dở; CT = trống, chưa thả, hoặc đã chốt thu xong.
+ */
+export function resolveCycleStatus(cycle, { current_fish, totalActualYield = 0, isFullyDone = false } = {}) {
+  if (isFullyDone || isCycleManuallyChotThu(cycle)) return 'CT';
+  const fish = current_fish != null ? Number(current_fish) : Number(cycle?.current_fish);
+  const hasFish = Number.isFinite(fish) && fish > 0;
+  const hasPartialHarvest = (Number(totalActualYield) || 0) > 0;
+  if (hasFish || hasPartialHarvest) return 'CC';
+  return 'CT';
+}
+
+/**
+ * Mỗi ao chỉ một chu kỳ CC (khớp unique index + trigger demote).
+ * Mutates `patchById` (Map<string, patch>): hạ status các ứng viên phụ xuống CT.
+ */
+export function enforceSingleCcPatches(cycles, patchById) {
+  const byPond = new Map();
+  for (const c of cycles || []) {
+    const pid = c?.pond_id != null ? String(c.pond_id) : '';
+    if (!pid) continue;
+    if (!byPond.has(pid)) byPond.set(pid, []);
+    byPond.get(pid).push(c);
+  }
+
+  const resolvedStatus = (c) => {
+    const p = patchById.get(String(c.id));
+    return String((p && p.status != null ? p.status : c.status) || 'CT').toUpperCase();
+  };
+
+  const score = (c) => {
+    const p = patchById.get(String(c.id)) || {};
+    const fish = Number(p.current_fish != null ? p.current_fish : c.current_fish) || 0;
+    const stock = c.stock_date ? Date.parse(String(c.stock_date).slice(0, 10)) || 0 : 0;
+    const created = Date.parse(String(c.created_at || c.created_date || '')) || 0;
+    const wasCc = String(c.status || '').toUpperCase() === 'CC' ? 1 : 0;
+    const done = Boolean(p.harvest_done != null ? p.harvest_done : c.harvest_done);
+    const notDone = done ? 0 : 1;
+    return notDone * 1e15 + wasCc * 1e14 + stock * 1e5 + created + fish;
+  };
+
+  for (const group of byPond.values()) {
+    const wouldBeCc = group.filter((c) => resolvedStatus(c) === 'CC');
+    if (wouldBeCc.length <= 1) continue;
+    wouldBeCc.sort((a, b) => score(b) - score(a));
+    for (const c of wouldBeCc.slice(1)) {
+      const id = String(c.id);
+      const prev = patchById.get(id) || {};
+      patchById.set(id, { ...prev, status: 'CT' });
+    }
+  }
 }
 
 function rowAsCycle(row) {
@@ -138,15 +205,18 @@ export function harvestSyncPatchFromRecords(cycle, harvests) {
     current_fish = 0;
   } else if (totalActualYield > 0) {
     const rem = fishRemainingFromHarvests(cycle, harvests);
-    if (rem != null) current_fish = rem;
+    const cur = cycle.current_fish;
+    const curN = cur != null && !Number.isNaN(Number(cur)) ? Math.max(0, Number(cur)) : null;
+    // rem = total − phiếu; cur có thể đã trừ hao hụt nhật ký — lấy min để không ghi đè số đúng hơn
+    if (rem != null && curN != null) current_fish = Math.min(rem, curN);
+    else if (rem != null) current_fish = rem;
   }
 
-  let status = cycle.status || 'CT';
-  if (isFullyDone) {
-    status = 'CT';
-  } else if (totalActualYield > 0) {
-    status = 'CC';
-  }
+  const status = resolveCycleStatus(cycle, {
+    current_fish,
+    totalActualYield,
+    isFullyDone,
+  });
 
   const notes = cycle.notes;
   return {

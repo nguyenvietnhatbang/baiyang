@@ -1,7 +1,11 @@
 import {
+  cycleStockFishCount,
   harvestTicketMatchesFilterMonthYear,
   harvestTicketMatchesFilterYear,
   harvestTicketMonthYear,
+  stockMatchesFilterMonthYear,
+  stockMatchesFilterYear,
+  stockMonthIndexForReport,
 } from '@/lib/reportMonthHelpers';
 
 /** Mã đại lý / hệ thống thống nhất khi so khớp (02 = 2). */
@@ -51,6 +55,32 @@ export function sumActualKgByAgencyMonth(harvests, cycleRows, { yearFilter, mont
       byAgency.set(agency, Array.from({ length: 12 }, () => 0));
     }
     byAgency.get(agency)[ty.month] += Number(h.actual_yield) || 0;
+  }
+
+  return byAgency;
+}
+
+/**
+ * Cộng số cá thả (con) theo đại lý + tháng ngày thả (0–11).
+ * Mỗi chu kỳ chỉ cộng một lần theo total_fish.
+ */
+export function sumStockFishByAgencyMonth(cycleRows, { yearFilter, monthFilter = 'all' }) {
+  const byAgency = new Map();
+
+  for (const row of cycleRows || []) {
+    if (!stockMatchesFilterYear(row, yearFilter)) continue;
+    if (monthFilter !== 'all' && !stockMatchesFilterMonthYear(row, yearFilter, Number(monthFilter))) continue;
+    const mi = stockMonthIndexForReport(row);
+    if (mi == null) continue;
+    const fish = cycleStockFishCount(row);
+    if (fish <= 0) continue;
+
+    const agency = normalizeReportAgencyCode(row.agency_code);
+    if (!agency) continue;
+    if (!byAgency.has(agency)) {
+      byAgency.set(agency, Array.from({ length: 12 }, () => 0));
+    }
+    byAgency.get(agency)[mi] += fish;
   }
 
   return byAgency;

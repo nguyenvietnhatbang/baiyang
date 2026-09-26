@@ -9,7 +9,7 @@ import { Calculator, Save, AlertTriangle, RefreshCw, Lock, ClipboardCopy } from 
 import { addDays, format, parseISO } from 'date-fns';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
-import { appendManualCloseNote } from '@/lib/cycleHarvestCompletion';
+import { appendManualCloseNote, isCycleManuallyChotThu, resolveCycleStatus } from '@/lib/cycleHarvestCompletion';
 
 function calcInitialRegisterYield(totalFish, survivalRate, targetWeight) {
   if (!totalFish || !survivalRate || !targetWeight) return 0;
@@ -168,7 +168,11 @@ export default function PondPlanTab({
         stocking_batch_id: null,
         initial_plan_locked: false,
         ...(cycle.expected_yield == null || cycle.expected_yield === 0 ? { expected_yield: y } : {}),
-        status: curFish > 0 ? 'CC' : 'CT',
+        status: resolveCycleStatus(cycle, {
+          current_fish: curFish,
+          totalActualYield: Number(cycle.actual_yield) || 0,
+          isFullyDone: isCycleManuallyChotThu(cycle),
+        }),
       });
       onUpdate();
     } catch (e) {
@@ -198,11 +202,16 @@ export default function PondPlanTab({
         canEditPlan && nextCycleForm.enabled && nextStockDate && nextCycleForm.total_fish && isAdmin;
 
       if (!doNextCycle) {
+        const fishVal = adjustedForm.current_fish === '' ? null : nextCurrent;
         await base44.entities.PondCycle.update(cycle.id, {
-          current_fish: adjustedForm.current_fish === '' ? null : nextCurrent,
+          current_fish: fishVal,
           expected_yield: nextYield,
           expected_harvest_date: nextHarvest,
-          status: nextCurrent > 0 ? 'CC' : 'CT',
+          status: resolveCycleStatus(cycle, {
+            current_fish: fishVal ?? 0,
+            totalActualYield: Number(cycle.actual_yield) || 0,
+            isFullyDone: isCycleManuallyChotThu(cycle),
+          }),
         });
       } else {
         await base44.entities.PondCycle.update(cycle.id, {

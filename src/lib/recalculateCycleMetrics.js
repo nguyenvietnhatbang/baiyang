@@ -1,6 +1,6 @@
 import { base44 } from '@/api/base44Client';
 import { calculateCurrentYield } from '@/lib/calculateYield';
-import { harvestSyncPatchFromRecords } from '@/lib/cycleHarvestCompletion';
+import { enforceSingleCcPatches, harvestSyncPatchFromRecords } from '@/lib/cycleHarvestCompletion';
 
 const LIST_LIMIT = 8000;
 
@@ -12,9 +12,11 @@ export function metricsPatchFromLogs(cycle, logs, harvests) {
   const totalFeedUsed = logRows.reduce((sum, l) => sum + (Number(l.feed_amount) || 0), 0);
   const totalStockedFish = logRows.reduce((sum, l) => sum + (Number(l.stocked_fish) || 0), 0);
   const totalDeadFish = logRows.reduce((sum, l) => sum + (Number(l.dead_fish) || 0), 0);
+  const ticketFish = harvestRows.reduce((sum, h) => sum + (Number(h.fish_count_harvested) || 0), 0);
 
   const baselineFish = Number(cycle.total_fish ?? cycle.current_fish ?? 0) || 0;
-  const newCurrentFish = Math.max(0, baselineFish + totalStockedFish - totalDeadFish);
+  // Trừ cả cá đã thu trên phiếu — tránh nhảy current_fish / status khi đồng bộ phiếu thu
+  const newCurrentFish = Math.max(0, baselineFish + totalStockedFish - totalDeadFish - ticketFish);
 
   const expectedYield = calculateCurrentYield({
     ...cycle,
@@ -31,17 +33,25 @@ export function metricsPatchFromLogs(cycle, logs, harvests) {
   }
 
   const harvestPatch = harvestSyncPatchFromRecords(
-    { ...cycle, current_fish: newCurrentFish },
+    {
+      ...cycle,
+      current_fish: newCurrentFish,
+      stocked_fish_added: totalStockedFish,
+      total_feed_used: totalFeedUsed,
+    },
     harvestRows
   );
 
   return {
     total_feed_used: totalFeedUsed,
-    current_fish: harvestPatch.harvest_done ? 0 : newCurrentFish,
+    current_fish:
+      harvestPatch.current_fish != null && Number.isFinite(Number(harvestPatch.current_fish))
+        ? Number(harvestPatch.current_fish)
+        : newCurrentFish,
     expected_yield: expectedYield,
     actual_yield: harvestPatch.actual_yield,
     harvest_done: harvestPatch.harvest_done,
-    status: harvestPatch.harvest_done ? 'CT' : newCurrentFish > 0 ? 'CC' : 'CT',
+    status: harvestPatch.status,
     fcr: harvestPatch.fcr ?? fcr,
   };
 }
@@ -103,11 +113,17 @@ export async function recalculateAllCycleMetricsFromLogs() {
     harvestsByCycle.get(k).push(h);
   }
 
-  let updatedCount = 0;
+  const patchById = new Map();
   for (const cycle of cycles || []) {
     const cid = String(cycle.id);
-    const patch = metricsPatchFromLogs(cycle, logsByCycle.get(cid) || [], harvestsByCycle.get(cid) || []);
-    if (!cycleMetricsDiffer(cycle, patch)) continue;
+    patchById.set(cid, metricsPatchFromLogs(cycle, logsByCycle.get(cid) || [], harvestsByCycle.get(cid) || []));
+  }
+  enforceSingleCcPatches(cycles || [], patchById);
+
+  let updatedCount = 0;
+  for (const cycle of cycles || []) {
+    const patch = patchById.get(String(cycle.id));
+    if (!patch || !cycleMetricsDiffer(cycle, patch)) continue;
     await base44.entities.PondCycle.update(cycle.id, patch);
     updatedCount += 1;
   }

@@ -25,6 +25,7 @@ const CYCLE_FIELDS = [
   'withdrawal_end_date',
   'notes',
   'name',
+  'inspection_images',
 ];
 
 /**

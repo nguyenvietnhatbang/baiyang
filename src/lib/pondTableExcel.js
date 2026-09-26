@@ -131,3 +131,10 @@ export const REPORT_SUMMARY_MATRIX_EXPORT_COLUMNS = [
   { header: 'Kế hoạch (kg)', accessor: (r) => num(r.planned), width: 14 },
   { header: 'Thực hiện (kg)', accessor: (r) => num(r.actual), width: 14 },
 ];
+
+export const REPORT_STOCK_FISH_MATRIX_EXPORT_COLUMNS = [
+  { header: 'Mã hệ thống', key: 'sysCode', width: 12 },
+  { header: 'Hệ thống', key: 'agencyName', width: 18 },
+  { header: 'Tháng', key: 'month', width: 10 },
+  { header: 'Cá thả (con)', accessor: (r) => num(r.stockFish), width: 14 },
+];

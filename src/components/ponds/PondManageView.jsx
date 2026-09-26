@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Fish, ClipboardList, ShoppingCart, QrCode, Pencil, AlertTriangle, Plus, Trash2 } from 'lucide-react';
+import { Fish, ClipboardList, ShoppingCart, QrCode, Pencil, AlertTriangle, Plus, Trash2, FlaskConical } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import PondPlanTab from './PondPlanTab';
 import PondLogTab from './PondLogTab';
 import PondHarvestTab from './PondHarvestTab';
+import PondLabTestPanel from './PondLabTestPanel';
 import PondQRCode from './PondQRCode';
 import PondEditDialog from './PondEditDialog';
 import PondStatusBadge from './PondStatusBadge';
@@ -24,6 +25,7 @@ import { canUserEditDelete } from '@/lib/fieldAuthHelpers';
 import { base44 } from '@/api/base44Client';
 import { pickActiveCycle } from '@/lib/pondCycleHelpers';
 import { formatSupabaseError } from '@/lib/supabaseErrors';
+import { appendManualCloseNote, removeManualCloseNote } from '@/lib/cycleHarvestCompletion';
 import { plannedHarvestDateForDisplay } from '@/lib/planReportHelpers';
 import { calendarDaysUntilHarvest, isHarvestDateOnOrBeforeToday } from '@/lib/harvestAlerts';
 
@@ -111,7 +113,17 @@ export default function PondManageView({
     setStatusSaving(true);
     setCycleLoadErr('');
     try {
-      await base44.entities.PondCycle.update(selectedCycle.id, { status: next });
+      const patch = { status: next };
+      if (next === 'CT') {
+        // Giữ CT qua đồng bộ phiếu thu / recalculate
+        patch.notes = appendManualCloseNote(selectedCycle.notes);
+        patch.harvest_done = true;
+        patch.current_fish = 0;
+      } else if (next === 'CC') {
+        patch.notes = removeManualCloseNote(selectedCycle.notes);
+        patch.harvest_done = false;
+      }
+      await base44.entities.PondCycle.update(selectedCycle.id, patch);
       await handleLocalUpdate();
     } catch (e) {
       setCycleLoadErr(formatSupabaseError(e));
@@ -332,6 +344,10 @@ export default function PondManageView({
                 <ShoppingCart className="w-3.5 h-3.5" />
                 Thu hoạch
               </TabsTrigger>
+              <TabsTrigger value="lab" className="flex items-center gap-1.5 text-xs">
+                <FlaskConical className="w-3.5 h-3.5" />
+                Kiểm nghiệm
+              </TabsTrigger>
               <TabsTrigger value="qr" className="flex items-center gap-1.5 text-xs">
                 <QrCode className="w-3.5 h-3.5" />
                 Mã QR
@@ -377,6 +393,14 @@ export default function PondManageView({
               ) : (
                 <p className="text-sm text-muted-foreground">Chọn hoặc tạo chu kỳ để ghi thu hoạch.</p>
               )}
+            </TabsContent>
+            <TabsContent value="lab" className="p-4 sm:p-6 mt-0">
+              <PondLabTestPanel
+                pond={pond}
+                pondOptions={[pond, ...siblingPonds].filter(Boolean)}
+                selectedCycleId={selectedCycleId}
+                canEditDelete={canEditDelete}
+              />
             </TabsContent>
             <TabsContent value="qr" className="p-4 sm:p-6 mt-0 flex flex-col items-center">
               <p className="text-xs text-muted-foreground mb-6 text-center">

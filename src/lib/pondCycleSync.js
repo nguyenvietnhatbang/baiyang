@@ -1,5 +1,5 @@
 import { base44 } from '@/api/base44Client';
-import { harvestSyncPatchFromRecords } from '@/lib/cycleHarvestCompletion';
+import { enforceSingleCcPatches, harvestSyncPatchFromRecords } from '@/lib/cycleHarvestCompletion';
 
 const LIST_LIMIT = 8000;
 
@@ -8,6 +8,7 @@ const LIST_LIMIT = 8000;
  * - Tổng actual_yield, harvest_done, FCR (khi có thu), status CT khi đã có thu (và current_fish = 0).
  * - Giữ chốt thủ công: harvest_done + CT + không phiếu thu → không bỏ trạng thái đã thu khi đồng bộ.
  * - Gộp phiếu theo pond_cycle_id; phiếu không có chu kỳ nhưng có ao → chỉ gán khi ao có đúng 1 chu kỳ.
+ * - Mỗi ao chỉ giữ 1 chu kỳ CC (tránh trigger demote ↔ sync nhảy qua lại).
  */
 export async function syncPondCyclesWithHarvests() {
   const allCycles = await base44.entities.PondCycle.list('-updated_date', LIST_LIMIT);
@@ -40,11 +41,18 @@ export async function syncPondCyclesWithHarvests() {
     byCycleId.get(onlyId).push(h);
   }
 
+  const patchById = new Map();
+  for (const cycle of allCycles) {
+    const hs = byCycleId.get(String(cycle.id)) || [];
+    patchById.set(String(cycle.id), harvestSyncPatchFromRecords(cycle, hs));
+  }
+  enforceSingleCcPatches(allCycles, patchById);
+
   let updatedCount = 0;
 
   for (const cycle of allCycles) {
-    const hs = byCycleId.get(String(cycle.id)) || [];
-    const patch = harvestSyncPatchFromRecords(cycle, hs);
+    const patch = patchById.get(String(cycle.id));
+    if (!patch) continue;
 
     const yMatch = Math.abs(Number(cycle.actual_yield || 0) - patch.actual_yield) < 0.01;
     const dMatch = Boolean(cycle.harvest_done) === Boolean(patch.harvest_done);

@@ -16,7 +16,7 @@ import {
   originalHarvestMonthIndexForReport,
 } from '@/lib/reportMonthHelpers';
 import { parseHarvestDateInput } from '@/lib/harvestDateParse';
-import { normalizeReportAgencyCode, sumActualKgByAgencyMonth } from '@/lib/reportAgencyCode';
+import { normalizeReportAgencyCode, sumActualKgByAgencyMonth, sumStockFishByAgencyMonth } from '@/lib/reportAgencyCode';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => `T${i + 1}`);
 const MONTH_LABELS_LONG = Array.from({ length: 12 }, (_, i) => `Tháng ${i + 1}`);
@@ -768,6 +768,46 @@ function buildSummaryMatrix(
   styleBodyRow(balRow, { zebra: false });
   balRow.font = { bold: true };
   sheet.mergeCells(balRow.number, 1, balRow.number, 2);
+
+  sheet.addRow([]);
+  const stockTitleRow = sheet.addRow(['Cá thả theo tháng (con) — theo ngày thả']);
+  styleTitleRow(stockTitleRow, ncol);
+  sheet.mergeCells(stockTitleRow.number, 1, stockTitleRow.number, ncol);
+
+  const stockByAgency = sumStockFishByAgencyMonth(ponds, {
+    yearFilter: yearFilter || new Date().getFullYear(),
+    monthFilter: 'all',
+  });
+  const stockAgencyRows = (agencies || []).map((agency) => {
+    const agencyNorm = normalizeReportAgencyCode(agency);
+    const stockM = stockByAgency.get(agencyNorm) || Array.from({ length: 12 }, () => 0);
+    const totalStock = stockM.reduce((s, v) => s + v, 0);
+    const sysName = agencyNameByCode instanceof Map ? (agencyNameByCode.get(String(agency)) || agency) : agency;
+    return { agency, sysName, stockM, totalStock };
+  });
+  stockAgencyRows.forEach((r, idx) => {
+    const row = sheet.addRow([
+      systemCodeFromAgencyCode(r.agency),
+      r.sysName,
+      ...monthIdx.flatMap((i) => [(r.stockM[i] > 0 ? r.stockM[i] : null), null]),
+      r.totalStock > 0 ? r.totalStock : null,
+      null,
+    ]);
+    applyNumberFormats(row, numFmt);
+    styleBodyRow(row, { zebra: idx % 2 === 1 });
+  });
+  const grandStockM = monthIdx.map((i) => stockAgencyRows.reduce((s, r) => s + (r.stockM[i] || 0), 0));
+  const grandStock = grandStockM.reduce((s, v) => s + v, 0);
+  const stockTotalRow = sheet.addRow([
+    '',
+    'Tổng cá thả',
+    ...monthIdx.flatMap((i) => [(grandStockM[i] > 0 ? grandStockM[i] : null), null]),
+    grandStock > 0 ? grandStock : null,
+    null,
+  ]);
+  applyNumberFormats(stockTotalRow, numFmt);
+  styleBodyRow(stockTotalRow, { isTotal: true });
+  sheet.mergeCells(stockTotalRow.number, 1, stockTotalRow.number, 2);
 
   setColumnWidths(sheet, [12, 16, ...Array.from({ length: 12 }, () => [10, 10]).flat(), 10, 10]);
   finalizeSheetView(sheet, headerRowIndex);

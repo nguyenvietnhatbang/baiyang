@@ -8,7 +8,7 @@ import { formatSupabaseError } from '@/lib/supabaseErrors';
 import { useAuth } from '@/lib/AuthContext';
 import { isFieldRole, isPondInFieldUserScope, filterPondsForFieldUser } from '@/lib/fieldAuthHelpers';
 
-const VALID_TABS = new Set(['plan', 'log', 'harvest', 'qr']);
+const VALID_TABS = new Set(['plan', 'log', 'harvest', 'lab', 'qr']);
 
 function looksLikeUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(

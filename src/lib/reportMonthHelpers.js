@@ -86,6 +86,30 @@ export function stockMonthIndexForReport(cycle) {
   return my ? my.month : null;
 }
 
+/** Số cá thả ban đầu (con) — total_fish khi có giá trị hợp lệ. */
+export function cycleStockFishCount(cycle) {
+  const n = Number(cycle?.total_fish);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n;
+}
+
+export function stockMatchesFilterYear(cycle, yearFilter) {
+  const my = stockMonthYearForReport(cycle);
+  if (!my) return false;
+  const y = Number(yearFilter);
+  if (!Number.isFinite(y)) return true;
+  return my.year === y;
+}
+
+export function stockMatchesFilterMonthYear(cycle, yearFilter, monthIndex) {
+  const my = stockMonthYearForReport(cycle);
+  if (!my) return false;
+  const y = Number(yearFilter);
+  const mi = Number(monthIndex);
+  if (!Number.isFinite(y) || !Number.isFinite(mi)) return false;
+  return my.year === y && my.month === mi;
+}
+
 export function harvestMatchesFilterYear(cycle, yearFilter) {
   const my = harvestMonthYearForReport(cycle);
   if (!my) return false;

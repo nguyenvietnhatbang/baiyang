@@ -1,8 +1,8 @@
 import { Fragment, useMemo } from 'react';
 import { getFactoryPlanKgByMonth } from '@/lib/appSettingsHelpers';
-import { normalizeReportAgencyCode, sumActualKgByAgencyMonth } from '@/lib/reportAgencyCode';
+import { normalizeReportAgencyCode, sumActualKgByAgencyMonth, sumStockFishByAgencyMonth } from '@/lib/reportAgencyCode';
 import { ExportExcelButton } from '@/components/ui/ExportExcelButton';
-import { REPORT_SUMMARY_MATRIX_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
+import { REPORT_STOCK_FISH_MATRIX_EXPORT_COLUMNS, REPORT_SUMMARY_MATRIX_EXPORT_COLUMNS } from '@/lib/pondTableExcel';
 import {
   cycleHarvestPlanEligibleForMonthReport,
   harvestMatchesFilterMonthYear,
@@ -47,6 +47,11 @@ export default function ReportSummaryMatrix({
     [harvests, ponds, yearFilter, monthFilter]
   );
 
+  const stockFishByAgencyMonth = useMemo(
+    () => sumStockFishByAgencyMonth(ponds, { yearFilter, monthFilter }),
+    [ponds, yearFilter, monthFilter]
+  );
+
   const rows = useMemo(() => {
     return (agencies || []).map((agency) => {
       const agencyNorm = normalizeReportAgencyCode(agency);
@@ -76,6 +81,25 @@ export default function ReportSummaryMatrix({
       return { agency, agencyName, plannedMonth, actualMonth, totalPlan, totalAct };
     });
   }, [agencies, ponds, actualByAgencyMonth, agencyNameByCode, yearFilter, monthFilter]);
+
+  const stockFishRows = useMemo(() => {
+    return (agencies || []).map((agency) => {
+      const agencyNorm = normalizeReportAgencyCode(agency);
+      const stockMonth = stockFishByAgencyMonth.get(agencyNorm) || Array.from({ length: 12 }, () => 0);
+      const totalStock = stockMonth.reduce((s, v) => s + v, 0);
+      const agencyName =
+        agencyNameByCode instanceof Map
+          ? agencyNameByCode.get(String(agency)) || agencyNameByCode.get(agencyNorm) || agency
+          : agency;
+      return { agency, agencyName, stockMonth, totalStock };
+    });
+  }, [agencies, stockFishByAgencyMonth, agencyNameByCode]);
+
+  const grandStockMonth = useMemo(
+    () => Array.from({ length: 12 }, (_, i) => stockFishRows.reduce((s, r) => s + (r.stockMonth[i] || 0), 0)),
+    [stockFishRows]
+  );
+  const grandStockTotal = useMemo(() => stockFishRows.reduce((s, r) => s + (r.totalStock || 0), 0), [stockFishRows]);
 
   const grandPlanned = useMemo(() => rows.reduce((s, r) => s + (r.totalPlan || 0), 0), [rows]);
   const grandActual = useMemo(() => rows.reduce((s, r) => s + (r.totalAct || 0), 0), [rows]);
@@ -121,15 +145,36 @@ export default function ReportSummaryMatrix({
     [rows]
   );
 
+  const stockExportRows = useMemo(
+    () =>
+      stockFishRows.flatMap((r) =>
+        MONTHS.map((month, i) => ({
+          sysCode: systemCodeFromAgencyCode(r.agency),
+          agencyName: r.agencyName,
+          month,
+          stockFish: r.stockMonth[i] || 0,
+        }))
+      ),
+    [stockFishRows]
+  );
+
   return (
     <div className="space-y-2">
-      <div className="flex justify-end px-3 pt-2">
+      <div className="flex flex-wrap justify-end gap-2 px-3 pt-2">
         <ExportExcelButton
           fileName="bao-cao-tong-hop"
           sheetName="Tổng hợp"
           columns={REPORT_SUMMARY_MATRIX_EXPORT_COLUMNS}
           rows={exportRows}
           disabled={!exportRows.length}
+          className="gap-1.5 text-xs h-8 px-2"
+        />
+        <ExportExcelButton
+          fileName="ca-tha-theo-thang"
+          sheetName="Cá thả"
+          columns={REPORT_STOCK_FISH_MATRIX_EXPORT_COLUMNS}
+          rows={stockExportRows}
+          disabled={!stockExportRows.length}
           className="gap-1.5 text-xs h-8 px-2"
         />
       </div>
@@ -249,6 +294,60 @@ export default function ReportSummaryMatrix({
             >
               {balanceActTotal !== 0 ? Math.round(balanceActTotal).toLocaleString() : ''}
             </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div className="px-3 pt-4">
+      <h4 className="text-sm font-semibold text-foreground">Cá thả theo tháng (con)</h4>
+      <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+        Tổng số cá thả ban đầu theo <strong>ngày thả</strong> của từng chu kỳ — năm {yearFilter}
+        {monthFilter !== 'all' ? ` · Tháng ${Number(monthFilter) + 1}` : ''}.
+      </p>
+    </div>
+    <div className={reportTableScroll}>
+      <table className={reportTable}>
+        <thead>
+          <tr className="bg-muted/60 border-b border-border">
+            <th className={cn(reportTh, 'text-center border-r border-border')}>
+              Mã hệ thống
+            </th>
+            <th className={cn(reportTh, 'text-left border-r border-border')}>
+              Hệ thống
+            </th>
+            {MONTHS.map((m) => (
+              <th key={m} className={cn(reportTh, 'text-center border-r border-border')}>
+                {m}
+              </th>
+            ))}
+            <th className={cn(reportThLast, 'text-center')}>Tổng</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stockFishRows.map((r) => (
+            <tr key={`stock-${r.agency}`} className="hover:bg-muted/20">
+              <td className={cn(reportTdCenter, 'border-r border-border')}>
+                {systemCodeFromAgencyCode(r.agency)}
+              </td>
+              <td className={cn(reportTdLeft, 'border-r border-border')}>{r.agencyName}</td>
+              {MONTHS.map((m, i) => (
+                <td key={m} className={cn(reportTdRight, 'border-r border-border text-emerald-800')}>
+                  {renderNum(r.stockMonth[i])}
+                </td>
+              ))}
+              <td className={cn(reportTdBoldRight, 'text-emerald-800')}>{renderNum(r.totalStock)}</td>
+            </tr>
+          ))}
+
+          <tr className="bg-primary/5 border-t-2 border-primary/20">
+            <td className={cn(reportTd, 'report-table-total border-r border-border')} colSpan={2}>Tổng</td>
+            {MONTHS.map((m, i) => (
+              <td key={m} className={cn(reportTdBoldRight, 'border-r border-border text-emerald-800')}>
+                {renderNum(grandStockMonth[i])}
+              </td>
+            ))}
+            <td className={cn(reportTdBoldRight, 'text-emerald-800')}>{renderNum(grandStockTotal)}</td>
           </tr>
         </tbody>
       </table>
